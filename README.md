@@ -130,3 +130,13 @@ unimplemented, so the push and pull engines have been tested against a stub that
 returns whatever the test tells it to. That is a real limit: an engine can be
 correct against the contract's wording and still be wrong against the service
 that eventually implements it.
+
+An operation whose `dependsOn` names an operation that was never queued, or that
+names a cycle, stays pending forever and is never sent. Nothing detects this, so
+it appears in the ledger as an ordinary pending change with no explanation. This
+is not fixed because the obvious repair is worse than the fault: a dependency
+that has not been written *yet* is normal, since the drive a sighting belongs to
+may be started on another screen later, so anything that treats an absent
+dependency as an error will produce false alarms and hold valid work. Detecting
+this properly needs a distinction the queue does not currently record — whether
+the dependency is expected to arrive at all.

@@ -350,5 +350,41 @@ void main() {
       expect(row.count, 3);
       expect(row.notes, 'three on the track');
     });
+
+    test('but a field present and null does clear it', () async {
+      final db = memoryStore();
+      addTearDown(db.close);
+      final engine = PullEngine(db);
+
+      await engine.applyPage(
+        scope: 'kiswahili',
+        page: pageOf([changeOf(revision: 1)]),
+      );
+
+      // Absent means untouched; null means cleared. Collapsing the two would
+      // make a correction that withdraws a species indistinguishable from a
+      // feed that simply had nothing to say, and the retained original that
+      // rule 15 requires would never be created.
+      await engine.applyPage(
+        scope: 'kiswahili',
+        page: pageOf([
+          PullChange(
+            entity: EntityKind.sighting,
+            entityId: 'local-1',
+            revision: 2,
+            isTombstone: false,
+            state: {'species_code': null, 'count': null, 'revision': 2},
+          ),
+        ]),
+      );
+
+      final row = await (db.select(
+        db.sightings,
+      )..where((t) => t.localId.equals('local-1'))).getSingle();
+      expect(row.speciesCode, equals(null));
+      expect(row.count, equals(null));
+      // Untouched by the same entry.
+      expect(row.notes, 'three on the track');
+    });
   });
 }
