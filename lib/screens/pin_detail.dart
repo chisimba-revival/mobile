@@ -294,6 +294,7 @@ class _AddSheetState extends State<_AddSheet> {
           _Label(text: 'A note', colours: colours),
           const SizedBox(height: Insets.xs),
           TextField(
+            key: const Key('pin-detail-note-field'),
             controller: _note,
             maxLines: 3,
             minLines: 2,

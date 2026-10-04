@@ -9,6 +9,12 @@ import 'package:flutter_test/flutter_test.dart';
 /// one question. Most of them check what is on the screen *before* anybody taps
 /// anything, because a screen that shows everything at once on a phone held
 /// one-handed shows nothing in particular.
+/// The add sheet's note field, found by key rather than by type.
+///
+/// A type-only finder would match a second TextField the moment one was added
+/// to the sheet, and the test would then quietly assert against the wrong one.
+const _noteField = Key('pin-detail-note-field');
+
 void main() {
   final captured = DateTime.utc(2026, 10, 4, 6, 14);
   final recorded = DateTime.utc(2026, 10, 4, 18, 5);
@@ -165,10 +171,6 @@ void main() {
       expect(find.text('Panthera pardus'), findsNothing);
       expect(find.text('Behaviour'), findsNothing);
       expect(find.text('Age and sex'), findsNothing);
-      expect(
-        find.text('Age and sex'.replaceAll('Age and sex', 'Behaviour')),
-        findsNothing,
-      );
     });
 
     testWidgets('tapping the disclosure reveals them', (tester) async {
@@ -309,7 +311,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(
         // widgetWithText needs an exact match; the hint is longer than this.
-        find.byType(TextField),
+        find.byKey(_noteField),
         'Tracks over the same road, an hour later.',
       );
       await tester.pumpAndSettle();
@@ -327,7 +329,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(
         // widgetWithText needs an exact match; the hint is longer than this.
-        find.byType(TextField),
+        find.byKey(_noteField),
         'Same animal, moving east.',
       );
       await tester.pumpAndSettle();
@@ -390,7 +392,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.enterText(
           // widgetWithText needs an exact match; the hint is longer than this.
-          find.byType(TextField),
+          find.byKey(_noteField),
           note,
         );
         await tester.pumpAndSettle();
@@ -432,7 +434,7 @@ void main() {
       await tester.tap(find.text('Add to this record'));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.byType(TextField),
+        find.byKey(_noteField),
         'A note from the vehicle.',
       );
       await tester.pumpAndSettle();
