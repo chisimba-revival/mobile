@@ -55,17 +55,36 @@ class PinPainter extends CustomPainter {
       );
     }
 
-    final fill = _fillFor(visual.state, colours);
-    final stroke = _strokeFor(visual.state, colours);
-    final deleted = visual.state == PinState.deleted;
+    final appearance = _appearance();
+    final fill = appearance.fill;
+    final stroke = appearance.stroke;
+    final hollow = appearance.hollow;
+    final dashed = appearance.dashed;
 
-    canvas.drawPath(
-      tab,
-      Paint()
-        ..style = deleted ? PaintingStyle.stroke : PaintingStyle.fill
-        ..strokeWidth = 1
-        ..color = deleted ? stroke : fill,
-    );
+    if (dashed) {
+      // Flutter's Paint has no dash support, so the dashes have to be cut out
+      // of the path itself. A dashed edge is the only cue that distinguishes a
+      // change still on this phone from one the service has already refused,
+      // and hue cannot carry it: both are straw.
+      canvas.drawPath(
+        _dashed(tab, dash: 2, gap: 2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = stroke,
+      );
+    } else {
+      if (!hollow) {
+        canvas.drawPath(tab, Paint()..color = fill);
+      }
+      canvas.drawPath(
+        tab,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = stroke,
+      );
+    }
 
     // The glyph sits in the body of the tab, above the notch, so the notch
     // corner stays clear.
@@ -76,7 +95,7 @@ class PinPainter extends CustomPainter {
           fontFamily: Faces.book.first,
           fontSize: visual.glyph.length > 1 ? 11 : 14,
           height: 1,
-          color: _glyphColour(visual.state, colours, deleted),
+          color: _glyphColour(visual.state, colours),
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -90,22 +109,7 @@ class PinPainter extends CustomPainter {
     );
   }
 
-  Color _fillFor(PinState state, FieldColours c) => switch (state) {
-    PinState.unverified || PinState.needsReview => c.canopyRaised,
-    PinState.queued => c.canopyRaised,
-    PinState.verified => c.moss.withValues(alpha: 0.18),
-    PinState.corrected => c.dust.withValues(alpha: 0.18),
-    PinState.deleted => Colors.transparent,
-  };
-
-  Color _strokeFor(PinState state, FieldColours c) => switch (state) {
-    PinState.unverified => c.straw,
-    PinState.needsReview => c.straw,
-    PinState.queued => c.straw,
-    PinState.verified => c.moss,
-    PinState.corrected => c.dust,
-    PinState.deleted => c.ash3,
-  };
+  PinAppearance _appearance() => pinAppearanceFor(visual.state, colours);
 
   @override
   bool shouldRepaint(PinPainter old) =>
@@ -113,15 +117,116 @@ class PinPainter extends CustomPainter {
       old.colours != colours ||
       old.selected != selected;
 
-  Color _glyphColour(PinState state, FieldColours c, bool deleted) =>
-      switch (state) {
-        PinState.unverified => c.inkOn(c.straw),
-        PinState.needsReview => c.inkOn(c.straw),
-        PinState.queued => c.inkOn(c.straw),
-        PinState.verified => c.inkOn(c.moss),
-        PinState.corrected => c.inkOn(c.dust),
-        PinState.deleted => c.ash2,
-      };
+  Color _glyphColour(PinState state, FieldColours c) => switch (state) {
+    PinState.unverified => c.inkOn(c.straw),
+    PinState.needsReview => c.inkOn(c.straw),
+    PinState.queued => c.inkOn(c.straw),
+    PinState.verified => c.inkOn(c.moss),
+    PinState.corrected => c.inkOn(c.dust),
+    PinState.deleted => c.ash2,
+  };
+}
+
+/// How one state is drawn: which paint, and which shape cue carries the state
+/// when hue cannot.
+///
+/// This is a value rather than a switch buried in the painter so that it can be
+/// tested. The first version of this painter had [PinState.unverified],
+/// [PinState.needsReview] and [PinState.queued] sharing a fill and a stroke, so
+/// three of six states were drawn identically and nothing failed. Comparing
+/// colours alone would not catch that, because the colours were equal on
+/// purpose. What has to be checked is that no two states share a whole
+/// appearance.
+class PinAppearance {
+  const PinAppearance({
+    required this.fill,
+    required this.stroke,
+    required this.hollow,
+    required this.dashed,
+  });
+
+  final Color fill;
+  final Color stroke;
+
+  /// Drawn as an outline with no interior. Deleted has to be: the record is
+  /// gone and only where it was should remain. Needs review has to be for a
+  /// different reason. Nobody having looked is a filled tab; somebody competent
+  /// having looked and declined to decide is an open one. Contract rule 16 keeps
+  /// those apart and no hue can, because both are straw.
+  final bool hollow;
+
+  /// Drawn with a broken edge. Only for queued: a change still on this phone is
+  /// not yet a fact anywhere else, and the service may already have refused it.
+  final bool dashed;
+
+  /// The observable shape of this appearance, for comparing two states.
+  String get signature => 'hollow=$hollow dashed=$dashed stroke=$stroke';
+}
+
+PinAppearance pinAppearanceFor(
+  PinState state,
+  FieldColours c,
+) => switch (state) {
+  // Filled and solid: nobody has looked at this yet.
+  PinState.unverified => PinAppearance(
+    fill: c.canopyRaised,
+    stroke: c.straw,
+    hollow: false,
+    dashed: false,
+  ),
+  // Filled but broken-edged. Same colour as unverified deliberately: what
+  // differs is not the animal but whether the record has left the phone, and
+  // a dashed edge says that where a second hue could not.
+  PinState.queued => PinAppearance(
+    fill: c.canopyRaised,
+    stroke: c.straw,
+    hollow: false,
+    dashed: true,
+  ),
+  // Open and solid: looked at, undecided.
+  PinState.needsReview => PinAppearance(
+    fill: c.canopyRaised,
+    stroke: c.straw,
+    hollow: true,
+    dashed: false,
+  ),
+  PinState.verified => PinAppearance(
+    fill: c.moss.withValues(alpha: 0.18),
+    stroke: c.moss,
+    hollow: false,
+    dashed: false,
+  ),
+  PinState.corrected => PinAppearance(
+    fill: c.dust.withValues(alpha: 0.18),
+    stroke: c.dust,
+    hollow: false,
+    dashed: false,
+  ),
+  PinState.deleted => PinAppearance(
+    fill: Colors.transparent,
+    stroke: c.ash3,
+    hollow: true,
+    dashed: false,
+  ),
+};
+
+/// Cuts a path into dashes of [dash] followed by gaps of [gap].
+Path _dashed(Path source, {required double dash, required double gap}) {
+  final out = Path();
+  for (final metric in source.computeMetrics(forceClosed: true)) {
+    var distance = 0.0;
+    var draw = true;
+    while (distance < metric.length) {
+      final length = draw ? dash : gap;
+      final end = (distance + length).clamp(0.0, metric.length);
+      if (draw) {
+        out.addPath(metric.extractPath(distance, end), Offset.zero);
+      }
+      distance = end;
+      draw = !draw;
+    }
+  }
+  return out;
 }
 
 /// A pin that carries a count gets a small badge on its shoulder, because the
