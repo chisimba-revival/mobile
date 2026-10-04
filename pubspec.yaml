@@ -49,6 +49,18 @@ dependencies:
   # before the server has ever heard of it.
   uuid: ^4.6.0
 
+  # The basemap. The design prototype deliberately ships no basemap, on the
+  # grounds that offline is the point. A real map is more use to a trainee than
+  # contour bands alone, so tiles are layered over the vector work rather than
+  # replacing it: OSM raster tiles need no API key, no billing account, and no
+  # per-request dependency on anyone's servers. Tiles are cached to disk and
+  # anything not cached falls back to the vector layer, so the map is never
+  # blank in the field, which is the one situation the design cares most about.
+  flutter_map: ^8.3.2
+  # Reading and writing the tile cache directory as files, since a cached tile
+  # is bytes on disk rather than a row anywhere.
+  http: ^1.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
