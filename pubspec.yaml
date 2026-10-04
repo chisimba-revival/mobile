@@ -57,6 +57,10 @@ dependencies:
   # anything not cached falls back to the vector layer, so the map is never
   # blank in the field, which is the one situation the design cares most about.
   flutter_map: ^8.3.2
+  # Declared directly because MapScreen names LatLng. flutter_map's barrel
+  # does not re-export it even though its own source uses it, so importing
+  # it transitively would be relying on a package's private arrangement.
+  latlong2: ^0.9.1
   # Reading and writing the tile cache directory as files, since a cached tile
   # is bytes on disk rather than a row anywhere.
   http: ^1.2.2
