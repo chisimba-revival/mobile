@@ -530,7 +530,10 @@ void main() {
     // screen instead. Without isScrollControlled its lower half — the age and
     // sex chips and the Add button — is clipped away on a phone and the sheet
     // cannot be completed at all.
-    Future<void> openOnAPhone(WidgetTester tester, SightingSummary s) async {
+    Future<List<String>> openOnAPhone(
+      WidgetTester tester,
+      SightingSummary s,
+    ) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -546,12 +549,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      return added;
     }
 
     testWidgets('the Add button can actually be reached and pressed', (
       tester,
     ) async {
-      await openOnAPhone(tester, aRecord());
+      final recorded = await openOnAPhone(tester, aRecord());
 
       await tester.tap(find.text('Add to this record'));
       await tester.pumpAndSettle();
@@ -569,10 +573,18 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      final button = find.widgetWithText(FilledButton, 'Add');
+      await tester.ensureVisible(button);
+      await tester.pumpAndSettle();
+      await tester.tap(button, warnIfMissed: true);
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('A note from the vehicle.'), findsWidgets);
+      // This must assert a RECORDED addition. The first version asserted the
+      // text was visible, which it always is: it is still sitting in the field.
+      // So the test passed while the tap silently missed and nothing was
+      // recorded at all. warnIfMissed is what finally said so.
+      expect(recorded, ['A note from the vehicle.']);
+      expect(find.text('Added on this phone'), findsOneWidget);
     });
 
     testWidgets('the age and sex chips are reachable by scrolling', (

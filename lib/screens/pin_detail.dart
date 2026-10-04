@@ -208,11 +208,6 @@ class _PinDetailScreenState extends State<PinDetailScreen> {
     // record somebody is already reading, not a change of place.
     final choice = await showModalBottomSheet<_AddChoice>(
       context: context,
-      // Without this the sheet is capped to a fraction of the screen and its
-      // lower half — the age and sex chips, and the Add button itself — is
-      // clipped away on a normal phone. A sheet whose button you cannot reach
-      // is not a sheet.
-      isScrollControlled: true,
       backgroundColor: colours.canopyRaised,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
@@ -298,6 +293,16 @@ class _AddSheetState extends State<_AddSheet> {
   Widget build(BuildContext context) {
     final colours = widget.colours;
 
+    // The scroll view is what makes the sheet usable, not isScrollControlled.
+    // A sheet is capped to a fraction of the screen, and without a scroll view
+    // inside it the age and sex chips and the Add button are clipped away on a
+    // normal phone — a sheet whose button you cannot reach is not a sheet.
+    //
+    // This was measured rather than assumed. Removing isScrollControlled from
+    // this sheet changes nothing: the two phone-sized tests pass either way.
+    // Removing this scroll view fails two of them. An earlier version of this
+    // comment credited isScrollControlled with the job, which was a plausible
+    // story about a change that was doing nothing.
     return SingleChildScrollView(
       // The keyboard covers the chips otherwise, and the button with them.
       padding: EdgeInsets.only(
