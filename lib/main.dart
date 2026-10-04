@@ -1,16 +1,26 @@
+import 'dart:io';
+
 import 'package:field_log/data/database.dart';
 import 'package:field_log/data/mappers.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/net/chisimba_api.dart';
+import 'package:field_log/net/connectivity_watcher.dart';
+import 'package:field_log/net/session_store.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/screens/map_screen.dart';
+import 'package:field_log/screens/sign_in_screen.dart';
 import 'package:field_log/screens/pin_detail.dart';
 import 'package:field_log/screens/sync_ledger.dart';
 import 'package:field_log/screens/tally_screen.dart';
 import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/field/card_state.dart';
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +30,29 @@ Future<void> main() async {
   // way to tell those apart.
   final database = FieldLogDatabase.open();
   final tileCache = await TileCache.forDevice();
-  runApp(FieldLogApp(database: database, tileCache: tileCache));
+  // Where the reserve office is. This is a build-time value in a real
+  // deployment rather than a constant in the source, and it is the one thing
+  // that will differ between a device in the reserve and a device in a
+  // developer's hands.
+  const serviceUrl = String.fromEnvironment(
+    'CHISIMBA_API',
+    defaultValue: 'http://10.0.2.2:8080/api/v1',
+  );
+  runApp(
+    FieldLogApp(
+      database: database,
+      tileCache: tileCache,
+      api: ChisimbaApi(baseUrl: serviceUrl),
+      sessions: SessionStore(
+        // Outside the database on purpose: that file is the logbook, and it is
+        // synced and exportable. A credential belongs in neither.
+        file: File(
+          '${(await getApplicationSupportDirectory()).path}/session.json',
+        ),
+      ),
+      connectivity: ConnectivityWatcher(),
+    ),
+  );
 }
 
 /// The application root.
@@ -28,9 +60,19 @@ Future<void> main() async {
 /// Dark first, and this is a field decision: the work happens at first light
 /// and a white screen at 05:40 blinds.
 class FieldLogApp extends StatelessWidget {
-  const FieldLogApp({super.key, required this.database, this.tileCache});
+  const FieldLogApp({
+    super.key,
+    required this.database,
+    required this.api,
+    required this.sessions,
+    required this.connectivity,
+    this.tileCache,
+  });
 
   final FieldLogDatabase database;
+  final ChisimbaApi api;
+  final SessionStore sessions;
+  final ConnectivityWatcher connectivity;
 
   /// Absent when the cache could not be opened. The map then runs on the vector
   /// layer alone, which is a map without a basemap rather than a broken one.
@@ -43,7 +85,13 @@ class FieldLogApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: fieldTheme(FieldColours.dark),
       darkTheme: fieldTheme(FieldColours.dark),
-      home: FieldLogHome(database: database, tileCache: tileCache),
+      home: FieldLogHome(
+        database: database,
+        tileCache: tileCache,
+        api: api,
+        sessions: sessions,
+        connectivity: connectivity,
+      ),
     );
   }
 }
@@ -55,9 +103,19 @@ class FieldLogApp extends StatelessWidget {
 /// now would add a lifecycle to reason about before there is anything shared
 /// to justify it.
 class FieldLogHome extends StatefulWidget {
-  const FieldLogHome({super.key, required this.database, this.tileCache});
+  const FieldLogHome({
+    super.key,
+    required this.database,
+    required this.api,
+    required this.sessions,
+    required this.connectivity,
+    this.tileCache,
+  });
 
   final FieldLogDatabase database;
+  final ChisimbaApi api;
+  final SessionStore sessions;
+  final ConnectivityWatcher connectivity;
   final TileCache? tileCache;
 
   @override
@@ -68,10 +126,105 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   List<MapPin> _pins = const [];
   final int _queued = 0;
 
+  FieldUser? _user;
+  ConnectivityStatus _status = const ConnectivityStatus(
+    hasTransport: false,
+    transports: [],
+  );
+  StreamSubscription<ConnectivityStatus>? _transport;
+  bool _restoring = true;
+  bool _offerDismissed = false;
+
   @override
   void initState() {
     super.initState();
     _read();
+    _restore();
+    _watchTransport();
+  }
+
+  @override
+  void dispose() {
+    _transport?.cancel();
+    widget.connectivity.dispose();
+    super.dispose();
+  }
+
+  /// Read whatever token is on the phone and ask the service who it belongs to.
+  ///
+  /// A stored token proves nothing on its own: it may have expired, been
+  /// revoked, or belong to an account that has since been disabled. So it is
+  /// checked rather than trusted, and a failure here means "not signed in"
+  /// rather than an error worth interrupting anybody for. The trainee can still
+  /// record everything either way.
+  Future<void> _restore() async {
+    final stored = await widget.sessions.read();
+    if (stored == null || !stored.isUsable || !mounted) {
+      if (mounted) {
+        setState(() => _restoring = false);
+      }
+      return;
+    }
+    try {
+      final user = await widget.api.whoAmI(stored.accessToken);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _user = user;
+        _restoring = false;
+      });
+    } on Object {
+      // The token did not work. Clearing it stops the next launch trying it
+      // again, and puts the trainee in front of the sign-in form rather than
+      // silently signed in as nobody.
+      await widget.sessions.clear();
+      if (mounted) {
+        setState(() => _restoring = false);
+      }
+    }
+  }
+
+  void _watchTransport() {
+    _transport = widget.connectivity.watch().listen((status) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _status = status);
+    });
+  }
+
+  Future<void> _signIn(String username, String password) async {
+    final evidence = await widget.api.fetchLoginEvidence();
+    final session = await widget.api.signIn(
+      username: username,
+      password: password,
+      evidence: evidence,
+    );
+    await widget.sessions.write(
+      StoredTokens(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        expiresInSeconds: session.expiresInSeconds,
+      ),
+    );
+    if (mounted) {
+      setState(() => _user = session.user);
+    }
+  }
+
+  Future<void> _signOut() async {
+    final stored = await widget.sessions.read();
+    await widget.sessions.clear();
+    // Best effort. A sign-out that could not reach the service has still
+    // removed the credential from this phone, which is the half that matters
+    // when somebody has lost the device.
+    if (stored != null && _status.hasTransport) {
+      await widget.api.signOut(stored.refreshToken);
+    }
+    if (mounted) {
+      setState(() => _user = null);
+    }
   }
 
   Future<void> _read() async {
@@ -184,11 +337,13 @@ class _FieldLogHomeState extends State<FieldLogHome> {
 
   @override
   Widget build(BuildContext context) {
-    return MapScreen(
+    final map = MapScreen(
       pins: _pins,
       queuedCount: _queued,
       colours: FieldColours.dark,
-      online: false,
+      online: _status.hasTransport,
+      signedInAs: _user?.shortName,
+      onTapSignedInAs: _user == null ? _openSignIn : _signOut,
       tileCache: widget.tileCache,
       // Placeholder until a positioning source is wired. Reporting a fix that
       // has not happened would put a time in the record that never occurred, so
@@ -203,6 +358,97 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       onOpenTally: _openTally,
       onOpenSighting: _openSighting,
       onRecordSighting: _recordSighting,
+    );
+
+    // Signing in is an invitation, not a gate. The contract's rule 19 is that
+    // readiness never blocks submission, and the design's own line is "you can
+    // record without signing in", so an unsigned-in device gets the map with a
+    // quiet offer rather than a form it cannot get past.
+    if (_user != null || _offerDismissed) {
+      return map;
+    }
+    return Stack(
+      children: [
+        map,
+        if (!_restoring)
+          Positioned(
+            left: Insets.lg,
+            right: Insets.lg,
+            bottom: 160,
+            child: _SignInOffer(
+              onSignIn: _openSignIn,
+              onDismiss: () => setState(() => _offerDismissed = true),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openSignIn() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SignInScreen(onSignIn: _signIn),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+}
+
+/// A quiet offer to sign in, sitting above the map's own dock.
+///
+/// Dismissable, and dismissal is remembered for the session. A device that has
+/// chosen to work offline should not be asked again on every rebuild.
+class _SignInOffer extends StatelessWidget {
+  const _SignInOffer({required this.onSignIn, required this.onDismiss});
+
+  final VoidCallback onSignIn;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = context.reserve;
+    return Container(
+      padding: const EdgeInsets.all(Insets.md),
+      decoration: BoxDecoration(
+        color: colours.canopyRaised,
+        borderRadius: BorderRadius.circular(Corners.sheet),
+        border: Border.all(color: colours.rule),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Not sending yet',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.label,
+                    color: colours.bone,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Records are safe on this phone.',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.stamp,
+                    color: colours.ash2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(onPressed: onSignIn, child: const Text('Sign in')),
+          IconButton(
+            onPressed: onDismiss,
+            icon: Icon(Icons.close, size: 18, color: colours.ash3),
+            tooltip: 'Dismiss',
+          ),
+        ],
+      ),
     );
   }
 }

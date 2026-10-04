@@ -70,6 +70,8 @@ class MapScreen extends StatelessWidget {
     this.onOpenSighting,
     this.onOpenTally,
     this.selectedLocalId,
+    this.signedInAs,
+    this.onTapSignedInAs,
   });
 
   final List<MapPin> pins;
@@ -90,6 +92,19 @@ class MapScreen extends StatelessWidget {
 
   final VoidCallback? onOpenTally;
   final String? selectedLocalId;
+
+  /// Who is holding the phone. Null when nobody is signed in, which is the
+  /// ordinary state on a device that has never connected.
+  ///
+  /// This screen does not know what a user is. It is handed the shortest name
+  /// that identifies the person and draws it, so the map can be built and
+  /// tested with no account and no network.
+  final String? signedInAs;
+
+  /// Opens the account. The chip is the only control on the map that belongs to
+  /// the person rather than to the ground, so tapping it should do the one
+  /// thing a person would expect: show them their account.
+  final VoidCallback? onTapSignedInAs;
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +154,13 @@ class MapScreen extends StatelessWidget {
           ),
 
           // Static chrome.
-          _AppBar(colours: colours, text: text, online: online),
+          _AppBar(
+            colours: colours,
+            text: text,
+            online: online,
+            signedInAs: signedInAs,
+            onTapSignedInAs: onTapSignedInAs,
+          ),
           _GpsBar(gps: gps, colours: colours, online: online),
           _Dock(
             colours: colours,
@@ -251,7 +272,12 @@ class _AppBar extends StatelessWidget {
     required this.colours,
     required this.text,
     required this.online,
+    required this.signedInAs,
+    required this.onTapSignedInAs,
   });
+
+  final String? signedInAs;
+  final VoidCallback? onTapSignedInAs;
 
   final FieldColours colours;
   final TextTheme text;
@@ -290,10 +316,71 @@ class _AppBar extends StatelessWidget {
                 ],
               ),
             ),
+            if (signedInAs != null)
+              _WhoChip(
+                name: signedInAs!,
+                colours: colours,
+                onTap: onTapSignedInAs,
+              ),
             _NetworkChip(online: online, colours: colours),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Who is holding the phone.
+///
+/// A name in the corner rather than an avatar: the device is shared between
+/// trainees, and knowing whose notes these are is the first question asked
+/// when a walk ends.
+class _WhoChip extends StatelessWidget {
+  const _WhoChip({required this.name, required this.colours, this.onTap});
+
+  final String name;
+  final FieldColours colours;
+
+  /// Null renders a chip rather than a control, so a map built for a test or a
+  /// device with no account carries no button that does nothing.
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final chip = Semantics(
+      label: 'Signed in as $name',
+      excludeSemantics: true,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 140),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Insets.sm,
+          vertical: Insets.xs,
+        ),
+        decoration: BoxDecoration(
+          color: colours.canopyRaised,
+          borderRadius: BorderRadius.circular(Corners.chip),
+          border: Border.all(color: colours.rule),
+        ),
+        child: Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: Faces.ui.first,
+            fontSize: Faces.stamp,
+            color: colours.ash1,
+          ),
+        ),
+      ),
+    );
+
+    if (onTap == null) {
+      return chip;
+    }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Corners.chip),
+      child: chip,
     );
   }
 }

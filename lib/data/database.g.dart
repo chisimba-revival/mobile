@@ -3008,6 +3008,499 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
   }
 }
 
+class $TrailWaypointsTable extends TrailWaypoints
+    with TableInfo<$TrailWaypointsTable, TrailWaypoint> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TrailWaypointsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _trailLogIdMeta = const VerificationMeta(
+    'trailLogId',
+  );
+  @override
+  late final GeneratedColumn<String> trailLogId = GeneratedColumn<String>(
+    'trail_log_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES trail_logs (local_id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _ordinalMeta = const VerificationMeta(
+    'ordinal',
+  );
+  @override
+  late final GeneratedColumn<int> ordinal = GeneratedColumn<int>(
+    'ordinal',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accuracyMetresMeta = const VerificationMeta(
+    'accuracyMetres',
+  );
+  @override
+  late final GeneratedColumn<double> accuracyMetres = GeneratedColumn<double>(
+    'accuracy_metres',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    trailLogId,
+    ordinal,
+    latitude,
+    longitude,
+    accuracyMetres,
+    recordedAt,
+    note,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'trail_waypoints';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TrailWaypoint> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('trail_log_id')) {
+      context.handle(
+        _trailLogIdMeta,
+        trailLogId.isAcceptableOrUnknown(
+          data['trail_log_id']!,
+          _trailLogIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_trailLogIdMeta);
+    }
+    if (data.containsKey('ordinal')) {
+      context.handle(
+        _ordinalMeta,
+        ordinal.isAcceptableOrUnknown(data['ordinal']!, _ordinalMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ordinalMeta);
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('accuracy_metres')) {
+      context.handle(
+        _accuracyMetresMeta,
+        accuracyMetres.isAcceptableOrUnknown(
+          data['accuracy_metres']!,
+          _accuracyMetresMeta,
+        ),
+      );
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {trailLogId, ordinal};
+  @override
+  TrailWaypoint map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TrailWaypoint(
+      trailLogId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trail_log_id'],
+      )!,
+      ordinal: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ordinal'],
+      )!,
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      accuracyMetres: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}accuracy_metres'],
+      ),
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+    );
+  }
+
+  @override
+  $TrailWaypointsTable createAlias(String alias) {
+    return $TrailWaypointsTable(attachedDatabase, alias);
+  }
+}
+
+class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
+  final String trailLogId;
+
+  /// Position in the sequence, from zero. Assigned once, at append time, and
+  /// never changed.
+  final int ordinal;
+  final double latitude;
+  final double longitude;
+
+  /// Measured accuracy at the time. Part of the record, so it is never smoothed
+  /// into a tidier number after the fact.
+  final double? accuracyMetres;
+  final DateTime recordedAt;
+
+  /// What the trainee noted here. Free text, because it may be a track, a call,
+  /// a plant, a water sign, or something they could not name at all.
+  final String? note;
+  const TrailWaypoint({
+    required this.trailLogId,
+    required this.ordinal,
+    required this.latitude,
+    required this.longitude,
+    this.accuracyMetres,
+    required this.recordedAt,
+    this.note,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['trail_log_id'] = Variable<String>(trailLogId);
+    map['ordinal'] = Variable<int>(ordinal);
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    if (!nullToAbsent || accuracyMetres != null) {
+      map['accuracy_metres'] = Variable<double>(accuracyMetres);
+    }
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    return map;
+  }
+
+  TrailWaypointsCompanion toCompanion(bool nullToAbsent) {
+    return TrailWaypointsCompanion(
+      trailLogId: Value(trailLogId),
+      ordinal: Value(ordinal),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      accuracyMetres: accuracyMetres == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accuracyMetres),
+      recordedAt: Value(recordedAt),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+    );
+  }
+
+  factory TrailWaypoint.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TrailWaypoint(
+      trailLogId: serializer.fromJson<String>(json['trailLogId']),
+      ordinal: serializer.fromJson<int>(json['ordinal']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      accuracyMetres: serializer.fromJson<double?>(json['accuracyMetres']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+      note: serializer.fromJson<String?>(json['note']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'trailLogId': serializer.toJson<String>(trailLogId),
+      'ordinal': serializer.toJson<int>(ordinal),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'accuracyMetres': serializer.toJson<double?>(accuracyMetres),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+      'note': serializer.toJson<String?>(note),
+    };
+  }
+
+  TrailWaypoint copyWith({
+    String? trailLogId,
+    int? ordinal,
+    double? latitude,
+    double? longitude,
+    Value<double?> accuracyMetres = const Value.absent(),
+    DateTime? recordedAt,
+    Value<String?> note = const Value.absent(),
+  }) => TrailWaypoint(
+    trailLogId: trailLogId ?? this.trailLogId,
+    ordinal: ordinal ?? this.ordinal,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    accuracyMetres: accuracyMetres.present
+        ? accuracyMetres.value
+        : this.accuracyMetres,
+    recordedAt: recordedAt ?? this.recordedAt,
+    note: note.present ? note.value : this.note,
+  );
+  TrailWaypoint copyWithCompanion(TrailWaypointsCompanion data) {
+    return TrailWaypoint(
+      trailLogId: data.trailLogId.present
+          ? data.trailLogId.value
+          : this.trailLogId,
+      ordinal: data.ordinal.present ? data.ordinal.value : this.ordinal,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      accuracyMetres: data.accuracyMetres.present
+          ? data.accuracyMetres.value
+          : this.accuracyMetres,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+      note: data.note.present ? data.note.value : this.note,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TrailWaypoint(')
+          ..write('trailLogId: $trailLogId, ')
+          ..write('ordinal: $ordinal, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('accuracyMetres: $accuracyMetres, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    trailLogId,
+    ordinal,
+    latitude,
+    longitude,
+    accuracyMetres,
+    recordedAt,
+    note,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TrailWaypoint &&
+          other.trailLogId == this.trailLogId &&
+          other.ordinal == this.ordinal &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.accuracyMetres == this.accuracyMetres &&
+          other.recordedAt == this.recordedAt &&
+          other.note == this.note);
+}
+
+class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
+  final Value<String> trailLogId;
+  final Value<int> ordinal;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<double?> accuracyMetres;
+  final Value<DateTime> recordedAt;
+  final Value<String?> note;
+  final Value<int> rowid;
+  const TrailWaypointsCompanion({
+    this.trailLogId = const Value.absent(),
+    this.ordinal = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.accuracyMetres = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TrailWaypointsCompanion.insert({
+    required String trailLogId,
+    required int ordinal,
+    required double latitude,
+    required double longitude,
+    this.accuracyMetres = const Value.absent(),
+    required DateTime recordedAt,
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : trailLogId = Value(trailLogId),
+       ordinal = Value(ordinal),
+       latitude = Value(latitude),
+       longitude = Value(longitude),
+       recordedAt = Value(recordedAt);
+  static Insertable<TrailWaypoint> custom({
+    Expression<String>? trailLogId,
+    Expression<int>? ordinal,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<double>? accuracyMetres,
+    Expression<DateTime>? recordedAt,
+    Expression<String>? note,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (trailLogId != null) 'trail_log_id': trailLogId,
+      if (ordinal != null) 'ordinal': ordinal,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (accuracyMetres != null) 'accuracy_metres': accuracyMetres,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (note != null) 'note': note,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TrailWaypointsCompanion copyWith({
+    Value<String>? trailLogId,
+    Value<int>? ordinal,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<double?>? accuracyMetres,
+    Value<DateTime>? recordedAt,
+    Value<String?>? note,
+    Value<int>? rowid,
+  }) {
+    return TrailWaypointsCompanion(
+      trailLogId: trailLogId ?? this.trailLogId,
+      ordinal: ordinal ?? this.ordinal,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      accuracyMetres: accuracyMetres ?? this.accuracyMetres,
+      recordedAt: recordedAt ?? this.recordedAt,
+      note: note ?? this.note,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (trailLogId.present) {
+      map['trail_log_id'] = Variable<String>(trailLogId.value);
+    }
+    if (ordinal.present) {
+      map['ordinal'] = Variable<int>(ordinal.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (accuracyMetres.present) {
+      map['accuracy_metres'] = Variable<double>(accuracyMetres.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TrailWaypointsCompanion(')
+          ..write('trailLogId: $trailLogId, ')
+          ..write('ordinal: $ordinal, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('accuracyMetres: $accuracyMetres, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('note: $note, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $QueuedOperationsTable extends QueuedOperations
     with TableInfo<$QueuedOperationsTable, QueuedOperationRow> {
   @override
@@ -5433,6 +5926,7 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
   late final $SightingsTable sightings = $SightingsTable(this);
   late final $DrivesTable drives = $DrivesTable(this);
   late final $TrailLogsTable trailLogs = $TrailLogsTable(this);
+  late final $TrailWaypointsTable trailWaypoints = $TrailWaypointsTable(this);
   late final $QueuedOperationsTable queuedOperations = $QueuedOperationsTable(
     this,
   );
@@ -5447,11 +5941,22 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
     sightings,
     drives,
     trailLogs,
+    trailWaypoints,
     queuedOperations,
     conflicts,
     syncCursors,
     referenceData,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'trail_logs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('trail_waypoints', kind: UpdateKind.delete)],
+    ),
+  ]);
 }
 
 typedef $$SightingsTableCreateCompanionBuilder = SightingsCompanion Function({
@@ -6488,6 +6993,31 @@ typedef $$TrailLogsTableUpdateCompanionBuilder = TrailLogsCompanion Function({
   Value<int> rowid,
 });
 
+final class $$TrailLogsTableReferences
+    extends BaseReferences<_$FieldLogDatabase, $TrailLogsTable, TrailLogRow> {
+  $$TrailLogsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$TrailWaypointsTable, List<TrailWaypoint>>
+  _trailWaypointsRefsTable(_$FieldLogDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.trailWaypoints,
+        aliasName: 'trail_logs__local_id__trail_waypoints__trail_log_id',
+      );
+
+  $$TrailWaypointsTableProcessedTableManager get trailWaypointsRefs {
+    final manager = $$TrailWaypointsTableTableManager($_db, $_db.trailWaypoints)
+        .filter(
+          (f) =>
+              f.trailLogId.localId.sqlEquals($_itemColumn<String>('local_id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(_trailWaypointsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
 class $$TrailLogsTableFilterComposer
     extends Composer<_$FieldLogDatabase, $TrailLogsTable> {
   $$TrailLogsTableFilterComposer({
@@ -6551,6 +7081,31 @@ class $$TrailLogsTableFilterComposer
     column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> trailWaypointsRefs(
+    Expression<bool> Function($$TrailWaypointsTableFilterComposer f) f,
+  ) {
+    final $$TrailWaypointsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.localId,
+      referencedTable: $db.trailWaypoints,
+      getReferencedColumn: (t) => t.trailLogId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TrailWaypointsTableFilterComposer(
+            $db: $db,
+            $table: $db.trailWaypoints,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TrailLogsTableOrderingComposer
@@ -6663,6 +7218,31 @@ class $$TrailLogsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  Expression<T> trailWaypointsRefs<T extends Object>(
+    Expression<T> Function($$TrailWaypointsTableAnnotationComposer a) f,
+  ) {
+    final $$TrailWaypointsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.localId,
+      referencedTable: $db.trailWaypoints,
+      getReferencedColumn: (t) => t.trailLogId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TrailWaypointsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.trailWaypoints,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TrailLogsTableTableManager
@@ -6676,12 +7256,9 @@ class $$TrailLogsTableTableManager
           $$TrailLogsTableAnnotationComposer,
           $$TrailLogsTableCreateCompanionBuilder,
           $$TrailLogsTableUpdateCompanionBuilder,
-          (
-            TrailLogRow,
-            BaseReferences<_$FieldLogDatabase, $TrailLogsTable, TrailLogRow>,
-          ),
+          (TrailLogRow, $$TrailLogsTableReferences),
           TrailLogRow,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool trailWaypointsRefs})
         > {
   $$TrailLogsTableTableManager(_$FieldLogDatabase db, $TrailLogsTable table)
     : super(
@@ -6754,15 +7331,44 @@ class $$TrailLogsTableTableManager
               .map(
                 (e) => (
                   e.readTable<$TrailLogsTable, TrailLogRow>(table),
-                  BaseReferences<
-                    _$FieldLogDatabase,
-                    $TrailLogsTable,
-                    TrailLogRow
-                  >(db, table, e),
+                  $$TrailLogsTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({trailWaypointsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (trailWaypointsRefs) db.trailWaypoints,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (trailWaypointsRefs)
+                    await $_getPrefetchedData<
+                      TrailLogRow,
+                      $TrailLogsTable,
+                      TrailWaypoint
+                    >(
+                      currentTable: table,
+                      referencedTable: $$TrailLogsTableReferences
+                          ._trailWaypointsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$TrailLogsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).trailWaypointsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.trailLogId == item.localId,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -6777,12 +7383,377 @@ typedef $$TrailLogsTableProcessedTableManager =
       $$TrailLogsTableAnnotationComposer,
       $$TrailLogsTableCreateCompanionBuilder,
       $$TrailLogsTableUpdateCompanionBuilder,
-      (
-        TrailLogRow,
-        BaseReferences<_$FieldLogDatabase, $TrailLogsTable, TrailLogRow>,
-      ),
+      (TrailLogRow, $$TrailLogsTableReferences),
       TrailLogRow,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool trailWaypointsRefs})
+    >;
+typedef $$TrailWaypointsTableCreateCompanionBuilder =
+    TrailWaypointsCompanion Function({
+      required String trailLogId,
+      required int ordinal,
+      required double latitude,
+      required double longitude,
+      Value<double?> accuracyMetres,
+      required DateTime recordedAt,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+typedef $$TrailWaypointsTableUpdateCompanionBuilder =
+    TrailWaypointsCompanion Function({
+      Value<String> trailLogId,
+      Value<int> ordinal,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<double?> accuracyMetres,
+      Value<DateTime> recordedAt,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+
+final class $$TrailWaypointsTableReferences
+    extends
+        BaseReferences<
+          _$FieldLogDatabase,
+          $TrailWaypointsTable,
+          TrailWaypoint
+        > {
+  $$TrailWaypointsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $TrailLogsTable _trailLogIdTable(_$FieldLogDatabase db) => db.trailLogs
+      .createAlias('trail_waypoints__trail_log_id__trail_logs__local_id');
+
+  $$TrailLogsTableProcessedTableManager get trailLogId {
+    final $_column = $_itemColumn<String>('trail_log_id')!;
+
+    final manager = $$TrailLogsTableTableManager(
+      $_db,
+      $_db.trailLogs,
+    ).filter((f) => f.localId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_trailLogIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TrailWaypointsTableFilterComposer
+    extends Composer<_$FieldLogDatabase, $TrailWaypointsTable> {
+  $$TrailWaypointsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get ordinal => $composableBuilder(
+    column: $table.ordinal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get accuracyMetres => $composableBuilder(
+    column: $table.accuracyMetres,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$TrailLogsTableFilterComposer get trailLogId {
+    final $$TrailLogsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.trailLogId,
+      referencedTable: $db.trailLogs,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TrailLogsTableFilterComposer(
+            $db: $db,
+            $table: $db.trailLogs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TrailWaypointsTableOrderingComposer
+    extends Composer<_$FieldLogDatabase, $TrailWaypointsTable> {
+  $$TrailWaypointsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get ordinal => $composableBuilder(
+    column: $table.ordinal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get accuracyMetres => $composableBuilder(
+    column: $table.accuracyMetres,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$TrailLogsTableOrderingComposer get trailLogId {
+    final $$TrailLogsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.trailLogId,
+      referencedTable: $db.trailLogs,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TrailLogsTableOrderingComposer(
+            $db: $db,
+            $table: $db.trailLogs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TrailWaypointsTableAnnotationComposer
+    extends Composer<_$FieldLogDatabase, $TrailWaypointsTable> {
+  $$TrailWaypointsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get ordinal =>
+      $composableBuilder(column: $table.ordinal, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<double> get accuracyMetres => $composableBuilder(
+    column: $table.accuracyMetres,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  $$TrailLogsTableAnnotationComposer get trailLogId {
+    final $$TrailLogsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.trailLogId,
+      referencedTable: $db.trailLogs,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TrailLogsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.trailLogs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TrailWaypointsTableTableManager
+    extends
+        RootTableManager<
+          _$FieldLogDatabase,
+          $TrailWaypointsTable,
+          TrailWaypoint,
+          $$TrailWaypointsTableFilterComposer,
+          $$TrailWaypointsTableOrderingComposer,
+          $$TrailWaypointsTableAnnotationComposer,
+          $$TrailWaypointsTableCreateCompanionBuilder,
+          $$TrailWaypointsTableUpdateCompanionBuilder,
+          (TrailWaypoint, $$TrailWaypointsTableReferences),
+          TrailWaypoint,
+          PrefetchHooks Function({bool trailLogId})
+        > {
+  $$TrailWaypointsTableTableManager(
+    _$FieldLogDatabase db,
+    $TrailWaypointsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TrailWaypointsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TrailWaypointsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TrailWaypointsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> trailLogId = const Value.absent(),
+                Value<int> ordinal = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<double?> accuracyMetres = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TrailWaypointsCompanion(
+                trailLogId: trailLogId,
+                ordinal: ordinal,
+                latitude: latitude,
+                longitude: longitude,
+                accuracyMetres: accuracyMetres,
+                recordedAt: recordedAt,
+                note: note,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String trailLogId,
+                required int ordinal,
+                required double latitude,
+                required double longitude,
+                Value<double?> accuracyMetres = const Value.absent(),
+                required DateTime recordedAt,
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TrailWaypointsCompanion.insert(
+                trailLogId: trailLogId,
+                ordinal: ordinal,
+                latitude: latitude,
+                longitude: longitude,
+                accuracyMetres: accuracyMetres,
+                recordedAt: recordedAt,
+                note: note,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TrailWaypointsTable, TrailWaypoint>(table),
+                  $$TrailWaypointsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({trailLogId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (trailLogId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.trailLogId,
+                        referencedTable: $$TrailWaypointsTableReferences
+                            ._trailLogIdTable(db),
+                        referencedColumn: $$TrailWaypointsTableReferences
+                            ._trailLogIdTable(db)
+                            .localId,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TrailWaypointsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$FieldLogDatabase,
+      $TrailWaypointsTable,
+      TrailWaypoint,
+      $$TrailWaypointsTableFilterComposer,
+      $$TrailWaypointsTableOrderingComposer,
+      $$TrailWaypointsTableAnnotationComposer,
+      $$TrailWaypointsTableCreateCompanionBuilder,
+      $$TrailWaypointsTableUpdateCompanionBuilder,
+      (TrailWaypoint, $$TrailWaypointsTableReferences),
+      TrailWaypoint,
+      PrefetchHooks Function({bool trailLogId})
     >;
 typedef $$QueuedOperationsTableCreateCompanionBuilder =
     QueuedOperationsCompanion Function({
@@ -8008,6 +8979,8 @@ class $FieldLogDatabaseManager {
       $$DrivesTableTableManager(_db, _db.drives);
   $$TrailLogsTableTableManager get trailLogs =>
       $$TrailLogsTableTableManager(_db, _db.trailLogs);
+  $$TrailWaypointsTableTableManager get trailWaypoints =>
+      $$TrailWaypointsTableTableManager(_db, _db.trailWaypoints);
   $$QueuedOperationsTableTableManager get queuedOperations =>
       $$QueuedOperationsTableTableManager(_db, _db.queuedOperations);
   $$ConflictsTableTableManager get conflicts =>

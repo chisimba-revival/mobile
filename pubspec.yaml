@@ -64,6 +64,7 @@ dependencies:
   # Reading and writing the tile cache directory as files, since a cached tile
   # is bytes on disk rather than a row anywhere.
   http: ^1.2.2
+  connectivity_plus: ^7.3.2
 
 dev_dependencies:
   flutter_test:

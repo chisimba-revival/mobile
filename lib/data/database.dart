@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/sighting.dart';
 import '../models/sync_operation.dart';
 import 'tables.dart';
+import 'trail_log_tables.dart';
 
 part 'database.g.dart';
 
@@ -29,6 +30,7 @@ part 'database.g.dart';
     Sightings,
     Drives,
     TrailLogs,
+    TrailWaypoints,
     QueuedOperations,
     Conflicts,
     SyncCursors,
@@ -48,12 +50,21 @@ class FieldLogDatabase extends _$FieldLogDatabase {
   }
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+    },
+    onUpgrade: (m, from, to) async {
+      // Schema 2 added trail_waypoints. Every earlier table is unchanged, and
+      // the upgrade is additive on purpose: a trail log's waypoints are
+      // append-only, so there is no existing waypoint data that a rewrite
+      // would have to carry across.
+      if (from < 2) {
+        await m.createTable(trailWaypoints);
+      }
     },
     beforeOpen: (details) async {
       // A client that has been offline long enough to receive a resync-required
