@@ -86,10 +86,14 @@ class PinDetailScreen extends StatefulWidget {
 
   final SightingSummary sighting;
 
-  /// Called when the reader adds something. The screen shows it immediately and
-  /// records it locally; sending it is somebody else's problem, and pretending
-  /// otherwise would be a lie on a screen that looks like a record.
-  final void Function(String kind, String value)? onAddDetail;
+  /// Records the addition. Awaited, so the screen shows it only once it has
+  /// actually been recorded.
+  ///
+  /// This is a Future on purpose. A screen that displayed an addition before
+  /// the write was attempted would show a trainee a note they had not saved,
+  /// and there is no honest way to un-show it after they have read it and
+  /// closed the app. Nothing is added to the list until this completes.
+  final Future<void> Function(String kind, String value)? onAddDetail;
 
   @override
   State<PinDetailScreen> createState() => _PinDetailScreenState();
@@ -100,10 +104,41 @@ class _PinDetailScreenState extends State<PinDetailScreen> {
   /// screen never has to own a database.
   final List<_Added> _added = [];
   bool _showAll = false;
+  bool _adding = false;
+  bool _addFailed = false;
 
-  void _add(String kind, String value) {
-    setState(() => _added.add(_Added(kind, value)));
-    widget.onAddDetail?.call(kind, value);
+  Future<void> _add(String kind, String value) async {
+    final record = widget.onAddDetail;
+    if (record == null) {
+      return;
+    }
+    setState(() => _adding = true);
+    try {
+      await record(kind, value);
+      if (!mounted) {
+        return;
+      }
+      // The failure flag is cleared here as well. Leaving it set would hide
+      // the added list for good after a single failure, so a later successful
+      // addition would still be met with the banner saying the last one did
+      // not stick.
+      setState(() {
+        _addFailed = false;
+        _added.add(_Added(kind, value));
+      });
+    } catch (_) {
+      // The addition is not shown, because it was not recorded. Saying so
+      // matters more than looking decisive: a trainee who is told nothing will
+      // believe they wrote it down.
+      if (!mounted) {
+        return;
+      }
+      setState(() => _addFailed = true);
+    } finally {
+      if (mounted) {
+        setState(() => _adding = false);
+      }
+    }
   }
 
   @override
@@ -145,7 +180,11 @@ class _PinDetailScreenState extends State<PinDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: Insets.lg),
-                  _AddedList(added: _added, colours: colours, text: text),
+                  if (_adding) _Saving(colours: colours),
+                  if (_addFailed)
+                    _AddFailed(colours: colours)
+                  else
+                    _AddedList(added: _added, colours: colours, text: text),
                 ],
               ),
             ),
@@ -814,6 +853,83 @@ class _Disclosure extends StatelessWidget {
 
 /// What has been added here and not yet sent.
 ///
+/// An addition in flight.
+///
+/// Said out loud rather than shown as a spinner over a button, because the
+/// sheet has already closed and silence here would read as a lost note.
+class _Saving extends StatelessWidget {
+  const _Saving({required this.colours});
+
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Insets.md),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: colours.ash2,
+            ),
+          ),
+          const SizedBox(width: Insets.sm),
+          Text(
+            'Saving to this phone',
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.stamp,
+              color: colours.ash3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// An addition that did not stick.
+///
+/// The one thing this screen must not do is show a note that was not recorded.
+class _AddFailed extends StatelessWidget {
+  const _AddFailed({required this.colours});
+
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(Insets.md),
+      decoration: BoxDecoration(
+        border: Border.all(color: colours.blood),
+        borderRadius: BorderRadius.circular(Corners.control),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, size: 18, color: colours.blood),
+          const SizedBox(width: Insets.sm),
+          Expanded(
+            child: Text(
+              'That was not saved. Nothing has been added to this record, and '
+              'your words are still in the box. Try again.',
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.supporting,
+                height: 1.4,
+                color: colours.bone,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Shown as a list with its own heading rather than folded into the record,
 /// because something added and something recorded are different facts and the
 /// difference matters while the first is still on the phone.

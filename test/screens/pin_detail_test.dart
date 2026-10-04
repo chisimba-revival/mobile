@@ -89,8 +89,12 @@ void main() {
   Future<void> open(
     WidgetTester tester,
     SightingSummary sighting, {
-    void Function(String kind, String value)? onAddDetail,
+    Future<void> Function(String kind, String value)? onAddDetail,
   }) async {
+    // Defaults to recording successfully. A test that says nothing about the
+    // write should not fail because nothing recorded it — and a test that does
+    // care passes its own.
+    onAddDetail ??= (kind, value) async {};
     // A tall surface, because a ListView builds lazily and a test that asserts
     // content is absent when it is merely below the fold passes for the wrong
     // reason until the day it passes for the right one.
@@ -304,7 +308,7 @@ void main() {
       await open(
         tester,
         aRecord(),
-        onAddDetail: (kind, value) => added[kind] = value,
+        onAddDetail: (kind, value) async => added[kind] = value,
       );
 
       await tester.tap(find.text('Add to this record'));
@@ -358,7 +362,7 @@ void main() {
       await open(
         tester,
         aRecord(),
-        onAddDetail: (kind, value) => added[kind] = value,
+        onAddDetail: (kind, value) async => added[kind] = value,
       );
 
       await tester.tap(find.text('Add to this record'));
@@ -385,7 +389,12 @@ void main() {
     testWidgets('adding twice adds twice rather than replacing', (
       tester,
     ) async {
-      await open(tester, aRecord());
+      final added = <String>[];
+      await open(
+        tester,
+        aRecord(),
+        onAddDetail: (kind, value) async => added.add(value),
+      );
 
       for (final note in ['First note.', 'Second note.']) {
         await tester.tap(find.text('Add to this record'));
@@ -405,6 +414,115 @@ void main() {
     });
   });
 
+  group('an addition is shown only once it is recorded', () {
+    // These three exist because the callback used to be a plain void and the
+    // screen added to its list before anybody had written anything. A record
+    // screen that shows a note which was never saved is worse than one that
+    // shows nothing, because the trainee walks away believing they wrote it
+    // down.
+
+    testWidgets('with nobody recording it, nothing is shown', (tester) async {
+      tester.view.physicalSize = const Size(900, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: fieldTheme(FieldColours.dark),
+          home: PinDetailScreen(sighting: aRecord()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Add to this record'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(_noteField),
+        'A note nobody is recording.',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('A note nobody is recording.'), findsNothing);
+      expect(find.text('Added on this phone'), findsNothing);
+    });
+
+    testWidgets('a write that fails shows nothing and says why', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: fieldTheme(FieldColours.dark),
+          home: PinDetailScreen(
+            sighting: aRecord(),
+            onAddDetail: (kind, value) async =>
+                throw StateError('the disk is full'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Add to this record'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(_noteField),
+        'A note that could not be written.',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      // Nothing is claimed as added...
+      expect(find.text('Added on this phone'), findsNothing);
+      // ...and the raw error is not shown to a person holding a phone.
+      expect(find.textContaining('StateError'), findsNothing);
+      expect(find.textContaining('the disk is full'), findsNothing);
+      expect(find.textContaining('That was not saved'), findsOneWidget);
+    });
+
+    testWidgets('a later success clears an earlier failure', (tester) async {
+      // Without this the added list stays hidden for good after one failure,
+      // so a successful addition is met with the banner about a different one.
+      var shouldFail = true;
+      tester.view.physicalSize = const Size(900, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: fieldTheme(FieldColours.dark),
+          home: PinDetailScreen(
+            sighting: aRecord(),
+            onAddDetail: (kind, value) async {
+              if (shouldFail) throw StateError('no');
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final note in ['The one that failed.', 'The one that worked.']) {
+        await tester.tap(find.text('Add to this record'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byKey(_noteField), note);
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+        await tester.pumpAndSettle();
+        shouldFail = false;
+      }
+
+      expect(find.textContaining('That was not saved'), findsNothing);
+      expect(find.text('Added on this phone'), findsOneWidget);
+      // The failed addition is not listed alongside the one that worked.
+      expect(find.textContaining('The one that worked.'), findsOneWidget);
+    });
+  });
+
   group('the add sheet on a real phone', () {
     // Every other test here uses a deliberately tall surface so a lazy ListView
     // has built everything. This one deliberately does not, because the sheet is
@@ -417,10 +535,14 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      final added = <String>[];
       await tester.pumpWidget(
         MaterialApp(
           theme: fieldTheme(FieldColours.dark),
-          home: PinDetailScreen(sighting: s),
+          home: PinDetailScreen(
+            sighting: s,
+            onAddDetail: (kind, value) async => added.add(value),
+          ),
         ),
       );
       await tester.pumpAndSettle();

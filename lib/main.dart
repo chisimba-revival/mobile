@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:field_log/data/database.dart';
 import 'package:field_log/data/mappers.dart';
+import 'package:field_log/data/operation_queue.dart';
+import 'package:field_log/data/sighting_amendments.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/pin_visual.dart';
@@ -281,7 +283,10 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PinDetailScreen(sighting: _summaryOf(row)),
+        builder: (_) => PinDetailScreen(
+          sighting: _summaryOf(row),
+          onAddDetail: (kind, value) => _amend(row.localId, kind, value),
+        ),
       ),
     );
   }
@@ -291,6 +296,32 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   /// Deliberately mechanical. The screen asks for plain values so it can be
   /// built without a database, and the translation belongs in one place here
   /// rather than spread across whichever screen happens to read the row.
+  /// Record an addition and queue it to go up.
+  ///
+  /// An unknown kind is refused rather than guessed. Writing an amendment to a
+  /// record that nobody asked for is worse than writing none, because the
+  /// record would then say something the reader did not say.
+  Future<void> _amend(String localId, String kind, String value) async {
+    final parsed = AmendmentKind.fromWire(kind);
+    if (parsed == null) {
+      return;
+    }
+    final amender = SightingAmender(
+      widget.database,
+      OperationQueue(widget.database),
+    );
+    final operationId = await amender.amend(
+      localId,
+      SightingAmendment(parsed, value),
+    );
+    if (operationId == null) {
+      // The record went away between the reader opening it and the reader
+      // writing on it. Nothing was changed, so nothing is claimed.
+      return;
+    }
+    await _read();
+  }
+
   SightingSummary _summaryOf(SightingRow row) {
     return SightingSummary(
       localId: row.localId,
