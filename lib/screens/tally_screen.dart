@@ -358,6 +358,11 @@ class Requirement {
 class TrailProgress {
   const TrailProgress({required this.hours, required this.requirements});
 
+  /// Nothing walked and nothing outstanding. What a device that has no
+  /// sign-off requirements fetched yet should show, rather than inventing a
+  /// total of zero hours against requirements it was never told about.
+  static const empty = TrailProgress(hours: [], requirements: []);
+
   final List<HoursCount> hours;
   final List<Requirement> requirements;
 }

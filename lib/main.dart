@@ -1,9 +1,15 @@
 import 'package:field_log/data/database.dart';
+import 'package:field_log/data/mappers.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
-import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/screens/map_screen.dart';
+import 'package:field_log/screens/pin_detail.dart';
+import 'package:field_log/screens/sync_ledger.dart';
+import 'package:field_log/screens/tally_screen.dart';
+import 'package:field_log/field/field_card_screen.dart';
+import 'package:field_log/field/card_state.dart';
 import 'package:flutter/material.dart';
 
 Future<void> main() async {
@@ -93,6 +99,89 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   /// does the map can say what was recorded but not what it was called.
   static String _nameOf(String code) => code;
 
+  Future<void> _openLedger() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SyncLedgerScreen(entries: [], online: false),
+      ),
+    );
+  }
+
+  Future<void> _openTally() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const TallyScreen(progress: TrailProgress.empty),
+      ),
+    );
+  }
+
+  Future<void> _openSighting(String localId) async {
+    // The row is fetched here rather than handed to the screen as an id, so the
+    // screen never has to own a database and can be built and tested without
+    // one. A pin that has no row cannot be opened, which is the honest outcome:
+    // the map only draws pins for rows it has read.
+    final row = await (widget.database.select(
+      widget.database.sightings,
+    )..where((t) => t.localId.equals(localId))).getSingleOrNull();
+    if (row == null || !mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PinDetailScreen(sighting: _summaryOf(row)),
+      ),
+    );
+  }
+
+  /// Builds what the detail screen shows from a stored row.
+  ///
+  /// Deliberately mechanical. The screen asks for plain values so it can be
+  /// built without a database, and the translation belongs in one place here
+  /// rather than spread across whichever screen happens to read the row.
+  SightingSummary _summaryOf(SightingRow row) {
+    return SightingSummary(
+      localId: row.localId,
+      visual: pinVisualFor(row, commonNameFor: _nameOf),
+      commonName: _nameOf(row.speciesCode ?? ''),
+      scientificName: '',
+      // The screen shows the status as the contract's word for it, so the
+      // enum is converted rather than stringified: the wire names are the
+      // service's, and toString on an enum would give the Dart identifier.
+      status: statusWireName(row.status),
+      capturedAt: row.capturedAt,
+      recordedAt: row.recordedAt,
+      // An absent accuracy is not zero metres. Zero would say the position is
+      // exact, which is the opposite of what an unrecorded reading means.
+      accuracyMetres: row.locationAccuracyM ?? double.infinity,
+      distanceMetres: row.distanceM,
+      bearingDegrees: row.bearingDeg,
+      notes: row.notes ?? '',
+      count: row.count,
+      speciesCode: row.speciesCode,
+      behaviour: row.behaviour,
+      ageSexClass: row.ageSexClass,
+      recordedSpeciesCode: row.recordedSpeciesCode,
+      recordedCount: row.recordedCount,
+      correctionReason: row.correctionReason,
+      lateArrival: row.lateArrival,
+    );
+  }
+
+  Future<void> _recordSighting() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FieldCardScreen(
+          initial: const FieldDraft(mode: CaptureMode.identified),
+          species: const [],
+          reference: const ReferenceValues(behaviours: [], ageSexClasses: []),
+          onSave: (draft) async {},
+          onCancel: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
+    await _read();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MapScreen(
@@ -110,7 +199,10 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         satellites: 0,
         fixedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       ),
-      onOpenLedger: () {},
+      onOpenLedger: _openLedger,
+      onOpenTally: _openTally,
+      onOpenSighting: _openSighting,
+      onRecordSighting: _recordSighting,
     );
   }
 }

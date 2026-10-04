@@ -3,7 +3,6 @@ import 'package:field_log/map/osm_tiles.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/pin_visual.dart';
-import 'package:field_log/screens/pin_detail.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 // flutter_map's barrel does not re-export this, though its own source uses it.
@@ -68,6 +67,8 @@ class MapScreen extends StatelessWidget {
     this.tileCache,
     this.onRecordSighting,
     this.onOpenLedger,
+    this.onOpenSighting,
+    this.onOpenTally,
     this.selectedLocalId,
   });
 
@@ -79,6 +80,15 @@ class MapScreen extends StatelessWidget {
   final TileCache? tileCache;
   final VoidCallback? onRecordSighting;
   final VoidCallback? onOpenLedger;
+
+  /// Called with a sighting's local id when its pin is tapped.
+  ///
+  /// A callback rather than a route pushed from here, because this screen does
+  /// not know what a pin can become. Keeping the decision at the top means the
+  /// map can be built and tested without a navigator at all.
+  final void Function(String localId)? onOpenSighting;
+
+  final VoidCallback? onOpenTally;
   final String? selectedLocalId;
 
   @override
@@ -115,7 +125,13 @@ class MapScreen extends StatelessWidget {
                       width: 46,
                       height: 46,
                       alignment: Alignment.bottomCenter,
-                      child: _Pin(pin: pin, colours: colours),
+                      child: _Pin(
+                        pin: pin,
+                        colours: colours,
+                        onTap: onOpenSighting == null
+                            ? null
+                            : () => onOpenSighting!(pin.localId),
+                      ),
                     ),
                 ],
               ),
@@ -131,6 +147,7 @@ class MapScreen extends StatelessWidget {
             queuedCount: queuedCount,
             onRecordSighting: onRecordSighting,
             onOpenLedger: onOpenLedger,
+            onOpenTally: onOpenTally,
           ),
         ],
       ),
@@ -185,15 +202,16 @@ class _TileLayer extends StatelessWidget {
 }
 
 class _Pin extends StatelessWidget {
-  const _Pin({required this.pin, required this.colours});
+  const _Pin({required this.pin, required this.colours, this.onTap});
 
   final MapPin pin;
   final FieldColours colours;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => PinDetailScreen.open(context, pin.localId),
+      onTap: onTap,
       // The tab is a shape, not an icon, so it carries its own label for a
       // screen reader rather than relying on the glyph.
       child: Semantics(
@@ -378,6 +396,7 @@ class _Dock extends StatelessWidget {
     required this.queuedCount,
     required this.onRecordSighting,
     required this.onOpenLedger,
+    required this.onOpenTally,
   });
 
   final FieldColours colours;
@@ -385,6 +404,7 @@ class _Dock extends StatelessWidget {
   final int queuedCount;
   final VoidCallback? onRecordSighting;
   final VoidCallback? onOpenLedger;
+  final VoidCallback? onOpenTally;
 
   @override
   Widget build(BuildContext context) {
@@ -423,6 +443,14 @@ class _Dock extends StatelessWidget {
                 const SizedBox(width: Insets.sm),
                 Expanded(
                   flex: 2,
+                  child: _GhostButton(
+                    label: 'Progress',
+                    colours: colours,
+                    onPressed: onOpenTally,
+                  ),
+                ),
+                const SizedBox(width: Insets.sm),
+                Expanded(
                   child: _GhostButton(
                     label: 'End walk',
                     colours: colours,
