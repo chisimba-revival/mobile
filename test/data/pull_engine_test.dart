@@ -77,12 +77,17 @@ Map<String, dynamic> wireStateOf(WildlifeSighting sighting) {
   };
 }
 
-PullPage pageOf(List<PullChange> changes, {String? next = 'cursor-2'}) {
+PullPage pageOf(
+  List<PullChange> changes, {
+  String? next = 'cursor-2',
+  String status = PullStatus.ok,
+}) {
   return PullPage(
     changes: changes,
     nextCursor: next,
     hasMore: next != null,
     serverTime: DateTime.utc(2026, 10, 4, 19),
+    status: status,
   );
 }
 
@@ -102,6 +107,123 @@ PullChange changeOf({
 }
 
 void main() {
+  group('when the service asks for a resync', () {
+    test('a resync-required response applies nothing and moves no cursor', () async {
+      final db = memoryStore();
+      addTearDown(db.close);
+      final subject = PullEngine(db);
+      await subject.applyPage(
+        scope: 'ctx-1',
+        page: pageOf([changeOf(id: 'seen-1')]),
+      );
+
+      final outcome = await subject.applyPage(
+        scope: 'ctx-1',
+        page: pageOf(const [], next: null, status: PullStatus.resyncRequired),
+      );
+
+      expect(outcome.resyncRequired, isTrue);
+      expect(outcome.applied, 0);
+      expect(outcome.cursorAdvanced, isFalse);
+      // The cursor must survive untouched. A cursor written against a page
+      // that was never applied is how a client stops seeing changes for data it
+      // has never seen, with nothing to report.
+      expect(await subject.cursorFor('ctx-1'), 'cursor-2');
+    });
+
+    test('an empty page is not a resync', () async {
+      // This is the ambiguity the status field exists to remove. Both carry no
+      // changes and no cursor; treating them alike is the failure itself.
+      final db = memoryStore();
+      addTearDown(db.close);
+      final subject = PullEngine(db);
+
+      final outcome = await subject.applyPage(
+        scope: 'ctx-1',
+        page: pageOf(const [], next: null),
+      );
+
+      expect(outcome.resyncRequired, isFalse);
+      expect(outcome.cursorAdvanced, isTrue);
+    });
+
+    test('forgetting the cursors makes the next pull start again', () async {
+      final db = memoryStore();
+      addTearDown(db.close);
+      final subject = PullEngine(db);
+      await subject.applyPage(
+        scope: 'ctx-1',
+        page: pageOf([changeOf(id: 'a')]),
+      );
+      expect(await subject.hasPulled('ctx-1'), isTrue);
+
+      final dropped = await subject.forgetCursors();
+
+      expect(dropped, 1);
+      expect(await subject.hasPulled('ctx-1'), isFalse);
+      expect(await subject.cursorFor('ctx-1'), equals(null));
+    });
+
+    test(
+      'a full re-pull is harmless because changes apply by revision',
+      () async {
+        // The whole safety argument for a resync. Re-delivering everything the
+        // client already holds must be a no-op rather than a second copy.
+        final db = memoryStore();
+        addTearDown(db.close);
+        final subject = PullEngine(db);
+        // changeOf's default state carries everything a new row needs.
+        // Supplying a partial one would be held as a conflict rather than
+        // applied, and the test would measure the hold rather than the re-pull.
+        final page = pageOf([changeOf(id: 'dup', revision: 3)]);
+
+        await subject.applyPage(scope: 'ctx-1', page: page);
+        await subject.forgetCursors();
+        final second = await subject.applyPage(scope: 'ctx-1', page: page);
+
+        expect(
+          second.applied,
+          1,
+          reason: 're-delivery counts as applied: nothing was lost',
+        );
+        final rows = await db.select(db.sightings).get();
+        expect(
+          rows,
+          hasLength(1),
+          reason: 're-applying a page must not duplicate it',
+        );
+        expect(rows.single.revision, 3);
+      },
+    );
+
+    test('a resync does not empty the device', () async {
+      final db = memoryStore();
+      addTearDown(db.close);
+      final subject = PullEngine(db);
+      await subject.applyPage(
+        scope: 'ctx-1',
+        page: pageOf([changeOf(id: 'kept')]),
+      );
+
+      await subject.applyPage(
+        scope: 'ctx-1',
+        page: pageOf(const [], next: null, status: PullStatus.resyncRequired),
+      );
+      await subject.forgetCursors();
+      await subject.applyPage(
+        scope: 'ctx-1',
+        page: pageOf(const [], next: null),
+      );
+
+      // An empty full pull must not empty the device. What is on it is either
+      // its own unsent work or already-applied server state, and neither is the
+      // service's to remove without a tombstone.
+      final rows = await db.select(db.sightings).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.localId, 'kept');
+    });
+  });
+
   group('a page and its cursor are one unit of work', () {
     test('a crash before the cursor is written loses the page too', () async {
       final db = memoryStore();

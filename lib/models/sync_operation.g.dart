@@ -82,6 +82,7 @@ _PullPage _$PullPageFromJson(Map<String, dynamic> json) => _PullPage(
   nextCursor: json['next_cursor'] as String?,
   hasMore: json['has_more'] as bool,
   serverTime: DateTime.parse(json['server_time'] as String),
+  status: json['status'] as String? ?? 'ok',
 );
 
 Map<String, dynamic> _$PullPageToJson(_PullPage instance) => <String, dynamic>{
@@ -89,6 +90,7 @@ Map<String, dynamic> _$PullPageToJson(_PullPage instance) => <String, dynamic>{
   'next_cursor': instance.nextCursor,
   'has_more': instance.hasMore,
   'server_time': instance.serverTime.toIso8601String(),
+  'status': instance.status,
 };
 
 _PullChange _$PullChangeFromJson(Map<String, dynamic> json) => _PullChange(

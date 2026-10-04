@@ -615,7 +615,7 @@ as int?,
 /// @nodoc
 mixin _$PullPage {
 
- List<PullChange> get changes; String? get nextCursor; bool get hasMore; DateTime get serverTime;
+ List<PullChange> get changes; String? get nextCursor; bool get hasMore; DateTime get serverTime; String get status;
 /// Create a copy of PullPage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -629,20 +629,20 @@ $PullPageCopyWith<PullPage> get copyWith => _$PullPageCopyWithImpl<PullPage>(thi
 @override
 bool operator ==(Object other) {
   final _this = this as PullPage;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PullPage&&const DeepCollectionEquality().equals(other.changes, _this.changes)&&(identical(other.nextCursor, _this.nextCursor) || other.nextCursor == _this.nextCursor)&&(identical(other.hasMore, _this.hasMore) || other.hasMore == _this.hasMore)&&(identical(other.serverTime, _this.serverTime) || other.serverTime == _this.serverTime));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PullPage&&const DeepCollectionEquality().equals(other.changes, _this.changes)&&(identical(other.nextCursor, _this.nextCursor) || other.nextCursor == _this.nextCursor)&&(identical(other.hasMore, _this.hasMore) || other.hasMore == _this.hasMore)&&(identical(other.serverTime, _this.serverTime) || other.serverTime == _this.serverTime)&&(identical(other.status, _this.status) || other.status == _this.status));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as PullPage;
-  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.changes),_this.nextCursor,_this.hasMore,_this.serverTime);
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.changes),_this.nextCursor,_this.hasMore,_this.serverTime,_this.status);
 }
 
 @override
 String toString() {
   final _this = this as PullPage;
-  return 'PullPage(changes: ${_this.changes}, nextCursor: ${_this.nextCursor}, hasMore: ${_this.hasMore}, serverTime: ${_this.serverTime})';
+  return 'PullPage(changes: ${_this.changes}, nextCursor: ${_this.nextCursor}, hasMore: ${_this.hasMore}, serverTime: ${_this.serverTime}, status: ${_this.status})';
 }
 
 
@@ -653,7 +653,7 @@ abstract mixin class $PullPageCopyWith<$Res>  {
   factory $PullPageCopyWith(PullPage value, $Res Function(PullPage) _then) = _$PullPageCopyWithImpl;
 @useResult
 $Res call({
- List<PullChange> changes, String? nextCursor, bool hasMore, DateTime serverTime
+ List<PullChange> changes, String? nextCursor, bool hasMore, DateTime serverTime, String status
 });
 
 
@@ -670,13 +670,14 @@ class _$PullPageCopyWithImpl<$Res>
 
 /// Create a copy of PullPage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? changes = null,Object? nextCursor = freezed,Object? hasMore = null,Object? serverTime = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? changes = null,Object? nextCursor = freezed,Object? hasMore = null,Object? serverTime = null,Object? status = null,}) {
   return _then(PullPage(
 changes: null == changes ? _self.changes : changes // ignore: cast_nullable_to_non_nullable
 as List<PullChange>,nextCursor: freezed == nextCursor ? _self.nextCursor : nextCursor // ignore: cast_nullable_to_non_nullable
 as String?,hasMore: null == hasMore ? _self.hasMore : hasMore // ignore: cast_nullable_to_non_nullable
 as bool,serverTime: null == serverTime ? _self.serverTime : serverTime // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 
@@ -761,10 +762,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<PullChange> changes,  String? nextCursor,  bool hasMore,  DateTime serverTime)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<PullChange> changes,  String? nextCursor,  bool hasMore,  DateTime serverTime,  String status)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PullPage() when $default != null:
-return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime);case _:
+return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime,_that.status);case _:
   return orElse();
 
 }
@@ -782,10 +783,10 @@ return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<PullChange> changes,  String? nextCursor,  bool hasMore,  DateTime serverTime)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<PullChange> changes,  String? nextCursor,  bool hasMore,  DateTime serverTime,  String status)  $default,) {final _that = this;
 switch (_that) {
 case _PullPage():
-return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime);case _:
+return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime,_that.status);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -802,10 +803,10 @@ return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<PullChange> changes,  String? nextCursor,  bool hasMore,  DateTime serverTime)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<PullChange> changes,  String? nextCursor,  bool hasMore,  DateTime serverTime,  String status)?  $default,) {final _that = this;
 switch (_that) {
 case _PullPage() when $default != null:
-return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime);case _:
+return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime,_that.status);case _:
   return null;
 
 }
@@ -817,7 +818,7 @@ return $default(_that.changes,_that.nextCursor,_that.hasMore,_that.serverTime);c
 @JsonSerializable()
 
 class _PullPage extends PullPage {
-  const _PullPage({required  List<PullChange> changes, this.nextCursor, required this.hasMore, required this.serverTime}): _changes = changes,super._();
+  const _PullPage({required  List<PullChange> changes, this.nextCursor, required this.hasMore, required this.serverTime, this.status = 'ok'}): _changes = changes,super._();
   factory _PullPage.fromJson(Map<String, dynamic> json) => _$PullPageFromJson(json);
 
  final  List<PullChange> _changes;
@@ -830,6 +831,7 @@ class _PullPage extends PullPage {
 @override final  String? nextCursor;
 @override final  bool hasMore;
 @override final  DateTime serverTime;
+@override@JsonKey() final  String status;
 
 /// Create a copy of PullPage
 /// with the given fields replaced by the non-null parameter values.
@@ -844,18 +846,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PullPage&&const DeepCollectionEquality().equals(other.changes, _changes)&&(identical(other.nextCursor, nextCursor) || other.nextCursor == nextCursor)&&(identical(other.hasMore, hasMore) || other.hasMore == hasMore)&&(identical(other.serverTime, serverTime) || other.serverTime == serverTime));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PullPage&&const DeepCollectionEquality().equals(other.changes, _changes)&&(identical(other.nextCursor, nextCursor) || other.nextCursor == nextCursor)&&(identical(other.hasMore, hasMore) || other.hasMore == hasMore)&&(identical(other.serverTime, serverTime) || other.serverTime == serverTime)&&(identical(other.status, status) || other.status == status));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_changes),nextCursor,hasMore,serverTime);
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_changes),nextCursor,hasMore,serverTime,status);
 }
 
 @override
 String toString() {
-    return 'PullPage(changes: $changes, nextCursor: $nextCursor, hasMore: $hasMore, serverTime: $serverTime)';
+    return 'PullPage(changes: $changes, nextCursor: $nextCursor, hasMore: $hasMore, serverTime: $serverTime, status: $status)';
 }
 
 
@@ -866,7 +868,7 @@ abstract mixin class _$PullPageCopyWith<$Res> implements $PullPageCopyWith<$Res>
   factory _$PullPageCopyWith(_PullPage value, $Res Function(_PullPage) _then) = __$PullPageCopyWithImpl;
 @override @useResult
 $Res call({
- List<PullChange> changes, String? nextCursor, bool hasMore, DateTime serverTime
+ List<PullChange> changes, String? nextCursor, bool hasMore, DateTime serverTime, String status
 });
 
 
@@ -883,13 +885,14 @@ class __$PullPageCopyWithImpl<$Res>
 
 /// Create a copy of PullPage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? changes = null,Object? nextCursor = freezed,Object? hasMore = null,Object? serverTime = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? changes = null,Object? nextCursor = freezed,Object? hasMore = null,Object? serverTime = null,Object? status = null,}) {
   return _then(_PullPage(
 changes: null == changes ? _self._changes : changes // ignore: cast_nullable_to_non_nullable
 as List<PullChange>,nextCursor: freezed == nextCursor ? _self.nextCursor : nextCursor // ignore: cast_nullable_to_non_nullable
 as String?,hasMore: null == hasMore ? _self.hasMore : hasMore // ignore: cast_nullable_to_non_nullable
 as bool,serverTime: null == serverTime ? _self.serverTime : serverTime // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

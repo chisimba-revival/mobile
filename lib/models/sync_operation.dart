@@ -153,12 +153,34 @@ abstract class PullPage with _$PullPage {
     String? nextCursor,
     required bool hasMore,
     required DateTime serverTime,
+    @Default('ok') String status,
   }) = _PullPage;
 
   const PullPage._();
 
   factory PullPage.fromJson(Map<String, dynamic> json) =>
       _$PullPageFromJson(json);
+
+  /// The service is asking for a full re-pull rather than offering a page.
+  ///
+  /// This has to be distinguishable from an empty page, and it is the whole
+  /// reason [status] exists. An empty page and a page the service refuses to
+  /// produce because the caller's cursor is too old to serve both carry no
+  /// changes and no cursor. A client that reads either as "end of feed" stops
+  /// receiving updates for data it has never seen, and does so without any
+  /// error to notice — the worst possible failure for a device that spends its
+  /// life out of coverage.
+  bool get requiresResync => status == 'resync_required';
+}
+
+/// The status word a pull response carries.
+///
+/// Absent means [PullStatus.ok], so a service that predates the field still
+/// works. Only [resyncRequired] is distinguished, because it is the only one
+/// that changes what the client must do rather than what it learns.
+abstract class PullStatus {
+  static const ok = 'ok';
+  static const resyncRequired = 'resync_required';
 }
 
 /// One change from the feed, or a tombstone.

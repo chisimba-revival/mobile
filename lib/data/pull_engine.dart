@@ -16,7 +16,16 @@ class PullOutcome {
     required this.conflicts,
     required this.cursorAdvanced,
     required this.nextCursor,
+    this.resyncRequired = false,
   });
+
+  /// The service declined to serve a page and asked for a full re-pull.
+  ///
+  /// This is a normal outcome rather than an error. A device that has been out
+  /// of coverage for long enough will receive one eventually, and treating it
+  /// as a failure would mean a device that has worked correctly for weeks
+  /// suddenly stops receiving changes with nothing to tell the trainee why.
+  final bool resyncRequired;
 
   /// Changes written to the store.
   final int applied;
@@ -63,6 +72,22 @@ class PullEngine {
     // land or neither does. Re-delivery is harmless because every change is
     // applied by revision, so the same page twice is the same page once.
     return _db.transaction(() async {
+      // Nothing is applied and no cursor is written. Applying a partial page
+      // would leave the store holding some of what the service has and none of
+      // the rest, which is the one state a replica must never be in, and the
+      // cursor in particular must not move: a cursor written against a page
+      // that was never applied is how a client stops seeing changes for data
+      // it has never seen.
+      if (page.requiresResync) {
+        return const PullOutcome(
+          applied: 0,
+          conflicts: 0,
+          cursorAdvanced: false,
+          nextCursor: null,
+          resyncRequired: true,
+        );
+      }
+
       var applied = 0;
       var conflicts = 0;
 
@@ -83,6 +108,34 @@ class PullEngine {
         nextCursor: page.nextCursor,
       );
     });
+  }
+
+  /// Forget every cursor, so the next pull starts from the beginning.
+  ///
+  /// This is the whole of a resync: discard the cursors and re-pull the full
+  /// accessible scope. It is safe precisely because [applyPage] applies by
+  /// revision, so re-delivering everything the client already holds is a no-op
+  /// rather than a second copy. Nothing local is deleted, and nothing needs to
+  /// be: deletions arrive as tombstones in the full pull, and this device's own
+  /// unsent records are not the service's to remove.
+  ///
+  /// Returns the number of cursors dropped, so a caller can tell a resync from a
+  /// scope it had never pulled.
+  Future<int> forgetCursors() {
+    return _db.transaction(() async {
+      final dropped = await _db.delete(_db.syncCursors).go();
+      return dropped;
+    });
+  }
+
+  /// Whether the client has a cursor for [scope] at all.
+  ///
+  /// Distinct from a null cursor value: the row existing means this scope has
+  /// been pulled, and a null cursor on an existing row means end of feed.
+  Future<bool> hasPulled(String scope) async {
+    final query = _db.select(_db.syncCursors)
+      ..where((t) => t.scope.equals(scope));
+    return await query.getSingleOrNull() != null;
   }
 
   /// The cursor for one scope, or null before the first successful pull.
