@@ -143,6 +143,20 @@ class PullEngine {
     }
 
     if (change.isTombstone) {
+      if (existing == null) {
+        // The update below would match no rows and report success, so the
+        // deletion would be discarded with nothing to show for it: no row, no
+        // conflict, no trace. The client would never learn this record was
+        // deleted, and a record created locally under that id later would be
+        // wrong. Holding it keeps the fact that something was deleted, which is
+        // the part rule 9 actually insists on.
+        await _hold(
+          change,
+          'record was deleted before this client ever saw it',
+        );
+        return false;
+      }
+
       // Rule 9: a deletion is a row, not an absence. The values stay so the
       // audit trail survives, and the row is marked so the client stops offering
       // it for editing.

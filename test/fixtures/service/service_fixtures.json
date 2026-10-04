@@ -1,0 +1,485 @@
+{
+  "_about": [
+    "Golden fixtures for the parts of the field guiding service contract that are",
+    "stated as prose rather than as a wire format. They exist so that a later",
+    "service can be compared against shapes this client already accepts, and so",
+    "that the parts we had to guess are visible instead of buried in a stub.",
+    "",
+    "Read the _guessed keys on each object. They are the fields this client had",
+    "to invent because the contract does not name them. When the service exists,",
+    "these are the exact things to check first."
+  ],
+  "pull_page": {
+    "_guessed": [
+      "cursor and next_cursor as opaque strings, null meaning end of feed",
+      "has_more as a boolean rather than inferred from next_cursor",
+      "server_time as an RFC 3339 instant",
+      "the envelope key 'changes', and the per-entry key 'state' for the payload",
+      "'scope' is ours, not the service's: a context grant changes the visible set",
+      "a change carries entity and entity_id so one feed can hold several types"
+    ],
+    "cursor": null,
+    "next_cursor": "cur_01J8Z4N2QF",
+    "has_more": true,
+    "server_time": "2026-10-04T05:42:11Z",
+    "scope": "kiswahili",
+    "changes": [
+      {
+        "entity": "sighting",
+        "entity_id": "0f3a9c11-7b2e-4c8a-9f10-2d5e6b8a1c34",
+        "revision": 3,
+        "is_tombstone": false,
+        "state": {
+          "id": "0f3a9c11-7b2e-4c8a-9f10-2d5e6b8a1c34",
+          "context_code": "kiswahili",
+          "drive_id": "d41c8e2a-0b6f-4a11-8c3d-7e9f0a2b5d68",
+          "species_code": "LEOP",
+          "count": 1,
+          "location": {
+            "type": "Point",
+            "coordinates": [
+              36.8219,
+              -1.2921
+            ]
+          },
+          "location_accuracy_m": 6,
+          "distance_m": 45,
+          "bearing_deg": 215,
+          "behaviour": "moving",
+          "age_sex_class": "adult_female",
+          "notes": "Moving along the track, northbound, alone.",
+          "status": "verified",
+          "verified_by": "usr_mentor_01",
+          "verified_at": "2026-10-04T06:10:02Z",
+          "captured_at": "2026-10-04T05:41:58Z",
+          "recorded_at": "2026-10-04T05:42:20Z",
+          "revision": 3,
+          "created_by": "usr_trainee_07",
+          "late_arrival": false
+        }
+      },
+      {
+        "entity": "sighting",
+        "entity_id": "b7e2d480-5a13-4f6b-8e22-1c9a4d7f0b56",
+        "revision": 5,
+        "is_tombstone": false,
+        "state": {
+          "id": "b7e2d480-5a13-4f6b-8e22-1c9a4d7f0b56",
+          "context_code": "kiswahili",
+          "drive_id": "d41c8e2a-0b6f-4a11-8c3d-7e9f0a2b5d68",
+          "species_code": "ELEP",
+          "count": 4,
+          "location": {
+            "type": "Point",
+            "coordinates": [
+              36.8144,
+              -1.3007
+            ]
+          },
+          "location_accuracy_m": 11,
+          "distance_m": 120,
+          "bearing_deg": 180,
+          "notes": "Family group at the waterhole.",
+          "status": "verified",
+          "verified_by": "usr_mentor_01",
+          "verification_notes": "Seven on the first count, four on the second. The rest moved off while we watched.",
+          "recorded_species_code": "ELEP",
+          "recorded_count": 7,
+          "captured_at": "2026-10-04T06:14:05Z",
+          "recorded_at": "2026-10-04T06:15:11Z",
+          "revision": 5,
+          "created_by": "usr_trainee_07",
+          "late_arrival": false
+        }
+      },
+      {
+        "entity": "sighting",
+        "entity_id": "c93d5a72-8e40-4b19-a6c8-3f5b1e9d7a20",
+        "revision": 1,
+        "is_tombstone": false,
+        "state": {
+          "id": "c93d5a72-8e40-4b19-a6c8-3f5b1e9d7a20",
+          "context_code": "kiswahili",
+          "drive_id": "d41c8e2a-0b6f-4a11-8c3d-7e9f0a2b5d68",
+          "location": {
+            "type": "Point",
+            "coordinates": [
+              36.8291,
+              -1.2888
+            ]
+          },
+          "location_accuracy_m": 8,
+          "notes": "Tracks heading north across the road, fresh. Could not say whose.",
+          "status": "pending",
+          "captured_at": "2026-10-04T06:31:40Z",
+          "recorded_at": "2026-10-04T06:32:02Z",
+          "revision": 1,
+          "created_by": "usr_trainee_07",
+          "late_arrival": false
+        },
+        "_about": " No species and no count: rule 21 lets both be absent until verified, and a heard call is one event, not one animal."
+      },
+      {
+        "_about": [
+          "Rule 21: no species_code and no count, and the record is still whole.",
+          "status needs_review is deliberately distinct from pending. Pending",
+          "means nobody looked. Needs review means somebody competent looked and",
+          "declined to decide."
+        ],
+        "entity": "sighting",
+        "entity_id": "e5a0f3d1-2c68-4e93-b7a4-6d9c8e1f0b23",
+        "revision": 2,
+        "is_tombstone": false,
+        "state": {
+          "id": "e5a0f3d1-2c68-4e93-b7a4-6d9c8e1f0b23",
+          "context_code": "kiswahili",
+          "drive_id": "d41c8e2a-0b6f-4a11-8c3d-7e9f0a2b5d68",
+          "species_code": "RHIN",
+          "count": 3,
+          "location": {
+            "type": "Point",
+            "coordinates": [
+              36.8177,
+              -1.2963
+            ]
+          },
+          "location_accuracy_m": 5,
+          "notes": "Three, two of them small.",
+          "status": "needs_review",
+          "captured_at": "2026-10-04T06:48:12Z",
+          "recorded_at": "2026-10-04T06:48:50Z",
+          "revision": 2,
+          "created_by": "usr_trainee_07",
+          "late_arrival": false
+        }
+      },
+      {
+        "_about": [
+          "Rule 9: a deletion arrives as a tombstone in the change feed, not as",
+          "an absence. The row keeps its values and gains is_tombstone."
+        ],
+        "entity": "sighting",
+        "entity_id": "aa12bd34-77c9-4d0e-b3a5-2f8e6c1d9047",
+        "revision": 2,
+        "is_tombstone": true,
+        "state": null
+      }
+    ]
+  },
+  "pull_page_sparse": {
+    "_about": [
+      "A feed entry need not repeat unchanged fields. Only revision and the one",
+      "field that moved. A client that treats a page as a whole record will blank",
+      "everything this leaves out."
+    ],
+    "cursor": "cur_01J8Z4N2QF",
+    "next_cursor": null,
+    "has_more": false,
+    "server_time": "2026-10-04T06:52:00Z",
+    "scope": "kiswahili",
+    "changes": [
+      {
+        "entity": "sighting",
+        "entity_id": "0f3a9c11-7b2e-4c8a-9f10-2d5e6b8a1c34",
+        "revision": 4,
+        "is_tombstone": false,
+        "state": {
+          "status": "rejected",
+          "revision": 4
+        }
+      }
+    ]
+  },
+  "push_batch": {
+    "_about": [
+      "A push is a bounded batch of operations. Every operation carries its own",
+      "operation_id, because that is the retry identity and never the entity id.",
+      "The operation is an intent, not a whole-entity replacement."
+    ],
+    "operations": [
+      {
+        "operation_id": "op_01J8ZC4T7M",
+        "entity": "sighting",
+        "entity_id": "c93d5a72-8e40-4b19-a6c8-3f5b1e9d7a20",
+        "kind": "create",
+        "base_revision": 0,
+        "captured_at": "2026-10-04T06:31:40Z",
+        "recorded_at": "2026-10-04T06:32:02Z",
+        "payload": {
+          "id": "c93d5a72-8e40-4b19-a6c8-3f5b1e9d7a20",
+          "context_code": "kiswahili",
+          "drive_id": "d41c8e2a-0b6f-4a11-8c3d-7e9f0a2b5d68",
+          "location": {
+            "type": "Point",
+            "coordinates": [
+              36.8291,
+              -1.2888
+            ]
+          },
+          "location_accuracy_m": 8,
+          "notes": "Tracks heading north across the road, fresh. Could not say whose.",
+          "status": "pending"
+        }
+      },
+      {
+        "_about": [
+          "depends_on names another operation in this batch or a previous one.",
+          "The service may defer this one until the drive it belongs to is known."
+        ],
+        "operation_id": "op_01J8ZC4T8N",
+        "entity": "sighting",
+        "entity_id": "e5a0f3d1-2c68-4e93-b7a4-6d9c8e1f0b23",
+        "kind": "create",
+        "base_revision": 0,
+        "depends_on": "op_01J8ZC4T6L",
+        "captured_at": "2026-10-04T06:48:12Z",
+        "recorded_at": "2026-10-04T06:48:50Z",
+        "payload": {
+          "id": "e5a0f3d1-2c68-4e93-b7a4-6d9c8e1f0b23",
+          "context_code": "kiswahili",
+          "drive_id": "d41c8e2a-0b6f-4a11-8c3d-7e9f0a2b5d68",
+          "location": {
+            "type": "Point",
+            "coordinates": [
+              36.8177,
+              -1.2963
+            ]
+          },
+          "location_accuracy_m": 5,
+          "species_code": "RHIN",
+          "count": 3,
+          "notes": "Three, two of them small.",
+          "status": "pending"
+        }
+      }
+    ]
+  },
+  "push_results_mixed": {
+    "_guessed": [
+      "'outcome' as applied | noop | deferred | refused",
+      "'error_code' as a stable machine string; a refusal without one is unusable",
+      "'new_revision' on success and 'server_revision' when the service is",
+      "describing state the client does not have",
+      "'server_state' carrying the current server record on a conflict, so the",
+      "client can show both sides rather than being told it lost",
+      "'retry_after' on a deferral. The client cannot honour it yet, which is",
+      "recorded as a gap rather than guessed at"
+    ],
+    "_about": [
+      "A batch is not all-or-nothing. One result per operation, always, whatever",
+      "happened to its neighbours. This batch shows three of the four outcomes at",
+      "once, which is the case a client is most likely to get wrong."
+    ],
+    "results": [
+      {
+        "operation_id": "op_01J8ZC4T7M",
+        "outcome": "applied",
+        "new_revision": 1,
+        "server_state": {
+          "id": "srv_7c1a",
+          "revision": 1
+        }
+      },
+      {
+        "operation_id": "op_01J8ZC4T8N",
+        "outcome": "refused",
+        "error_code": "context_grant_missing",
+        "server_state": {
+          "context_code": "kiswahili"
+        }
+      }
+    ]
+  },
+  "push_result_noop": {
+    "_about": [
+      "A retry after an ambiguous response. The operation id was processed",
+      "already, so this is not a conflict and must not be shown as one. Note the",
+      "client's own entity_id is absent from server_state: the service's id is",
+      "not the client's, and conflating them loses the record of which came",
+      "from where."
+    ],
+    "operation_id": "op_01J8ZC4T7M",
+    "outcome": "noop",
+    "server_revision": 1,
+    "server_state": {
+      "id": "srv_7c1a",
+      "revision": 1
+    }
+  },
+  "push_result_deferred": {
+    "_about": [
+      "A declared prerequisite has not settled. The same bytes are sent again",
+      "later; they are not rebuilt, because rebuilding them makes the retry a",
+      "different operation."
+    ],
+    "operation_id": "op_01J8ZC4T8N",
+    "outcome": "deferred",
+    "error_code": "dependency_unsettled"
+  },
+  "push_result_conflict": {
+    "_about": [
+      "Rule 6: a conflict is decided by revision, never by a timestamp. The",
+      "refusal returns the current server record so the client can show what it",
+      "holds and what the service holds, side by side. The service never merges",
+      "and never discards the client's edit silently."
+    ],
+    "operation_id": "op_01J8ZC4T9P",
+    "outcome": "refused",
+    "error_code": "revision_conflict",
+    "server_revision": 5,
+    "server_state": {
+      "id": "b7e2d480-5a13-4f6b-8e22-1c9a4d7f0b56",
+      "count": 4,
+      "notes": "Family group at the waterhole.",
+      "revision": 5
+    }
+  },
+  "push_result_verification_refused": {
+    "_about": [
+      "Verification is never resolved by revision. A stale-revision verification",
+      "is refused unconditionally, so retrying sends the same bytes to be refused",
+      "again forever. This one needs a person."
+    ],
+    "operation_id": "op_01J8ZCA1QK",
+    "outcome": "refused",
+    "error_code": "stale_revision",
+    "server_revision": 9
+  },
+  "push_result_correction_refused": {
+    "_about": [
+      "Rule 15: a correction changing species_code or count requires a reason.",
+      "Without one the correction is refused whatever the revisions say."
+    ],
+    "operation_id": "op_01J8ZCB4RR",
+    "outcome": "refused",
+    "error_code": "correction_reason_required",
+    "server_revision": 5
+  },
+  "reference_data": {
+    "_about": [
+      "Rule: cache reference data aggressively. The contract does not name an",
+      "endpoint or an envelope for this, only the behaviour, so the shape below",
+      "is entirely ours."
+    ],
+    "species": [
+      {
+        "code": "LEOP",
+        "common_name": "Leopard",
+        "scientific_name": "Panthera pardus",
+        "category": "large"
+      },
+      {
+        "code": "LION",
+        "common_name": "Lion",
+        "scientific_name": "Panthera leo",
+        "category": "large"
+      },
+      {
+        "code": "RHIN",
+        "common_name": "White rhinoceros",
+        "scientific_name": "Ceratotherium simum",
+        "category": "large"
+      },
+      {
+        "code": "ELEP",
+        "common_name": "Elephant",
+        "scientific_name": "Loxodonta africana",
+        "category": "large"
+      },
+      {
+        "code": "BUFF",
+        "common_name": "African buffalo",
+        "scientific_name": "Syncerus caffer",
+        "category": "large"
+      },
+      {
+        "code": "HIPPO",
+        "common_name": "Hippopotamus",
+        "scientific_name": "Hippopotamus amphibius",
+        "category": "large"
+      },
+      {
+        "code": "GIRA",
+        "common_name": "Giraffe",
+        "scientific_name": "Giraffa camelopardalis",
+        "category": "large"
+      },
+      {
+        "code": "ZEBR",
+        "common_name": "Plains zebra",
+        "scientific_name": "Equus quagga",
+        "category": "large"
+      },
+      {
+        "code": "SABI",
+        "common_name": "Sable antelope",
+        "scientific_name": "Hippotragus niger",
+        "category": "large"
+      },
+      {
+        "code": "WART",
+        "common_name": "Common warthog",
+        "scientific_name": "Phacochoerus africanus",
+        "category": "large"
+      },
+      {
+        "code": "SPOO",
+        "common_name": "Spoor",
+        "scientific_name": null,
+        "category": "sign"
+      },
+      {
+        "code": "SCAT",
+        "common_name": "Scat",
+        "scientific_name": null,
+        "category": "sign"
+      },
+      {
+        "code": "VOX",
+        "common_name": "Vocalisation heard",
+        "scientific_name": null,
+        "category": "sign"
+      }
+    ],
+    "behaviour": [
+      "feeding",
+      "resting",
+      "moving",
+      "hunting",
+      "drinking",
+      "social",
+      "breeding",
+      "unknown"
+    ],
+    "age_sex_class": [
+      "adult_male",
+      "adult_female",
+      "subadult_male",
+      "subadult_female",
+      "juvenile",
+      "calf_cub",
+      "unknown"
+    ],
+    "rifle_role": [
+      "first",
+      "second",
+      "none"
+    ],
+    "_unsettled": [
+      "The contract enumerates rifle_role but does NOT enumerate behaviour or",
+      "age_sex_class. The lists above are taken from the design prototype's own",
+      "chip data and are therefore provisional. The client stores both as free",
+      "text for exactly this reason: encoding a guess in the schema would make",
+      "it reject a value the service may legitimately send. When the contract",
+      "settles these lists only the model layer changes and no migration is",
+      "needed."
+    ],
+    "_defect": [
+      "species_code is described in the contract as four uppercase letters, but",
+      "HIPPO is five and VOX is three. Both come from the design's own reference",
+      "data. The client does not validate the length, so it accepts what the",
+      "design uses, but the contract and the design disagree and one of them is",
+      "wrong."
+    ]
+  }
+}

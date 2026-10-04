@@ -1,0 +1,15 @@
+# Generated parsers must speak the service's wire format, not Dart's naming.
+#
+# The contract names fields in snake_case: operation_id, entity_id,
+# is_tombstone, base_revision, captured_at, next_cursor, error_code. Without
+# this, json_serializable emits camelCase keys and every fromJson silently
+# fails on real input, because the key it looks for is not the key that arrives.
+#
+# The push direction never needed this: operationToWire() writes the wire form
+# by hand. That is why the mismatch was invisible until the fixtures arrived.
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          field_rename: snake

@@ -30,15 +30,8 @@ extension SightingRowMapping on SightingRow {
       locationAccuracyM: locationAccuracyM,
       distanceM: distanceM,
       bearingDeg: bearingDeg,
-      behaviour: behaviour == null
-          ? null
-          : _enumByWire<SightingBehaviour>(
-              SightingBehaviour.values,
-              behaviour!,
-            ),
-      ageSexClass: ageSexClass == null
-          ? null
-          : _enumByWire<AgeSexClass>(AgeSexClass.values, ageSexClass!),
+      behaviour: behaviour == null ? null : behaviourByWire(behaviour!),
+      ageSexClass: ageSexClass == null ? null : ageSexByWire(ageSexClass!),
       notes: notes,
       verifiedBy: verifiedBy,
       verifiedAt: verifiedAt,
@@ -48,22 +41,6 @@ extension SightingRowMapping on SightingRow {
       lateArrival: lateArrival,
     );
   }
-}
-
-/// Resolve a stored string back to an enum value, tolerating an unknown one.
-///
-/// The contract does not enumerate `behaviour` or `age_sex_class`, so a value
-/// the service sends may legitimately not be in the client's provisional list.
-/// Returning null loses the value; throwing would lose the whole sighting, which
-/// is much worse. The raw string is still in the database either way, so a later
-/// release can reinterpret it without a resync.
-T? _enumByWire<T extends Enum>(List<T> values, String wire) {
-  for (final value in values) {
-    if (value.name == wire) {
-      return value;
-    }
-  }
-  return null;
 }
 
 /// The contract's wire form for a sighting, ready to be sent or stored as an
@@ -106,23 +83,23 @@ Map<String, dynamic> sightingToState(WildlifeSighting s) {
 /// worse than an explicit list. Every arm below matches the `@JsonValue` on the
 /// corresponding enum, and the wire round-trip test is what holds them together.
 String _wireValue(Object value) => switch (value) {
-  SightingStatus v => _statusWireName(v),
-  SightingBehaviour v => _behaviourWireName(v),
-  AgeSexClass v => _ageSexWireName(v),
+  SightingStatus v => statusWireName(v),
+  SightingBehaviour v => behaviourWireName(v),
+  AgeSexClass v => ageSexWireName(v),
   EntityKind v => _entityWireName(v),
   OperationKind v => _operationWireName(v),
   PushOutcome v => _outcomeWireName(v),
   _ => value.toString(),
 };
 
-String _statusWireName(SightingStatus v) => switch (v) {
+String statusWireName(SightingStatus v) => switch (v) {
   SightingStatus.pending => 'pending',
   SightingStatus.verified => 'verified',
   SightingStatus.rejected => 'rejected',
   SightingStatus.needsReview => 'needs_review',
 };
 
-String _behaviourWireName(SightingBehaviour v) => switch (v) {
+String behaviourWireName(SightingBehaviour v) => switch (v) {
   SightingBehaviour.grazing => 'grazing',
   SightingBehaviour.moving => 'moving',
   SightingBehaviour.resting => 'resting',
@@ -132,7 +109,7 @@ String _behaviourWireName(SightingBehaviour v) => switch (v) {
   SightingBehaviour.unknown => 'unknown',
 };
 
-String _ageSexWireName(AgeSexClass v) => switch (v) {
+String ageSexWireName(AgeSexClass v) => switch (v) {
   AgeSexClass.female => 'female',
   AgeSexClass.male => 'male',
   AgeSexClass.juvenile => 'juvenile',
@@ -254,7 +231,7 @@ SightingsCompanion sightingPatchFromState(
 
   put('status', 'status', (raw) {
     final wire = asString(raw);
-    return wire == null ? null : _statusByWire(wire);
+    return wire == null ? null : statusByWire(wire);
   });
   put('late_arrival', 'late_arrival', (raw) => raw is bool ? raw : null);
   put('is_tombstone', 'is_tombstone', (raw) => raw is bool ? raw : null);
@@ -321,14 +298,61 @@ List<num>? _coordinatesOf(Object? location) {
 /// an unrecognised value is a contract violation rather than a known gap.
 /// Defaulting to pending is the safe reading: nothing is treated as verified on
 /// the strength of a status this client does not recognise.
-SightingStatus _statusByWire(String wire) {
-  for (final value in SightingStatus.values) {
-    if (value.name == wire) {
-      return value;
-    }
-  }
-  return SightingStatus.pending;
+SightingStatus statusByWireForTest(String wire) => statusByWire(wire);
+SightingBehaviour? behaviourByWireForTest(String wire) => behaviourByWire(wire);
+AgeSexClass? ageSexByWireForTest(String wire) => ageSexByWire(wire);
+String statusWireNameForTest(SightingStatus v) => statusWireName(v);
+String behaviourWireNameForTest(SightingBehaviour v) => behaviourWireName(v);
+String ageSexWireNameForTest(AgeSexClass v) => ageSexWireName(v);
+
+SightingStatus statusByWire(String wire) {
+  // An explicit switch, not a comparison against `value.name`. The two differ
+  // for exactly the values that matter: Dart spells needsReview and the wire
+  // spells needs_review, so a name comparison silently turned every
+  // needs_review sighting into a pending one. That is contract rule 16's
+  // distinction destroyed on the way in, and it looked like working code.
+  return switch (wire) {
+    'pending' => SightingStatus.pending,
+    'verified' => SightingStatus.verified,
+    'rejected' => SightingStatus.rejected,
+    'needs_review' => SightingStatus.needsReview,
+    // The contract does enumerate status, so an unrecognised value is a
+    // protocol violation rather than a state to model. Falling back to pending
+    // is the safe direction: nothing becomes verified on a value we did not
+    // understand, and rule 21 lets a pending record be incomplete anyway.
+    _ => SightingStatus.pending,
+  };
 }
+
+/// Decode a behaviour, or null when the wire names one we do not know.
+///
+/// Null rather than a throw, because the contract does not enumerate
+/// `behaviour` at all. Losing an unknown behaviour to an exception would lose
+/// the whole sighting; losing it to a null column loses one field and leaves
+/// the record intact and visible to whoever reads it.
+SightingBehaviour? behaviourByWire(String wire) => switch (wire) {
+  'grazing' => SightingBehaviour.grazing,
+  'moving' => SightingBehaviour.moving,
+  'resting' => SightingBehaviour.resting,
+  'feeding' => SightingBehaviour.feeding,
+  'with_young' => SightingBehaviour.withYoung,
+  'alert' => SightingBehaviour.alert,
+  'unknown' => SightingBehaviour.unknown,
+  _ => null,
+};
+
+/// Decode an age and sex class, or null when the wire names one we do not know.
+///
+/// Null for the same reason as [ behaviourByWire ]: the contract does not
+/// enumerate this list either.
+AgeSexClass? ageSexByWire(String wire) => switch (wire) {
+  'female' => AgeSexClass.female,
+  'male' => AgeSexClass.male,
+  'juvenile' => AgeSexClass.juvenile,
+  'adult_unknown' => AgeSexClass.adultUnknown,
+  'unknown' => AgeSexClass.unknown,
+  _ => null,
+};
 
 String encodePayload(Map<String, dynamic> payload) => jsonEncode(payload);
 
@@ -346,3 +370,21 @@ Map<String, dynamic>? decodePayload(String raw) {
     return null;
   }
 }
+
+/// Round-trip one enum value through its wire name, for tests only.
+///
+/// The encoder and the decoder are separate hand-written switches, and they
+/// drifted apart once already: the decoder compared against `value.name`, so
+/// every value whose Dart spelling differs from its wire spelling was silently
+/// destroyed on the way in. `needs_review` became `pending`, which is not a
+/// lost field but a wrong state, and therefore worse.
+///
+/// This exists so a test can assert that for every value, and for every one of
+/// the three lists, the decoder returns what the encoder produced. It is public
+/// only because it is the seam that makes that assertion possible; nothing in
+/// the app should call it.
+T? enumRoundTrip<T extends Enum>(
+  T value,
+  String Function(T) encode,
+  T? Function(String) decode,
+) => decode(encode(value));

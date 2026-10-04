@@ -190,7 +190,11 @@ void main() {
 
     test('late arrival defaults to false rather than being absent', () {
       expect(identified().lateArrival, isFalse);
-      expect(identified().toJson().containsKey('lateArrival'), isTrue);
+      expect(
+        identified().toJson().containsKey('late_arrival'),
+        isTrue,
+        reason: 'the wire is snake_case; camelCase here would be the bug',
+      );
     });
   });
 
