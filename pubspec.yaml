@@ -1,0 +1,51 @@
+name: field_log
+description: >-
+  Field log: an offline-first notebook for recording wildlife sightings on a
+  drive, built against the Chisimba field guiding service contract.
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State. Riverpod is the declared state container; see the Flutter mapping
+  # table in chisimba-info/docs/mobile-design/README.md.
+  flutter_riverpod: ^3.4.3
+
+  # Local store. Drift is the replica of record: the client is a local-first
+  # reader and the service is a replica, not the other way round.
+  drift: ^2.35.1
+
+  # Transport. Dio carries the batched pull and push endpoints, including their
+  # partial-success responses.
+  dio: ^5.11.1
+
+  # Generated immutable models. freezed 4 requires `abstract class X with _$X`;
+  # see TOOLCHAIN.md for why this is not a style preference. freezed 4 pairs
+  # with freezed_annotation 3.1.0 exactly, so both are declared here rather
+  # than relying on the transitive resolution.
+  freezed: ^4.0.2
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+
+  # Device-generated entity ids. The contract requires a client to mint its own
+  # entity ids from the start, so that a queued operation can name its subject
+  # before the server has ever heard of it.
+  uuid: ^4.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  build_runner: ^2.16.1
+  json_serializable: ^6.14.1
+  drift_dev: ^2.35.1
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,88 @@
+# Field log
+
+The offline client for the Chisimba field guiding service. A trainee records
+wildlife sightings on a drive, out of coverage, in a moving vehicle.
+
+This repository is separate from `framework/` and `modules/`. It has its own
+history, and the PHP tree does not carry it.
+
+## What this is
+
+The client is **local-first**. The device holds the records; the field guiding
+service is a replica that the client reconciles with, not the other way round.
+That is not a preference: an app whose primary data lives on a server has no
+answer for a reserve with no signal, which is the normal case.
+
+The authoritative specification is
+[`framework/docs/architecture/field-guiding-service-contract.md`](../framework/docs/architecture/field-guiding-service-contract.md).
+The interaction design is
+[`chisimba-info/docs/mobile-design/README.md`](../chisimba-info/docs/mobile-design/README.md),
+and `chisimba-info/docs/mobile-design/field-log.html` is the interactive
+prototype. The toolchain is documented in
+`chisimba-info/docs/mobile-design/TOOLCHAIN.md`.
+
+Where this code and the contract disagree, the contract is wrong here, and the
+disagreement is recorded in the code that depends on it.
+
+## Current state
+
+Foundation slice only. The design tokens and the contract-derived models exist
+and are tested; the screens do not.
+
+```
+lib/design/tokens.dart     the reserve vocabulary, transcribed from the design
+lib/design/theme.dart      Material behaviour, colour from the tokens
+lib/models/geo_point.dart  an immutable WGS84 point and its GeoJSON form
+lib/models/sighting.dart   the logbook sighting, and rule 21
+lib/models/sync_operation.dart  queued changes and push results
+```
+
+Run it:
+
+```sh
+flutter pub get
+dart run build_runner build     # regenerates the *.freezed.dart and *.g.dart
+dart analyze
+flutter test
+```
+
+## Two decisions worth knowing before reading the code
+
+**`abstract class`, not `class`, on every generated model.** freezed 3 and 4
+generate a mixin whose members are abstract, so a plain `class` declaration
+fails to compile with `non_abstract_class_inherits_abstract_member`. This is
+mandatory, not a style choice, and the contract's example model had it wrong
+until it was corrected on 2026-10-04.
+
+**A sighting may have no species and no count.** Contract rule 21 makes
+`species_code` and `count` required only when `status` is `verified`. A trainee
+who saw something and could not name it records a sighting with neither, and a
+mentor may still verify it *as observed*: the claim confirmed is that something
+was there, not what it was. An absent count is not a zero, for the same reason
+contract rule 18 keeps `not_observed` from being a zero.
+
+## Tokens
+
+Values are transcribed from the design's token table and locked by
+`test/design/tokens_test.dart`, which fails if the code and the design document
+drift apart. Where the design gives a value by derivation rather than as a
+literal, the derivation is in the doc comment so it can be re-derived instead of
+trusted:
+
+- `ash1`..`ash4` are bone over canopy at 85, 65, 45 and 28 per cent.
+- `ruleFaint`/`rule`/`ruleStrong` are bone over canopy at 9, 16 and 30 per cent.
+
+**Accents are fills, not text.** Holding an accent hue across both brightnesses
+is the design's stated rule, and it holds for surfaces and ink. It does not
+hold for an accent used as running text: straw and moss sit close to the bone
+lightness and fall to 1.89:1 and 2.49:1 on the light surface in midday. So
+status is carried by a stamp and its label, never by coloured text, and
+`FieldColours.inkOn` chooses a legible label colour by measurement. Dust is the
+one accent that cannot carry body text on its own fill, at 4.17:1.
+
+## Open
+
+`behaviour` and `age_sex_class` are declared as enums by the contract but their
+values are not enumerated anywhere in it. The values in
+`lib/models/sighting.dart` are provisional and must be reconciled with the
+service, or a behaviour tally will silently under-count.
