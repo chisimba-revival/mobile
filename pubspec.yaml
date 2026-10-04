@@ -21,6 +21,17 @@ dependencies:
   # reader and the service is a replica, not the other way round.
   drift: ^2.35.1
 
+  # SQLite for the device. Drift itself only speaks to the `sqlite3` package;
+  # this supplies the actual shared library on Android, where the platform has
+  # no system SQLite to link against. Declared explicitly rather than left to a
+  # transitive resolve so the dependency is visible where drift is.
+  sqlite3_flutter_libs: ^0.5.42
+
+  # Where the database file lives. Both are needed only to join a directory to a
+  # file name; the store deliberately does not care about the rest of the path.
+  path_provider: ^2.1.6
+  path: ^1.9.1
+
   # Transport. Dio carries the batched pull and push endpoints, including their
   # partial-success responses.
   dio: ^5.11.1

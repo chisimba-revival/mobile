@@ -26,8 +26,9 @@ disagreement is recorded in the code that depends on it.
 
 ## Current state
 
-Foundation slice only. The design tokens and the contract-derived models exist
-and are tested; the screens do not.
+Foundation and data layer. The design tokens, the contract-derived models and
+the local store with its pull and push engines exist and are tested; the screens
+do not.
 
 ```
 lib/design/tokens.dart     the reserve vocabulary, transcribed from the design
@@ -35,6 +36,13 @@ lib/design/theme.dart      Material behaviour, colour from the tokens
 lib/models/geo_point.dart  an immutable WGS84 point and its GeoJSON form
 lib/models/sighting.dart   the logbook sighting, and rule 21
 lib/models/sync_operation.dart  queued changes and push results
+
+lib/data/tables.dart       seven tables, and why each is shaped as it is
+lib/data/database.dart     the Drift database and its migrations
+lib/data/mappers.dart      row <-> wire, in both directions
+lib/data/operation_queue.dart  the durable outbox
+lib/data/pull_engine.dart  apply a page and move the cursor atomically
+lib/data/push_engine.dart  send a bounded batch and record every outcome
 ```
 
 Run it:
@@ -46,7 +54,11 @@ dart analyze
 flutter test
 ```
 
-## Two decisions worth knowing before reading the code
+The data tests need `libsqlite3.so` on the host, which on Debian and Ubuntu comes
+from `libsqlite3-dev`. Without it the Drift tests fail to load the library rather
+than failing an assertion.
+
+## Four decisions worth knowing before reading the code
 
 **`abstract class`, not `class`, on every generated model.** freezed 3 and 4
 generate a mixin whose members are abstract, so a plain `class` declaration
@@ -60,6 +72,28 @@ who saw something and could not name it records a sighting with neither, and a
 mentor may still verify it *as observed*: the claim confirmed is that something
 was there, not what it was. An absent count is not a zero, for the same reason
 contract rule 18 keeps `not_observed` from being a zero.
+
+**The queue is keyed by operation id, never by entity id.** Contract rule 7
+makes the operation id the retry identity. A queue keyed by entity would collapse
+a drive's `start` and the `create` of that drive into one row and silently drop
+one of them, which is the kind of loss that is only noticed after the season.
+
+**A page and its cursor are one unit of work.** `PullEngine.applyPage` applies
+every change and writes the cursor inside a single transaction. Two separate
+writes leave a window where a crash keeps the cursor and loses the page, so the
+client quietly stops being told about changes it has never seen.
+`test/data/pull_engine_test.dart` proves this by dropping the cursor table and
+asserting that no sighting survives.
+
+**A refusal is settled, a deferral is not.** These look alike and are not. A
+deferral means a declared prerequisite has not settled, so the same bytes are
+sent again later. A refusal means the service declined a well-formed request, so
+an identical retry is declined identically and re-queueing it would retry every
+refusal on every push forever. The refusal itself is kept, with the submitted and
+current values side by side, in the `conflicts` table for a person to act on.
+Note that `PushOutcome.isTerminal` is false for a refusal and that is not a
+contradiction: `isTerminal` asks whether anything more will happen without a
+person, and a refusal genuinely needs one.
 
 ## Tokens
 
@@ -85,4 +119,14 @@ one accent that cannot carry body text on its own fill, at 4.17:1.
 `behaviour` and `age_sex_class` are declared as enums by the contract but their
 values are not enumerated anywhere in it. The values in
 `lib/models/sighting.dart` are provisional and must be reconciled with the
-service, or a behaviour tally will silently under-count.
+service, or a behaviour tally will silently under-count. The columns are
+therefore stored as free text rather than as enum-typed columns: encoding a
+guess in the schema would make the client reject a value the service might
+legitimately send, and when the contract settles the lists only the model layer
+changes and no migration is needed.
+
+There is no server to integrate against. Contract delivery steps 1 to 10 are
+unimplemented, so the push and pull engines have been tested against a stub that
+returns whatever the test tells it to. That is a real limit: an engine can be
+correct against the contract's wording and still be wrong against the service
+that eventually implements it.
