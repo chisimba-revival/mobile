@@ -133,8 +133,19 @@ class FieldColours extends ThemeExtension<FieldColours> {
         : canopy;
   }
 
-  /// WCAG relative-luminance contrast ratio between two opaque colours.
+  /// WCAG relative-luminance contrast ratio between two colours.
+  ///
+  /// Both must be fully opaque. [Color.computeLuminance] ignores alpha, so a
+  /// translucent colour yields a ratio against its own RGB that says nothing
+  /// about what it will actually look like on top of whatever is behind it. All
+  /// palette values are `0xFF`, so this guards against a future token rather
+  /// than against anything in use today.
   static double contrastWith(Color a, Color b) {
+    assert(
+      a.a == 1.0 && b.a == 1.0,
+      'contrastWith needs opaque colours: it measures the colour itself, '
+      'not what it will look like composited over something else.',
+    );
     final first = a.computeLuminance();
     final second = b.computeLuminance();
     final lighter = first > second ? first : second;

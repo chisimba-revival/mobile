@@ -109,6 +109,11 @@ void main() {
     });
 
     test('inkOn picks the measurably better of the two inks', () {
+      // Be clear about what this does and does not prove. It restates the
+      // selection rule, so it cannot catch a wrong *rule*; it is a regression
+      // guard on the implementation. The independent properties are the two
+      // tests below: that the result clears a legibility floor, and that the
+      // palette's own accent usage is sound.
       for (final colours in <FieldColours>[
         FieldColours.dark,
         FieldColours.sunlight,
@@ -126,6 +131,26 @@ void main() {
             onBone >= onCanopy ? colours.bone : colours.canopy,
             reason: '${colours.name} chose the worse ink on $accent',
           );
+        }
+      }
+    });
+
+    test('inkOn never picks an ink worse than the alternative', () {
+      // The one genuinely independent property of the selection: whichever ink
+      // comes back, the rejected one must not have been the better of the two.
+      // Stated over a spread of colours rather than the palette's own accents,
+      // so it is not just re-running the loop above.
+      for (var value = 0; value < 256; value += 1) {
+        final shade = Color.fromARGB(255, value, value ~/ 2, 255 - value);
+        for (final colours in <FieldColours>[
+          FieldColours.dark,
+          FieldColours.sunlight,
+        ]) {
+          final chosen = FieldColours.contrastWith(colours.inkOn(shade), shade);
+          final other = colours.inkOn(shade) == colours.bone
+              ? FieldColours.contrastWith(colours.canopy, shade)
+              : FieldColours.contrastWith(colours.bone, shade);
+          expect(chosen, greaterThanOrEqualTo(other));
         }
       }
     });
