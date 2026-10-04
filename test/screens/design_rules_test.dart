@@ -240,6 +240,19 @@ void main() {
         RegExp(r'\bscore\b', caseSensitive: false).hasMatch(rendered),
         isFalse,
       );
+      // A proportion can be stated without a digit in front of it, so matching
+      // the sign alone would not be enough.
+      expect(
+        RegExp(r'per\s*cent|percent', caseSensitive: false).hasMatch(rendered),
+        isFalse,
+      );
+      expect(
+        RegExp(
+          r'\b(ratio|proportion|grade[ds]?)\b',
+          caseSensitive: false,
+        ).hasMatch(rendered),
+        isFalse,
+      );
       // A progress bar would be the same judgement in a different shape.
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
