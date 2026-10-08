@@ -1,27 +1,37 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/drift.dart' show InsertMode, OrderingTerm;
 import 'package:field_log/data/database.dart';
 import 'package:field_log/data/mappers.dart';
 import 'package:field_log/data/operation_queue.dart';
+import 'package:field_log/data/recent_species.dart';
+import 'package:field_log/data/reference_loader.dart';
 import 'package:field_log/data/sighting_amendments.dart';
+import 'package:field_log/data/sighting_writer.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
+import 'package:field_log/field/card_state.dart';
+import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/map/tile_cache.dart';
+import 'package:field_log/models/geo_point.dart';
 import 'package:field_log/net/chisimba_api.dart';
 import 'package:field_log/net/connectivity_watcher.dart';
 import 'package:field_log/net/session_store.dart';
-import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/screens/map_screen.dart';
-import 'package:field_log/screens/sign_in_screen.dart';
 import 'package:field_log/screens/pin_detail.dart';
+import 'package:field_log/screens/quick_capture_sheet.dart';
+import 'package:field_log/screens/route_editor_screen.dart';
+import 'package:field_log/screens/settings_screen.dart';
+import 'package:field_log/screens/sign_in_screen.dart';
 import 'package:field_log/screens/sync_ledger.dart';
 import 'package:field_log/screens/tally_screen.dart';
-import 'package:field_log/field/field_card_screen.dart';
-import 'package:field_log/field/card_state.dart';
 
-import 'dart:async';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -61,8 +71,10 @@ Future<void> main() async {
 /// The application root.
 ///
 /// Dark first, and this is a field decision: the work happens at first light
-/// and a white screen at 05:40 blinds.
-class FieldLogApp extends StatelessWidget {
+/// and a white screen at 05:40 blinds. The choice is remembered per device,
+/// and the appearance menu lets a trainee trade that for sunlight when the
+/// light lets them.
+class FieldLogApp extends StatefulWidget {
   const FieldLogApp({
     super.key,
     required this.database,
@@ -82,18 +94,55 @@ class FieldLogApp extends StatelessWidget {
   final TileCache? tileCache;
 
   @override
+  State<FieldLogApp> createState() => _FieldLogAppState();
+}
+
+class _FieldLogAppState extends State<FieldLogApp> {
+  ThemeMode _themeMode = ThemeMode.dark;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreThemeMode();
+  }
+
+  Future<void> _restoreThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('theme_mode');
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _themeMode = switch (saved) {
+        'light' => ThemeMode.light,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.dark,
+      };
+    });
+  }
+
+  Future<void> _setThemeMode(ThemeMode mode) async {
+    setState(() => _themeMode = mode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_mode', mode.name);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Field log',
       debugShowCheckedModeBanner: false,
-      theme: fieldTheme(FieldColours.dark),
+      theme: fieldTheme(FieldColours.sunlight),
       darkTheme: fieldTheme(FieldColours.dark),
+      themeMode: _themeMode,
       home: FieldLogHome(
-        database: database,
-        tileCache: tileCache,
-        api: api,
-        sessions: sessions,
-        connectivity: connectivity,
+        database: widget.database,
+        tileCache: widget.tileCache,
+        api: widget.api,
+        sessions: widget.sessions,
+        connectivity: widget.connectivity,
+        currentThemeMode: _themeMode,
+        onThemeModeChanged: _setThemeMode,
       ),
     );
   }
@@ -112,6 +161,8 @@ class FieldLogHome extends StatefulWidget {
     required this.api,
     required this.sessions,
     required this.connectivity,
+    required this.currentThemeMode,
+    required this.onThemeModeChanged,
     this.tileCache,
   });
 
@@ -119,6 +170,8 @@ class FieldLogHome extends StatefulWidget {
   final ChisimbaApi api;
   final SessionStore sessions;
   final ConnectivityWatcher connectivity;
+  final ThemeMode currentThemeMode;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
   final TileCache? tileCache;
 
   @override
@@ -138,16 +191,53 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   bool _restoring = true;
   bool _offerDismissed = false;
 
+  /// The last fix, or a placeholder that reports no fix. Zero metres of
+  /// accuracy and the epoch are not a position: they are a reading that never
+  /// happened, and the bar says so by showing nothing useful.
+  GpsReading _gps = GpsReading(
+    accuracyMetres: 0,
+    satellites: 0,
+    fixedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  );
+
+  /// The live position as a map coordinate, when there is one.
+  LatLng? _currentPosition;
+  StreamSubscription<Position>? _position;
+
+  /// The species most recently noted on this device, opened lazily.
+  RecentSpecies? _recent;
+
+  /// The reference snapshot (species, outings, behaviour and age/sex options)
+  /// last fetched from the office. Absent until the first load settles.
+  ReferenceSnapshot? _reference;
+
+  /// The outing a capture is being filed against, chosen in the field card or
+  /// the route editor. Until one is picked, captures are kept unowned.
+  String? _selectedOutingId;
+
+  /// The planned route for [_selectedOutingId], drawn over the map.
+  PlannedRoute? _route;
+  List<RouteWaypoint> _routeWaypoints = const [];
+
+  /// The reserve context every local record is written into. Sync only works
+  /// within the token's active context, so this adopts that context when a
+  /// sign-in proves who the device belongs to.
+  String _contextCode = 'field:write';
+
   @override
   void initState() {
     super.initState();
     _read();
     _restore();
     _watchTransport();
+    _watchPosition();
+    _loadReference();
+    RecentSpecies.open().then((recent) => _recent = recent);
   }
 
   @override
   void dispose() {
+    _position?.cancel();
     _transport?.cancel();
     widget.connectivity.dispose();
     super.dispose();
@@ -173,6 +263,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       if (!mounted) {
         return;
       }
+      _contextCode = user.activeContext ?? _contextCode;
       setState(() {
         _user = user;
         _restoring = false;
@@ -197,6 +288,71 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     });
   }
 
+  /// Follow the device's position and keep the map's fix and live marker
+  /// current. Five metres of movement is enough to care about on a reserve
+  /// track, and far fewer updates than a continuous stream.
+  Future<void> _watchPosition() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return;
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      _position =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            ),
+          ).listen((position) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _gps = GpsReading(
+                accuracyMetres: position.accuracy,
+                satellites: 0,
+                fixedAt: position.timestamp.toUtc(),
+                latitude: position.latitude,
+                longitude: position.longitude,
+              );
+              _currentPosition = LatLng(position.latitude, position.longitude);
+            });
+          });
+    } on Object catch (error) {
+      // No fix is not a broken screen: the bar shows the placeholder and the
+      // rest of the logbook still works. The error is logged so a real fault
+      // can be found once, on the device where it happened.
+      debugPrint('position: $error');
+    }
+  }
+
+  /// The reference data is loaded once at startup and refreshed from the menu.
+  /// A cache miss is shown by the field cards as an empty species list, which
+  /// is why the settings menu offers a human-triggered refresh.
+  Future<void> _loadReference() async {
+    try {
+      final loader = ReferenceLoader(
+        database: widget.database,
+        api: widget.api,
+        sessions: widget.sessions,
+      );
+      final snapshot = await loader.load();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _reference = snapshot);
+    } on Object catch (error) {
+      debugPrint('reference: $error');
+    }
+  }
+
   Future<void> _signIn(String username, String password) async {
     final evidence = await widget.api.fetchLoginEvidence();
     final session = await widget.api.signIn(
@@ -211,6 +367,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         expiresInSeconds: session.expiresInSeconds,
       ),
     );
+    _contextCode = session.user.activeContext ?? _contextCode;
     if (mounted) {
       setState(() => _user = session.user);
     }
@@ -269,6 +426,152 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         builder: (_) => const TallyScreen(progress: TrailProgress.empty),
       ),
     );
+  }
+
+  /// Pushes the menu. Everything that used to be (or look like it should be)
+  /// behind an account gesture lives here instead: the name chip, the server
+  /// address, the reference data, the sign-out, the outing routes.
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          signedInAs: _user?.shortName,
+          initialServer: widget.api.baseUrl,
+          currentThemeMode: widget.currentThemeMode,
+          onThemeModeChanged: widget.onThemeModeChanged,
+          onSignIn: () async {
+            await _openSignIn();
+            return _user?.shortName;
+          },
+          onSignOut: _signOut,
+          onSaveServer: _saveServer,
+          onLoadReference: ({required bool forceRefresh}) async {
+            final loader = ReferenceLoader(
+              database: widget.database,
+              api: widget.api,
+              sessions: widget.sessions,
+            );
+            final snapshot = await loader.load(forceRefresh: forceRefresh);
+            return ReferenceLoadResult(
+              speciesCount: snapshot.species.length,
+              problem: snapshot.refreshError,
+            );
+          },
+          onForceConnectivity: kDebugMode
+              ? (status) async {
+                  widget.connectivity.forceStatus(
+                    status ??
+                        const ConnectivityStatus(
+                          hasTransport: false,
+                          transports: [],
+                        ),
+                  );
+                }
+              : null,
+          onOpenRouteEditor: (outing, existingRoute, existingWaypoints) async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RouteEditorScreen(
+                  outing: outing,
+                  existingRoute: existingRoute,
+                  existingWaypoints: existingWaypoints,
+                  onSaveRoute: (route, waypoints) async {
+                    await _saveRoute(route, waypoints);
+                  },
+                  tileCache: widget.tileCache,
+                ),
+              ),
+            );
+            await _readRoute();
+          },
+          onLoadRoute: () async {
+            return _loadRouteForOuting(_selectedOutingId ?? '');
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Reads the planned route for the selected outing, if it has one.
+  Future<void> _readRoute() async {
+    final loaded = await _loadRouteForOuting(_selectedOutingId ?? '');
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _route = loaded.route;
+      _routeWaypoints = loaded.waypoints;
+    });
+  }
+
+  /// Loads the latest planned route and its ordered waypoints for an outing.
+  Future<({PlannedRoute? route, List<RouteWaypoint> waypoints})>
+  _loadRouteForOuting(String outingId) async {
+    if (outingId.isEmpty) {
+      return (route: null, waypoints: const <RouteWaypoint>[]);
+    }
+    final routeRow =
+        await (widget.database.select(widget.database.plannedRoutes)
+              ..where((t) => t.outingId.equals(outingId))
+              ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+            .getSingleOrNull();
+    if (routeRow == null) {
+      return (route: null, waypoints: const <RouteWaypoint>[]);
+    }
+    final waypoints =
+        await (widget.database.select(widget.database.routeWaypoints)
+              ..where((t) => t.routeId.equals(routeRow.localId))
+              ..orderBy([(t) => OrderingTerm.asc(t.ordinal)]))
+            .get();
+    return (route: routeRow, waypoints: waypoints);
+  }
+
+  /// Stores a route, replacing any route the outing already had.
+  ///
+  /// The planned route is owned by an outing, which is a Drives row on the
+  /// client. The editor mints a fresh route id on every save, so the old route
+  /// and its waypoints are removed rather than left to pile up as orphans the
+  /// map no longer knows how to choose between.
+  Future<void> _saveRoute(
+    PlannedRoute route,
+    List<RouteWaypoint> waypoints,
+  ) async {
+    await widget.database.transaction(() async {
+      // The foreign key needs the outing to exist before the route can. An
+      // outing that has never been started locally gets a row now, so planning
+      // a route never fails because the record it belongs to is missing.
+      await widget.database
+          .into(widget.database.drives)
+          .insert(
+            DrivesCompanion.insert(
+              localId: route.outingId,
+              contextCode: _contextCode,
+              startedAt: DateTime.now().toUtc(),
+            ),
+            mode: InsertMode.insertOrIgnore,
+          );
+      final old = await (widget.database.select(
+        widget.database.plannedRoutes,
+      )..where((t) => t.outingId.equals(route.outingId))).get();
+      for (final row in old) {
+        // Deleting the route drops its waypoints through the cascade, which is
+        // why only the owner needs to be removed here.
+        await (widget.database.delete(
+          widget.database.plannedRoutes,
+        )..where((t) => t.localId.equals(row.localId))).go();
+      }
+      await widget.database.into(widget.database.plannedRoutes).insert(route);
+      for (final waypoint in waypoints) {
+        await widget.database
+            .into(widget.database.routeWaypoints)
+            .insert(waypoint);
+      }
+    });
+    if (!mounted) {
+      return;
+    }
+    setState(() => _selectedOutingId = route.outingId);
+    await _readRoute();
   }
 
   Future<void> _openSighting(String localId) async {
@@ -352,14 +655,129 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     );
   }
 
+  /// A coordinate as a label the way a guide reads one out loud, hemisphere
+  /// first, to five decimal places. The card shows this so the reader can find
+  /// the spot again the same way they read it from a map.
+  String _coordinateLabel(LatLng point) {
+    final hemisphere = point.latitude < 0 ? 'S' : 'N';
+    final meridian = point.longitude < 0 ? 'W' : 'E';
+    // ignore: lines_longer_than_80_chars
+    return '${point.latitude.abs().toStringAsFixed(5)}\u00B0 $hemisphere, '
+        '${point.longitude.abs().toStringAsFixed(5)}\u00B0 $meridian';
+  }
+
+  /// The Sightings Pin: one tap on the map records a sighting at that spot,
+  /// with the species chosen from the recent list and the count adjusted, all
+  /// without leaving the map. A long-press ghost pin funnels here too, so both
+  /// gestures mean the same thing and there is not a second, slower path to
+  /// learn.
+  Future<void> _captureAt(LatLng point) async {
+    final recent = await _recent?.list() ?? const <SpeciesChoice>[];
+    if (!mounted) {
+      return;
+    }
+    final snapshot = _reference;
+    final result = await showQuickCaptureSheet(
+      context,
+      coordinateLabel: _coordinateLabel(point),
+      recentSpecies: recent,
+      allSpecies: snapshot?.species ?? const [],
+    );
+    if (result == null || !mounted) {
+      return;
+    }
+    final writer = SightingWriter(
+      widget.database,
+      OperationQueue(widget.database),
+    );
+    await writer.record(
+      contextCode: _contextCode,
+      driveId: _selectedOutingId ?? '',
+      location: GeoPoint(latitude: point.latitude, longitude: point.longitude),
+      capturedAt: DateTime.now(),
+      speciesCode: result.choice?.code,
+      count: result.choice == null ? null : result.count,
+      // Zero is the placeholder's accuracy, meaning "no fix happened yet", not
+      // a measurement of nothing at one millimetre.
+      locationAccuracyM: _gps.accuracyMetres == 0 ? null : _gps.accuracyMetres,
+      notes: result.notes.isEmpty ? null : result.notes,
+      createdBy: _user?.id,
+    );
+    if (result.choice != null) {
+      await _recent?.note(result.choice!);
+    }
+    await _read();
+  }
+
+  /// The full field card, at the live position. The card collects everything
+  /// the quick capture cannot ask for in one glance: behaviour, distance,
+  /// direction, notes, photos, and the outing the record belongs to.
   Future<void> _recordSighting() async {
+    final position = _currentPosition;
+    if (position == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Waiting for a position fix')),
+        );
+      }
+      return;
+    }
+    final recent = await _recent?.list() ?? const <SpeciesChoice>[];
+    if (!mounted) {
+      return;
+    }
+    final snapshot = _reference;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => FieldCardScreen(
           initial: const FieldDraft(mode: CaptureMode.identified),
-          species: const [],
-          reference: const ReferenceValues(behaviours: [], ageSexClasses: []),
-          onSave: (draft) async {},
+          species: snapshot?.species ?? const [],
+          reference:
+              snapshot?.reference ??
+              const ReferenceValues(behaviours: [], ageSexClasses: []),
+          coordinateLabel: _coordinateLabel(position),
+          accuracyMetres: _gps.accuracyMetres == 0 ? null : _gps.accuracyMetres,
+          outings: snapshot?.outings ?? const [],
+          selectedOutingId: _selectedOutingId,
+          onOutingChanged: (id) => setState(() => _selectedOutingId = id),
+          recentSpecies: recent,
+          onReloadSpecies: () {
+            final loader = ReferenceLoader(
+              database: widget.database,
+              api: widget.api,
+              sessions: widget.sessions,
+            );
+            return loader.load(forceRefresh: true);
+          },
+          onSpeciesUsed: (choice) {
+            _recent?.note(choice);
+          },
+          onSave: (draft) async {
+            final writer = SightingWriter(
+              widget.database,
+              OperationQueue(widget.database),
+            );
+            await writer.record(
+              contextCode: _contextCode,
+              driveId: _selectedOutingId ?? '',
+              location: GeoPoint(
+                latitude: position.latitude,
+                longitude: position.longitude,
+              ),
+              capturedAt: draft.capturedAt ?? DateTime.now(),
+              speciesCode: draft.speciesCode,
+              count: draft.count,
+              locationAccuracyM: _gps.accuracyMetres == 0
+                  ? null
+                  : _gps.accuracyMetres,
+              distanceMetres: draft.distanceMetres,
+              bearingDegrees: draft.bearingDegrees,
+              behaviour: draft.behaviour,
+              ageSexClass: draft.ageSexClass,
+              notes: draft.notes.isEmpty ? null : draft.notes,
+              createdBy: _user?.id,
+            );
+          },
           onCancel: () => Navigator.of(context).pop(),
         ),
       ),
@@ -376,16 +794,14 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       online: _status.hasTransport,
       signedInAs: _user?.shortName,
       onTapSignedInAs: _user == null ? _openSignIn : null,
+      onOpenSettings: _openSettings,
       tileCache: widget.tileCache,
-      // Placeholder until a positioning source is wired. Reporting a fix that
-      // has not happened would put a time in the record that never occurred, so
-      // this is the epoch rather than now: an obviously wrong time is better
-      // than a plausible wrong one.
-      gps: GpsReading(
-        accuracyMetres: 0,
-        satellites: 0,
-        fixedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-      ),
+      gps: _gps,
+      currentPosition: _currentPosition,
+      route: _route,
+      routeWaypoints: _routeWaypoints,
+      onMapTap: _captureAt,
+      onDropPin: _captureAt,
       onOpenLedger: _openLedger,
       onOpenTally: _openTally,
       onOpenSighting: _openSighting,
@@ -416,7 +832,6 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     );
   }
 
-
   /// Points the client at a different server and remembers the choice.
   ///
   /// The client instance is shared by every caller (sync, reference data,
@@ -431,7 +846,11 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   Future<void> _openSignIn() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SignInScreen(onSignIn: _signIn, initialServer: widget.api.baseUrl, onSaveServer: _saveServer),
+        builder: (_) => SignInScreen(
+          onSignIn: _signIn,
+          initialServer: widget.api.baseUrl,
+          onSaveServer: _saveServer,
+        ),
         fullscreenDialog: true,
       ),
     );
