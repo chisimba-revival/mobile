@@ -207,7 +207,7 @@ class _FieldCardScreenState extends State<FieldCardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SpeciesField(
+            SpeciesField(
               choice: _selectedSpecies,
               colours: colours,
               onPick: (choice) =>
@@ -836,8 +836,8 @@ class _Supporting extends StatelessWidget {
   }
 }
 
-class _SpeciesField extends StatelessWidget {
-  const _SpeciesField({
+class SpeciesField extends StatelessWidget {
+  const SpeciesField({
     required this.choice,
     required this.colours,
     required this.onPick,
@@ -925,7 +925,7 @@ class _SpeciesField extends StatelessWidget {
           top: Radius.circular(Corners.sheet),
         ),
       ),
-      builder: (context) => _SpeciesPicker(
+      builder: (context) => SpeciesPicker(
         options: options,
         selected: choice,
         colours: colours,
@@ -1005,8 +1005,8 @@ class _OutingField extends StatelessWidget {
   }
 }
 
-class _SpeciesPicker extends StatefulWidget {
-  const _SpeciesPicker({
+class SpeciesPicker extends StatefulWidget {
+  const SpeciesPicker({
     required this.options,
     required this.selected,
     required this.colours,
@@ -1028,10 +1028,10 @@ class _SpeciesPicker extends StatefulWidget {
   final Future<ReferenceSnapshot> Function()? onReload;
 
   @override
-  State<_SpeciesPicker> createState() => _SpeciesPickerState();
+  State<SpeciesPicker> createState() => SpeciesPickerState();
 }
 
-class _SpeciesPickerState extends State<_SpeciesPicker> {
+class SpeciesPickerState extends State<SpeciesPicker> {
   String _query = '';
 
   /// Set by a successful reload, overriding the options the sheet was opened

@@ -37,6 +37,7 @@ Future<void> pumpMap(
         onRecordSighting: () {},
         onOpenTally: () {},
         onOpenDrive: () {},
+        onOpenTrail: () {},
       ),
     ),
   );

@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:drift/drift.dart' show InsertMode, OrderingTerm;
 import 'package:field_log/data/database.dart';
 import 'package:field_log/data/drive_writer.dart';
+import 'package:field_log/data/encounter_writer.dart';
+import 'package:field_log/data/trail_log_writer.dart';
 import 'package:field_log/data/mappers.dart';
 import 'package:field_log/data/operation_queue.dart';
 import 'package:field_log/data/pull_engine.dart';
@@ -24,6 +26,7 @@ import 'package:field_log/net/chisimba_api.dart';
 import 'package:field_log/net/connectivity_watcher.dart';
 import 'package:field_log/net/session_store.dart';
 import 'package:field_log/screens/map_screen.dart';
+import 'package:field_log/screens/trail_logbook_screen.dart';
 import 'package:field_log/screens/drive_logbook_screen.dart';
 import 'package:field_log/screens/pin_detail.dart';
 import 'package:field_log/screens/quick_capture_sheet.dart';
@@ -204,6 +207,8 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   late final SightingWriter _sightings;
   late final SightingAmender _amender;
   late final DriveWriter _drives;
+  late final TrailLogWriter _trails;
+  late final EncounterWriter _encounters;
 
   /// Whether a sync is in flight, so a transport flap or a capture mid-sync
   /// does not start a second push against the same batch.
@@ -260,6 +265,8 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     _sightings = SightingWriter(widget.database, _queue);
     _amender = SightingAmender(widget.database, _queue);
     _drives = DriveWriter(widget.database, _queue);
+    _trails = TrailLogWriter(widget.database, queue: _queue);
+    _encounters = EncounterWriter(widget.database, _queue);
     _read();
     _restore();
     _watchTransport();
@@ -624,6 +631,36 @@ class _FieldLogHomeState extends State<FieldLogHome> {
             setState(() => _selectedOutingId = localId);
           },
           onDriveEnded: () {
+            _refreshQueued();
+            if (_status.hasTransport) unawaited(_sync());
+          },
+        ),
+      ),
+    );
+  }
+
+  /// The trail logbook: start a walk, drop waypoints, record encounters,
+  /// close it — mirroring the drive logbook for the second capture mode.
+  Future<void> _openTrail() async {
+    final recent = _recent != null
+        ? await _recent!.list()
+        : const <SpeciesChoice>[];
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TrailLogbookScreen(
+          database: widget.database,
+          writer: _trails,
+          encounters: _encounters,
+          contextCode: _contextCode,
+          driveId: _selectedOutingId ?? '',
+          guideId: _user?.id,
+          species: _reference?.species ?? const <SpeciesChoice>[],
+          recentSpecies: recent,
+          onSpeciesUsed: (choice) => _recent?.note(choice),
+          onTrailStarted: (localId) {
+            setState(() => _selectedOutingId = localId);
+          },
+          onTrailEnded: () {
             _refreshQueued();
             if (_status.hasTransport) unawaited(_sync());
           },
@@ -1004,6 +1041,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       onOpenLedger: _openLedger,
       onOpenTally: _openTally,
       onOpenDrive: _openDrive,
+      onOpenTrail: _openTrail,
       onOpenSighting: _openSighting,
       onRecordSighting: _recordSighting,
     );

@@ -75,6 +75,7 @@ class MapScreen extends StatefulWidget {
     required this.onOpenTally,
     required this.onOpenDrive,
     required this.onOpenSighting,
+    this.onOpenTrail,
     this.tileCache,
     this.signedInAs,
     this.onTapSignedInAs,
@@ -107,6 +108,10 @@ class MapScreen extends StatefulWidget {
 
   /// Opens the drive logbook: start a drive, watch it, close it.
   final VoidCallback? onOpenDrive;
+
+  /// Opens the trail logbook: start a walk, watch it, close it.
+  final VoidCallback? onOpenTrail;
+
   final String? selectedLocalId;
 
   /// Who is holding the phone. Null when nobody is signed in, which is the
@@ -297,6 +302,7 @@ class _MapScreenState extends State<MapScreen>
             onOpenLedger: widget.onOpenLedger,
             onOpenTally: widget.onOpenTally,
             onOpenDrive: widget.onOpenDrive,
+            onOpenTrail: widget.onOpenTrail,
           ),
         ],
       ),
@@ -668,6 +674,7 @@ class _Dock extends StatelessWidget {
     required this.onOpenLedger,
     required this.onOpenTally,
     required this.onOpenDrive,
+    this.onOpenTrail,
   });
 
   final FieldColours colours;
@@ -677,6 +684,7 @@ class _Dock extends StatelessWidget {
   final VoidCallback? onOpenLedger;
   final VoidCallback? onOpenTally;
   final VoidCallback? onOpenDrive;
+  final VoidCallback? onOpenTrail;
 
   @override
   Widget build(BuildContext context) {
@@ -727,6 +735,16 @@ class _Dock extends StatelessWidget {
             Row(
               children: [
                 Expanded(
+                  flex: 2,
+                  child: _GhostButton(
+                    label: 'Trail',
+                    colours: colours,
+                    onPressed: onOpenTrail,
+                  ),
+                ),
+                const SizedBox(width: Insets.sm),
+                Expanded(
+                  flex: 3,
                   child: _GhostButton(
                     label: 'Progress',
                     colours: colours,
