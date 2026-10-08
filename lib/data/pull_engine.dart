@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../models/sync_operation.dart';
 import 'database.dart';
 import 'mappers.dart';
+import 'tables.dart';
 
 /// What one page of the change feed did to the local store.
 ///
@@ -162,19 +163,50 @@ class PullEngine {
   }
 
   /// Returns true when the change reached the store, false when it was held back.
+  ///
+  /// The feed names four entities, and an outing's body says which sort it is:
+  /// an `outing` change is a drive or a hike by its `kind`, while the older
+  /// names (`drive`, `trail_log`) are followed straight to their table. Every
+  /// arm that does not merge records the change in the conflicts table rather
+  /// than dropping it, because a change passed over in silence is a gap the
+  /// client will never look for.
   Future<bool> _applyChange(PullChange change, DateTime serverTime) async {
-    if (change.entity != EntityKind.sighting) {
-      // Other kinds are not merged yet. Ignoring them outright would let the
-      // cursor advance past changes that were never stored, so each one is
-      // recorded as outstanding instead of dropped, and the gap shows up in the
-      // returned counts rather than hiding behind a zero.
-      await _hold(
-        change,
-        'entity kind ${change.entity.name} is not merged yet',
-      );
-      return false;
+    switch (change.entity) {
+      case EntityKind.sighting:
+        return _applySighting(change, serverTime);
+      case EntityKind.outing:
+        final kind = change.state?['kind'];
+        if (kind == 'drive') return _applyDrive(change, serverTime);
+        if (kind == 'hike') return _applyHike(change, serverTime);
+        // A camp, or a kind this client has never heard of, has no table
+        // here — and a tombstone of a legacy outing whose kind column predates
+        // it cannot be told apart from a deletion of the other sort. Holding
+        // keeps the fact visible instead of guessing.
+        await _hold(
+          change,
+          'outing kind ${kind ?? 'unstated'} is not merged yet',
+        );
+        return false;
+      case EntityKind.drive:
+        return _applyDrive(change, serverTime);
+      case EntityKind.trailLog:
+        return _applyHike(change, serverTime);
+      case EntityKind.dangerousGame:
+        return _applyEncounter(change, serverTime);
+      case EntityKind.trailWaypoint:
+        return _applyWaypoint(change, serverTime);
+      case EntityKind.signOff:
+      case EntityKind.media:
+      case EntityKind.unknown:
+        await _hold(
+          change,
+          'entity kind ${change.entity.name} is not merged yet',
+        );
+        return false;
     }
+  }
 
+  Future<bool> _applySighting(PullChange change, DateTime serverTime) async {
     final existing = await _rowFor(change.entityId);
 
     // Rule 6: revision is the only thing that arbitrates. An out-of-order or
@@ -257,6 +289,323 @@ class PullEngine {
     return true;
   }
 
+  /// Merge a drive outing.
+  ///
+  /// The body never carries the drive's detail — duration, guests, inspection
+  /// — so a pull can only ever touch the outing itself. Device-computed facts
+  /// the service does not hold survive a pull untouched, which is the right
+  /// direction for facts one side measured and the other merely stores.
+  Future<bool> _applyDrive(PullChange change, DateTime serverTime) async {
+    final existing = await (_db.select(
+      _db.drives,
+    )..where((t) => t.localId.equals(change.entityId))).getSingleOrNull();
+
+    if (existing != null && change.revision <= existing.revision) return true;
+    if (existing != null && existing.hasPendingChanges) {
+      await _hold(
+        change,
+        'local record carries unaccepted changes at revision '
+        '${existing.revision}',
+      );
+      return false;
+    }
+
+    if (change.isTombstone) {
+      if (existing == null) {
+        await _hold(
+          change,
+          'record was deleted before this client ever saw it',
+        );
+        return false;
+      }
+      await (_db.update(
+        _db.drives,
+      )..where((t) => t.localId.equals(change.entityId))).write(
+        DrivesCompanion(
+          isTombstone: const Value(true),
+          deletedAt: Value(serverTime.toUtc()),
+          revision: Value(change.revision),
+          hasPendingChanges: const Value(false),
+        ),
+      );
+      return true;
+    }
+
+    final state = change.state;
+    if (state == null) {
+      await _hold(change, 'change carried no state and was not a tombstone');
+      return false;
+    }
+
+    if (existing == null) {
+      final missing = _missingKeys(state, const ['context_code', 'start_time']);
+      if (missing.isNotEmpty) {
+        await _hold(change, 'new drive outing missing ${missing.join(', ')}');
+        return false;
+      }
+      await _db
+          .into(_db.drives)
+          .insert(drivePatchFromState(state, fallbackLocalId: change.entityId));
+      return true;
+    }
+
+    await (_db.update(_db.drives)
+          ..where((t) => t.localId.equals(change.entityId)))
+        .write(drivePatchFromState(state, fallbackLocalId: change.entityId));
+    return true;
+  }
+
+  /// Merge a trail log.
+  ///
+  /// Two local columns never arrive: the log's drive id and its trail code
+  /// live on this device, and the service's outing has nowhere to keep them.
+  /// An insert therefore takes empty placeholders — a label nobody has chosen
+  /// yet, visible as unlabelled rather than invented — while an update keeps
+  /// what this device already wrote.
+  Future<bool> _applyHike(PullChange change, DateTime serverTime) async {
+    final existing = await (_db.select(
+      _db.trailLogs,
+    )..where((t) => t.localId.equals(change.entityId))).getSingleOrNull();
+
+    if (existing != null && change.revision <= existing.revision) return true;
+    // A trail log keeps no pending flag of its own: every change it accepts is
+    // queued as an operation, and an unsettled one is what this check would be
+    // standing in for. Its start happened on one device, so a pull arriving
+    // while an operation is outstanding belongs to the same exchange.
+    if (existing != null && await _hasUnsettled(change.entityId)) {
+      await _hold(
+        change,
+        'local record has an operation still waiting on the service',
+      );
+      return false;
+    }
+
+    if (change.isTombstone) {
+      if (existing == null) {
+        await _hold(
+          change,
+          'record was deleted before this client ever saw it',
+        );
+        return false;
+      }
+      await (_db.update(
+        _db.trailLogs,
+      )..where((t) => t.localId.equals(change.entityId))).write(
+        TrailLogsCompanion(
+          isTombstone: const Value(true),
+          deletedAt: Value(serverTime.toUtc()),
+          revision: Value(change.revision),
+        ),
+      );
+      return true;
+    }
+
+    final state = change.state;
+    if (state == null) {
+      await _hold(change, 'change carried no state and was not a tombstone');
+      return false;
+    }
+
+    if (existing == null) {
+      final missing = _missingKeys(state, const ['context_code', 'start_time']);
+      if (missing.isNotEmpty) {
+        await _hold(change, 'new trail log missing ${missing.join(', ')}');
+        return false;
+      }
+      await _db
+          .into(_db.trailLogs)
+          .insert(
+            hikePatchFromState(
+              state,
+              fallbackLocalId: change.entityId,
+              driveId: '',
+              trailCode: '',
+            ),
+          );
+      return true;
+    }
+
+    await (_db.update(
+      _db.trailLogs,
+    )..where((t) => t.localId.equals(change.entityId))).write(
+      hikePatchFromState(
+        state,
+        fallbackLocalId: change.entityId,
+        driveId: existing.driveId,
+        trailCode: existing.trailCode,
+      ),
+    );
+    return true;
+  }
+
+  /// Merge a dangerous-game encounter.
+  ///
+  /// An encounter is written once and never amended, so there is no local
+  /// pending flag to consult: by the time the service can feed this id back,
+  /// this device's own operation has already been accepted and the revision
+  /// check above absorbs the echo.
+  Future<bool> _applyEncounter(PullChange change, DateTime serverTime) async {
+    final existing = await (_db.select(
+      _db.dangerousGameEncounters,
+    )..where((t) => t.localId.equals(change.entityId))).getSingleOrNull();
+
+    if (existing != null && change.revision <= existing.revision) return true;
+
+    if (change.isTombstone) {
+      if (existing == null) {
+        await _hold(
+          change,
+          'record was deleted before this client ever saw it',
+        );
+        return false;
+      }
+      await (_db.update(
+        _db.dangerousGameEncounters,
+      )..where((t) => t.localId.equals(change.entityId))).write(
+        DangerousGameEncountersCompanion(
+          isTombstone: const Value(true),
+          deletedAt: Value(serverTime.toUtc()),
+          revision: Value(change.revision),
+        ),
+      );
+      return true;
+    }
+
+    final state = change.state;
+    if (state == null) {
+      await _hold(change, 'change carried no state and was not a tombstone');
+      return false;
+    }
+
+    if (existing == null) {
+      final missing = _missingKeys(state, const [
+        'context_code',
+        'outing_id',
+        'species_code',
+        'captured_at',
+        'recorded_at',
+      ]);
+      if (state['location'] == null) missing.add('location');
+      if (missing.isNotEmpty) {
+        await _hold(change, 'new encounter missing ${missing.join(', ')}');
+        return false;
+      }
+      await _db
+          .into(_db.dangerousGameEncounters)
+          .insert(
+            encounterPatchFromState(state, fallbackLocalId: change.entityId),
+          );
+      return true;
+    }
+
+    await (_db.update(
+      _db.dangerousGameEncounters,
+    )..where((t) => t.localId.equals(change.entityId))).write(
+      encounterPatchFromState(state, fallbackLocalId: change.entityId),
+    );
+    return true;
+  }
+
+  /// Merge a trail waypoint.
+  ///
+  /// A waypoint keeps no revision — its identity is the uuid both sides
+  /// minted — so the arrival check is "have I seen this id", not "is this
+  /// revision newer". Its parent log may arrive in a later page than its
+  /// waypoints after a resync, so a missing parent is created as a
+  /// placeholder: an empty trail code and context until the real log arrives
+  /// to fill them, which it does, because the log's own change is still in the
+  /// feed behind this one.
+  Future<bool> _applyWaypoint(PullChange change, DateTime serverTime) async {
+    final seen = await (_db.select(
+      _db.trailWaypoints,
+    )..where((t) => t.serverId.equals(change.entityId))).getSingleOrNull();
+    if (seen != null) return true;
+
+    if (change.isTombstone) {
+      // The service's waypoint table has no deleted_at, so this cannot be a
+      // real waypoint tombstone. Holding rather than ignoring keeps the
+      // disagreement where a person can see it.
+      await _hold(change, 'a waypoint deletion is not recognised here');
+      return false;
+    }
+
+    final state = change.state;
+    if (state == null) {
+      await _hold(change, 'change carried no state and was not a tombstone');
+      return false;
+    }
+
+    final missing = _missingKeys(state, const [
+      'outing_id',
+      'ordinal',
+      'point',
+      'captured_at',
+    ]);
+    if (missing.isNotEmpty) {
+      await _hold(change, 'new waypoint missing ${missing.join(', ')}');
+      return false;
+    }
+
+    final parentId = state['outing_id']! as String;
+    final parent = await (_db.select(
+      _db.trailLogs,
+    )..where((t) => t.localId.equals(parentId))).getSingleOrNull();
+    if (parent == null) {
+      await _db
+          .into(_db.trailLogs)
+          .insert(
+            TrailLogsCompanion(
+              localId: Value(parentId),
+              // The waypoint carries no context code and no trail name — the
+              // service's waypoint table has no such columns — so the
+              // placeholder is explicitly empty rather than guessed at.
+              contextCode: const Value(''),
+              driveId: const Value(''),
+              trailCode: const Value(''),
+              startedAt: Value(wireMoment(state['captured_at'])!),
+              revision: const Value(0),
+              serverId: const Value(null),
+            ),
+          );
+    }
+
+    // The primary key is (trail log, ordinal): two devices walking the same
+    // outing and both at waypoint seven is a real disagreement, not a
+    // duplicate. Inserting anyway would roll back the whole page, so the
+    // loser is held as a conflict for a person to read.
+    final ordinal = wireInt(state['ordinal'])!;
+    final clash =
+        await (_db.select(_db.trailWaypoints)..where(
+              (t) => t.trailLogId.equals(parentId) & t.ordinal.equals(ordinal),
+            ))
+            .getSingleOrNull();
+    if (clash != null) {
+      await _hold(
+        change,
+        'waypoint #$ordinal already exists for this log under another identity',
+      );
+      return false;
+    }
+
+    await _db.into(_db.trailWaypoints).insert(waypointPatchFromState(state));
+    return true;
+  }
+
+  /// Whether a queued operation for [entityId] has not settled yet.
+  ///
+  /// Used where a table has no pending column of its own. Settled operations
+  /// — applied, refused, everything a person has already seen — do not hold
+  /// anything back.
+  Future<bool> _hasUnsettled(String entityId) async {
+    final query = _db.select(_db.queuedOperations)
+      ..where(
+        (t) =>
+            t.entityId.equals(entityId) &
+            t.state.equals(OperationState.settled.name).not(),
+      );
+    return await query.getSingleOrNull() != null;
+  }
+
   static const _requiredForNewRow = <String>[
     'context_code',
     'drive_id',
@@ -273,10 +622,25 @@ class PullEngine {
         missing.add(key);
       }
     }
+    // The service renamed the column: feed bodies carry outing_id, and a
+    // transitional body may still carry drive_id. Either names the outing the
+    // sighting belongs to; neither present means the record has no home and
+    // a create without one is refused outright.
+    if (missing.remove('drive_id') &&
+        (state['outing_id'] == null && state['drive_id'] == null)) {
+      missing.add('drive_id');
+    }
     if (state['location'] == null) {
       missing.add('location');
     }
     return missing;
+  }
+
+  List<String> _missingKeys(Map<String, dynamic> state, List<String> keys) {
+    return [
+      for (final key in keys)
+        if (!state.containsKey(key) || state[key] == null) key,
+    ];
   }
 
   Future<SightingRow?> _rowFor(String localId) {
@@ -295,7 +659,7 @@ class PullEngine {
     // transaction, and nesting one would be at best redundant and at worst a
     // deadlock against the same connection.
     final localId = change.entityId;
-    final local = await _rowFor(localId);
+    final local = await _localSnapshot(change);
     await _db
         .into(_db.conflicts)
         .insert(
@@ -303,16 +667,83 @@ class PullEngine {
             operationId: 'pull:$localId:${change.revision}',
             entityId: localId,
             entity: change.entity,
-            clientPayload: local == null
-                ? ''
-                : encodePayload(sightingToState(local.toModel())),
+            clientPayload: local.payload,
             serverState: encodePayload({...?change.state, 'held_because': why}),
             serverRevision: change.revision,
-            baseRevision: local?.revision ?? 0,
+            baseRevision: local.revision,
             errorCode: 'pull_held',
             recordedAt: DateTime.now().toUtc(),
           ),
           mode: InsertMode.insertOrIgnore,
         );
+  }
+
+  /// The local record as it stands, for the conflicts table.
+  ///
+  /// Whatever table the entity lives in, the conflict wants the same two
+  /// things: this client's version of the record, and the revision it holds.
+  /// A record this client does not have yields an empty payload and revision
+  /// zero, which is the truth rather than a default.
+  Future<({String payload, int revision})> _localSnapshot(
+    PullChange change,
+  ) async {
+    final localId = change.entityId;
+    switch (change.entity) {
+      case EntityKind.sighting:
+        final row = await _rowFor(localId);
+        return (
+          payload: row == null
+              ? ''
+              : encodePayload(sightingToState(row.toModel())),
+          revision: row?.revision ?? 0,
+        );
+      case EntityKind.drive:
+      case EntityKind.outing:
+        final row = await (_db.select(
+          _db.drives,
+        )..where((t) => t.localId.equals(localId))).getSingleOrNull();
+        return (
+          payload: row == null ? '' : encodePayload(driveToState(row)),
+          revision: row?.revision ?? 0,
+        );
+      case EntityKind.trailLog:
+        final row = await (_db.select(
+          _db.trailLogs,
+        )..where((t) => t.localId.equals(localId))).getSingleOrNull();
+        return (
+          payload: row == null ? '' : encodePayload(hikeToState(row)),
+          revision: row?.revision ?? 0,
+        );
+      case EntityKind.dangerousGame:
+        final row = await (_db.select(
+          _db.dangerousGameEncounters,
+        )..where((t) => t.localId.equals(localId))).getSingleOrNull();
+        return (
+          payload: row == null ? '' : encodePayload(encounterToState(row)),
+          revision: row?.revision ?? 0,
+        );
+      case EntityKind.trailWaypoint:
+        final row = await (_db.select(
+          _db.trailWaypoints,
+        )..where((t) => t.serverId.equals(localId))).getSingleOrNull();
+        return (
+          payload: row == null
+              ? ''
+              : encodePayload(<String, dynamic>{
+                  'outing_id': row.trailLogId,
+                  'ordinal': row.ordinal,
+                  'latitude': row.latitude,
+                  'longitude': row.longitude,
+                  'captured_at': row.recordedAt.toUtc().toIso8601String(),
+                  if (row.elevationM != null) 'elevation_m': row.elevationM,
+                  if (row.note != null) 'note': row.note,
+                }),
+          // A waypoint holds no revision; the conflict's server revision is
+          // the only one the pair can show.
+          revision: 0,
+        );
+      default:
+        return (payload: '', revision: 0);
+    }
   }
 }

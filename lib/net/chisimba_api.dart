@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../data/mappers.dart';
 import '../models/sync_operation.dart';
 
 /// The signed-in person, as the service describes them.
@@ -852,10 +853,13 @@ class ApiPullChange {
 
   /// Convert to the internal PullChange model used by PullEngine.
   PullChange toPullChange() => PullChange(
-    entity: EntityKind.values.firstWhere(
-      (e) => e.name == entityType,
-      orElse: () => EntityKind.sighting,
-    ),
+    // The feed names entities the way the service's tables do — 'outing',
+    // 'log_book_entry' — which are not the enum's Dart names. Matching on
+    // [EntityKind.name] would send every change down the sighting path
+    // through the orElse, so the same translation the push side uses is
+    // applied here; an entity the service grows tomorrow maps to unknown and
+    // is held rather than merged into the wrong table.
+    entity: entityFromWire(entityType) ?? EntityKind.unknown,
     entityId: entityId,
     revision: revision,
     isTombstone: body['deleted_at'] != null,

@@ -5,6 +5,8 @@ import 'package:drift/drift.dart' show InsertMode, OrderingTerm;
 import 'package:field_log/data/database.dart';
 import 'package:field_log/data/mappers.dart';
 import 'package:field_log/data/operation_queue.dart';
+import 'package:field_log/data/pull_engine.dart';
+import 'package:field_log/data/push_engine.dart';
 import 'package:field_log/data/recent_species.dart';
 import 'package:field_log/data/reference_loader.dart';
 import 'package:field_log/data/sighting_amendments.dart';
@@ -14,6 +16,7 @@ import 'package:field_log/design/tokens.dart';
 import 'package:field_log/field/card_state.dart';
 import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/models/sync_operation.dart' as model;
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/models/geo_point.dart';
 import 'package:field_log/net/chisimba_api.dart';
@@ -180,7 +183,28 @@ class FieldLogHome extends StatefulWidget {
 
 class _FieldLogHomeState extends State<FieldLogHome> {
   List<MapPin> _pins = const [];
-  final int _queued = 0;
+
+  /// How many queued operations have not settled.
+  ///
+  /// Read from the queue rather than counted by hand: the badge and the
+  /// ledger must agree, and they can only agree if there is one source.
+  int _queued = 0;
+
+  /// The sync machinery, built once.
+  ///
+  /// One queue shared by every writer is what makes the badge honest — an
+  /// [OperationQueue] per capture would still work against the same table,
+  /// but the engines and the writers must agree on which queue is the queue
+  /// when they name dependencies on each other's operations.
+  late final OperationQueue _queue;
+  late final PushEngine _push;
+  late final PullEngine _pull;
+  late final SightingWriter _sightings;
+  late final SightingAmender _amender;
+
+  /// Whether a sync is in flight, so a transport flap or a capture mid-sync
+  /// does not start a second push against the same batch.
+  bool _syncing = false;
 
   FieldUser? _user;
   ConnectivityStatus _status = const ConnectivityStatus(
@@ -227,12 +251,21 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   @override
   void initState() {
     super.initState();
+    _queue = OperationQueue(widget.database);
+    _push = PushEngine(widget.database, _queue);
+    _pull = PullEngine(widget.database);
+    _sightings = SightingWriter(widget.database, _queue);
+    _amender = SightingAmender(widget.database, _queue);
     _read();
     _restore();
     _watchTransport();
     _watchPosition();
     _loadReference();
     RecentSpecies.open().then((recent) => _recent = recent);
+    // Operations interrupted by a crash are recoverable states, not lost
+    // ones; running this at startup is what turns an inflight row left by a
+    // mid-push kill into something the next sync will offer again.
+    unawaited(_recoverAndCount());
   }
 
   @override
@@ -268,6 +301,9 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         _user = user;
         _restoring = false;
       });
+      // The token proved itself; if the radio is up, offer the queue now
+      // rather than waiting for a transport event that may never re-fire.
+      if (_status.hasTransport) unawaited(_sync());
     } on Object {
       // The token did not work. Clearing it stops the next launch trying it
       // again, and puts the trainee in front of the sign-in form rather than
@@ -285,7 +321,135 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         return;
       }
       setState(() => _status = status);
+      // Coming back into coverage is the moment the queue has been waiting
+      // for. The sync guards itself against already being in flight.
+      if (status.hasTransport && _user != null) unawaited(_sync());
     });
+  }
+
+  /// Settle operations an interrupted push left behind, then read the badge.
+  Future<void> _recoverAndCount() async {
+    await _queue.recoverInterrupted();
+    await _refreshQueued();
+  }
+
+  /// Re-read the queued count from the queue itself.
+  Future<void> _refreshQueued() async {
+    final rows = await _queue.pending();
+    if (!mounted) return;
+    setState(() => _queued = rows.length);
+  }
+
+  /// Send what is queued, then take in what has changed.
+  ///
+  /// Push goes first, deliberately: this device's own operations settle and
+  /// stamp their accepted revisions before the pull's echo of the same
+  /// records arrives, so the echo lands on a revision the store already
+  /// holds and is absorbed as the no-op it is instead of being read as a
+  /// disagreement. A single guard makes a transport flap or a capture
+  /// landing mid-sync harmless.
+  Future<void> _sync() async {
+    if (_syncing || _user == null || !_status.hasTransport) {
+      return;
+    }
+    _syncing = true;
+    try {
+      final stored = await widget.sessions.read();
+      if (stored == null || !stored.isUsable) {
+        return;
+      }
+      final token = stored.accessToken;
+
+      final report = await _push.push(
+        send: (batch) async {
+          final request = PushRequest(
+            operations: [
+              for (final operation in batch)
+                PushOperation.fromJson(operationToWire(operation)),
+            ],
+          );
+          final response = await widget.api.push(token, request);
+          // The transport's result names its outcome in the service's words;
+          // the engine's contract names it in the enum. The two are different
+          // types on purpose, and this is the one place they are translated.
+          return [
+            for (final result in response.results)
+              model.PushResult(
+                operationId: result.operationId,
+                outcome: switch (result.outcome) {
+                  'applied' => model.PushOutcome.applied,
+                  'noop' => model.PushOutcome.noop,
+                  'deferred' => model.PushOutcome.deferred,
+                  'refused' => model.PushOutcome.refused,
+                  // An outcome this client has never heard of is treated as
+                  // deferred: offered again, with its unknown string still
+                  // readable in the ledger, rather than being marked settled
+                  // and dropped because a newer service grew a word.
+                  _ => model.PushOutcome.deferred,
+                },
+                newRevision: result.newRevision,
+                errorCode: result.errorCode,
+                serverState: result.serverState,
+                serverRevision: result.serverRevision,
+              ),
+          ];
+        },
+      );
+      debugPrint(
+        'sync: pushed ${report.sentOperationIds.length}, '
+        '${report.applied} applied, ${report.refused} refused, '
+        '${report.deferred} waiting',
+      );
+
+      await _pullPages(token);
+    } on Object catch (error) {
+      // Being offline in the middle of a sync is a normal field condition,
+      // not a fault worth interrupting anybody for. The queue keeps what was
+      // not accepted, and the next transport event tries again.
+      debugPrint('sync: $error');
+    } finally {
+      _syncing = false;
+      await _refreshQueued();
+      if (mounted) {
+        await _read();
+      }
+    }
+  }
+
+  /// Pull pages until the feed runs dry or the service asks for a re-pull.
+  ///
+  /// Each page is applied in its own transaction with its cursor advanced in
+  /// that same transaction, so a crash between pages resumes exactly where
+  /// the store actually got to. A `resync_required` discards the cursor and
+  /// starts once from the beginning: re-delivery is harmless because every
+  /// change is applied by revision, but a second resync inside one sync is a
+  /// service that cannot settle, and looping on it would never return.
+  Future<void> _pullPages(String token) async {
+    var cursor = await _pull.cursorFor(_contextCode);
+    var restarted = false;
+    while (true) {
+      final response = await widget.api.pull(
+        token,
+        // The service reads an empty cursor as "from the beginning", which
+        // is exactly what a device pulling for the first time means.
+        PullRequest(cursor: cursor ?? ''),
+      );
+      final page = response.toPage();
+      final outcome = await _pull.applyPage(scope: _contextCode, page: page);
+      if (outcome.resyncRequired) {
+        if (restarted) {
+          return;
+        }
+        restarted = true;
+        await _pull.forgetCursors();
+        cursor = null;
+        continue;
+      }
+      if (!page.hasMore || outcome.nextCursor == null) {
+        return;
+      }
+      cursor = outcome.nextCursor;
+    }
   }
 
   /// Follow the device's position and keep the map's fix and live marker
@@ -370,6 +534,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     _contextCode = session.user.activeContext ?? _contextCode;
     if (mounted) {
       setState(() => _user = session.user);
+      unawaited(_sync());
     }
   }
 
@@ -415,7 +580,13 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   Future<void> _openLedger() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const SyncLedgerScreen(entries: [], online: false),
+        builder: (_) => SyncLedgerScreen(
+          // The screen reads the queue itself, so what it shows after a sync
+          // is the queue's current truth rather than a list snapshotted when
+          // the button was pressed.
+          database: widget.database,
+          online: _status.hasTransport,
+        ),
       ),
     );
   }
@@ -610,10 +781,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     if (parsed == null) {
       return;
     }
-    final amender = SightingAmender(
-      widget.database,
-      OperationQueue(widget.database),
-    );
+    final amender = _amender;
     final operationId = await amender.amend(
       localId,
       SightingAmendment(parsed, value),
@@ -624,6 +792,10 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       return;
     }
     await _read();
+    await _refreshQueued();
+    // The amendment is a queued change like any other; when the radio is up
+    // it should not wait for the next transport event to be offered.
+    if (_status.hasTransport) unawaited(_sync());
   }
 
   SightingSummary _summaryOf(SightingRow row) {
@@ -686,10 +858,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     if (result == null || !mounted) {
       return;
     }
-    final writer = SightingWriter(
-      widget.database,
-      OperationQueue(widget.database),
-    );
+    final writer = _sightings;
     await writer.record(
       contextCode: _contextCode,
       driveId: _selectedOutingId ?? '',
@@ -753,10 +922,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
             _recent?.note(choice);
           },
           onSave: (draft) async {
-            final writer = SightingWriter(
-              widget.database,
-              OperationQueue(widget.database),
-            );
+            final writer = _sightings;
             await writer.record(
               contextCode: _contextCode,
               driveId: _selectedOutingId ?? '',

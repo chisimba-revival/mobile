@@ -99,7 +99,11 @@ void main() {
         db.sightings,
       )..where((t) => t.localId.equals('local-1'))).getSingle();
       expect(row.revision, 4);
-      expect(row.serverId, 'srv-1');
+      // The service takes this client's uuid as its own — a create whose
+      // entity_id is not a uuid is refused — so the accepted id is the one
+      // this operation carried, even when a server_state along the way names
+      // something else. That state is shown for reading, not adopted.
+      expect(row.serverId, 'local-1');
       expect(row.hasPendingChanges, isFalse);
     });
   });

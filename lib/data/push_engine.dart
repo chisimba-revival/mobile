@@ -8,12 +8,27 @@ import 'tables.dart';
 
 /// The wire form of one pushed operation, as the service expects it.
 Map<String, dynamic> operationToWire(PendingOperation operation) {
+  // Wire kinds are not a copy of the local ones. The service accepts exactly
+  // two kinds of change to an existing record: 'correct' for a sighting
+  // (evidence is never rewritten, it is corrected) and 'update' for an
+  // outing. An amendment queued as a local update therefore goes out as
+  // 'correct', carrying its amendment payload through as-is — the service
+  // applies what it understands of that payload and the rest stays visible
+  // rather than being reshaped into a claim the amendment never made.
+  final kind =
+      operation.entity == EntityKind.sighting &&
+          operation.kind == OperationKind.update
+      ? 'correct'
+      : operation.kind.name;
   return <String, dynamic>{
     'operation_id': operation.operationId,
     'entity': wireEntityFor(operation.entity),
     'entity_id': operation.entityId,
-    'kind': operation.kind.name,
-    'base_revision': operation.baseRevision,
+    'kind': kind,
+    // A base of zero is no base at all: the service refuses any create that
+    // carries one, so a create omits the key entirely rather than sending a
+    // number that means "nothing has been established yet".
+    if (operation.baseRevision > 0) 'base_revision': operation.baseRevision,
     'captured_at': operation.capturedAt.toUtc().toIso8601String(),
     'recorded_at': operation.recordedAt.toUtc().toIso8601String(),
     if (operation.dependsOn != null) 'depends_on': operation.dependsOn,
@@ -193,31 +208,79 @@ class PushEngine {
   /// Rule 6: the server's revision is the only thing that becomes the new local
   /// revision. Timestamps never arbitrate.
   ///
-  /// The server's id is taken from the state it returned rather than from
-  /// [PendingOperation.entityId]. That field is the id *this client* minted, and
-  /// writing it into `serverId` would make the two columns the same value and
-  /// quietly destroy the only record of which identifier came from where.
+  /// The id written into `serverId` is the id this client minted. That is not
+  /// an assumption: the service takes the client's uuid as its own — a create
+  /// whose entity_id is not a uuid is refused outright — so client id, wire id
+  /// and server id are one identifier with three names, and `serverId` is
+  /// marked "the service has seen this record", not "some other identifier".
+  ///
+  /// Not every entity has every column. A waypoint keeps no revision and a
+  /// pending flag of its own — its row is already addressed by the uuid it was
+  /// written with, so there is nothing to update. An encounter has a revision
+  /// but no pending flag, because encounters are written once and never
+  /// amended. A table without a column is not a column set to a default; the
+  /// update simply does not mention it.
   Future<void> _acceptServerRevision(
     PendingOperation operation,
     PushResult result,
   ) async {
-    if (operation.entity != EntityKind.sighting) {
-      return;
-    }
-
     final revision = result.newRevision ?? result.serverRevision;
-    final serverState = result.serverState ?? const <String, dynamic>{};
-    final serverId = serverState['id'] ?? serverState['server_id'];
+    final serverId = Value(operation.entityId);
+    final revisionValue = revision == null
+        ? const Value<int>.absent()
+        : Value(revision);
 
-    await (_db.update(
-      _db.sightings,
-    )..where((t) => t.localId.equals(operation.entityId))).write(
-      SightingsCompanion(
-        serverId: serverId is String ? Value(serverId) : const Value.absent(),
-        revision: revision == null ? const Value.absent() : Value(revision),
-        hasPendingChanges: const Value(false),
-      ),
-    );
+    switch (operation.entity) {
+      case EntityKind.sighting:
+        await (_db.update(
+          _db.sightings,
+        )..where((t) => t.localId.equals(operation.entityId))).write(
+          SightingsCompanion(
+            serverId: serverId,
+            revision: revisionValue,
+            hasPendingChanges: const Value(false),
+          ),
+        );
+      case EntityKind.drive:
+      case EntityKind.outing:
+        // Both name the same local row: 'outing' is the wire's word for the
+        // drive record, and there is one table, not two.
+        await (_db.update(
+          _db.drives,
+        )..where((t) => t.localId.equals(operation.entityId))).write(
+          DrivesCompanion(
+            serverId: serverId,
+            revision: revisionValue,
+            hasPendingChanges: const Value(false),
+          ),
+        );
+      case EntityKind.trailLog:
+        await (_db.update(
+          _db.trailLogs,
+        )..where((t) => t.localId.equals(operation.entityId))).write(
+          TrailLogsCompanion(serverId: serverId, revision: revisionValue),
+        );
+      case EntityKind.dangerousGame:
+        await (_db.update(
+          _db.dangerousGameEncounters,
+        )..where((t) => t.localId.equals(operation.entityId))).write(
+          DangerousGameEncountersCompanion(
+            serverId: serverId,
+            revision: revisionValue,
+          ),
+        );
+      case EntityKind.trailWaypoint:
+      // The row already carries this uuid in its serverId column — it was
+      // minted there, and the service adopted it. Nothing local changes when
+      // the service confirms what it already says.
+      case EntityKind.signOff:
+      case EntityKind.media:
+      case EntityKind.unknown:
+        // No local table stands behind these kinds. Settling the operation
+        // itself is the queue's job and has already happened; inventing a row
+        // for a record this client does not keep would be a second invention.
+        break;
+    }
   }
 
   /// Keep a refusal for a person rather than discarding or auto-resolving it.

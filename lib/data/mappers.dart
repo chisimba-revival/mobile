@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:drift/drift.dart';
 
@@ -311,6 +312,10 @@ SightingsCompanion sightingPatchFromState(
   put('server_id', 'server_id', asString);
   put('context_code', 'context_code', asString);
   put('drive_id', 'drive_id', asString);
+  // The service renamed the table's column from drive_id to outing_id and
+  // feed bodies use the new name; a body may carry either, and the second
+  // write lets the newer name win when a transitional body carries both.
+  put('drive_id', 'outing_id', asString);
   put('species_code', 'species_code', asString);
   put('count', 'count', asInt);
   put('behaviour', 'behaviour', asString);
@@ -389,10 +394,205 @@ double? _longitudeOf(Object? location) {
 }
 
 List<num>? _coordinatesOf(Object? location) {
+  // The two forms the location can arrive in: GeoJSON from this client's own
+  // push payloads, and PostGIS's own hex EWKB from a feed body, because
+  // `to_jsonb(geometry)` renders the binary form rather than GeoJSON.
+  if (location is String) return _ewkbPoint(location);
   if (location is! Map) return null;
   final coordinates = location['coordinates'];
   if (coordinates is! List) return null;
   return coordinates.whereType<num>().toList();
+}
+
+/// Decode a hex-encoded EWKB point into `[longitude, latitude]`.
+///
+/// Byte order is the first word (1 little, 0 big), then a 32-bit type with
+/// optional flag words: SRID is marked by 0x20000000 and follows the type.
+/// The low byte of the type names the geometry — 1 is a point — and X/Y are
+/// the first two doubles after the header, so a point carrying a third
+/// dimension still yields its planar coordinates. Anything unrecognised
+/// yields null and the column is left alone rather than written as zero,
+/// which would place a record at Null Island.
+List<num>? _ewkbPoint(String hex) {
+  final text = hex.trim();
+  // A point without SRID is 21 bytes (42 hex characters); with SRID, 25.
+  if (text.length < 42 || text.length.isOdd) return null;
+
+  final bytes = Uint8List(text.length ~/ 2);
+  for (var i = 0; i < bytes.length; i++) {
+    final octet = int.tryParse(text.substring(i * 2, i * 2 + 2), radix: 16);
+    if (octet == null) return null;
+    bytes[i] = octet;
+  }
+
+  final byteOrder = bytes[0];
+  if (byteOrder != 0 && byteOrder != 1) return null;
+  final little = byteOrder == 1;
+  final endian = little ? Endian.little : Endian.big;
+  final view = ByteData.sublistView(bytes);
+
+  var offset = 1;
+  final type = view.getUint32(offset, endian);
+  offset += 4;
+  if (type & 0x20000000 != 0) offset += 4; // SRID word follows the type.
+  if (type & 0xFF != 1) return null; // Not a point.
+  if (offset + 16 > bytes.length) return null;
+
+  final longitude = view.getFloat64(offset, endian);
+  final latitude = view.getFloat64(offset + 8, endian);
+  return [longitude, latitude];
+}
+
+/// What a feed body says about a nullable column.
+///
+/// Three states, exactly as [sightingPatchFromState] documents them: an
+/// absent key means the feed did not mention the column and nothing is
+/// written; a present key with a value writes it; a present null clears it.
+Value<T?> _feedValue<T extends Object>(
+  Map<String, dynamic> state,
+  String key,
+  T? Function(Object? raw) parse,
+) {
+  if (!state.containsKey(key)) return const Value.absent();
+  return Value<T?>(parse(state[key]));
+}
+
+/// The same three states, for a column whose schema will not accept null.
+///
+/// A null from the feed is dropped rather than written: for these columns
+/// "cleared" is not a state the table has, so a null is the feed being
+/// incomplete rather than a fact being asserted. The insert gate in the
+/// pull engine holds the change when the value turns out to be needed.
+Value<T> _feedRequired<T extends Object>(
+  Map<String, dynamic> state,
+  String key,
+  T? Function(Object? raw) parse,
+) {
+  if (!state.containsKey(key)) return const Value.absent();
+  final parsed = parse(state[key]);
+  if (parsed == null) return const Value.absent();
+  return Value<T>(parsed);
+}
+
+String? wireString(Object? raw) => raw is String ? raw : null;
+
+int? wireInt(Object? raw) {
+  if (raw is int) return raw;
+  if (raw is num) return raw.toInt();
+  if (raw is String) return int.tryParse(raw);
+  return null;
+}
+
+double? wireDouble(Object? raw) {
+  if (raw is num) return raw.toDouble();
+  if (raw is String) return double.tryParse(raw);
+  return null;
+}
+
+DateTime? wireMoment(Object? raw) =>
+    raw is String ? DateTime.tryParse(raw)?.toUtc() : null;
+
+/// The storage patch for a drive outing as the change feed presents it.
+///
+/// The feed body is the outing table alone — duration, guests and the
+/// inspection live in the drive's detail table and never appear here — so
+/// this patch never touches them. Columns absent from the body keep what the
+/// device holds, which is the same rule as every other sparse patch.
+DrivesCompanion drivePatchFromState(
+  Map<String, dynamic> state, {
+  required String fallbackLocalId,
+}) {
+  return DrivesCompanion(
+    localId: Value(fallbackLocalId),
+    serverId: _feedValue(state, 'id', wireString),
+    contextCode: _feedRequired(state, 'context_code', wireString),
+    startedAt: _feedRequired(state, 'start_time', wireMoment),
+    endedAt: _feedValue(state, 'end_time', wireMoment),
+    sealedAt: _feedValue(state, 'sealed_at', wireMoment),
+    guideId: _feedValue(state, 'guide_id', wireString),
+    status: _feedValue(state, 'status', wireString),
+    weather: _feedValue(state, 'weather', wireString),
+    notes: _feedValue(state, 'notes', wireString),
+    revision: _feedRequired(state, 'revision', wireInt),
+    deletedAt: _feedValue(state, 'deleted_at', wireMoment),
+  );
+}
+
+/// The storage patch for a trail log as the change feed presents it.
+///
+/// [driveId] and [trailCode] are parameters rather than feed fields because
+/// the service's outing has no such columns and a pulled hike arrives
+/// without them: the caller passes the existing row's values on an update,
+/// and empty placeholders on an insert — a local label nobody on this device
+/// has chosen yet, not a fabricated trail name.
+TrailLogsCompanion hikePatchFromState(
+  Map<String, dynamic> state, {
+  required String fallbackLocalId,
+  required String driveId,
+  required String trailCode,
+}) {
+  return TrailLogsCompanion(
+    localId: Value(fallbackLocalId),
+    serverId: _feedValue(state, 'id', wireString),
+    contextCode: _feedRequired(state, 'context_code', wireString),
+    startedAt: _feedRequired(state, 'start_time', wireMoment),
+    endedAt: _feedValue(state, 'end_time', wireMoment),
+    notes: _feedValue(state, 'notes', wireString),
+    weather: _feedValue(state, 'weather', wireString),
+    status: _feedValue(state, 'status', wireString),
+    revision: _feedRequired(state, 'revision', wireInt),
+    deletedAt: _feedValue(state, 'deleted_at', wireMoment),
+    driveId: Value(driveId),
+    trailCode: Value(trailCode),
+  );
+}
+
+/// The storage patch for a dangerous-game encounter from the change feed.
+///
+/// Latitude and longitude arrive as the service stores them — one geometry
+/// column — and are split into the two columns this schema keeps, in
+/// longitude-latitude order on the wire and latitude-longitude here.
+DangerousGameEncountersCompanion encounterPatchFromState(
+  Map<String, dynamic> state, {
+  required String fallbackLocalId,
+}) {
+  return DangerousGameEncountersCompanion(
+    localId: Value(fallbackLocalId),
+    serverId: _feedValue(state, 'id', wireString),
+    contextCode: _feedRequired(state, 'context_code', wireString),
+    outingId: _feedRequired(state, 'outing_id', wireString),
+    speciesCode: _feedRequired(state, 'species_code', wireString),
+    latitude: _feedRequired(state, 'location', _latitudeOf),
+    longitude: _feedRequired(state, 'location', _longitudeOf),
+    capturedAt: _feedRequired(state, 'captured_at', wireMoment),
+    recordedAt: _feedRequired(state, 'recorded_at', wireMoment),
+    createdBy: _feedValue(state, 'created_by', wireString),
+    distanceM: _feedValue(state, 'distance_m', wireDouble),
+    animalBehaviour: _feedValue(state, 'animal_behaviour', wireString),
+    actionTaken: _feedValue(state, 'action_taken', wireString),
+    note: _feedValue(state, 'note', wireString),
+    revision: _feedRequired(state, 'revision', wireInt),
+    deletedAt: _feedValue(state, 'deleted_at', wireMoment),
+  );
+}
+
+/// The storage patch for a trail waypoint from the change feed.
+///
+/// The service's geometry column is named `point`, not `location`, and the
+/// waypoint keeps no revision of its own: its identity is the uuid both
+/// sides minted, which is why there is no revision field here to fill.
+TrailWaypointsCompanion waypointPatchFromState(Map<String, dynamic> state) {
+  return TrailWaypointsCompanion(
+    serverId: _feedValue(state, 'id', wireString),
+    trailLogId: _feedRequired(state, 'outing_id', wireString),
+    ordinal: _feedRequired(state, 'ordinal', wireInt),
+    latitude: _feedRequired(state, 'point', _latitudeOf),
+    longitude: _feedRequired(state, 'point', _longitudeOf),
+    recordedAt: _feedRequired(state, 'captured_at', wireMoment),
+    accuracyMetres: _feedValue(state, 'accuracy_m', wireDouble),
+    elevationM: _feedValue(state, 'elevation_m', wireDouble),
+    note: _feedValue(state, 'note', wireString),
+  );
 }
 
 /// The stored status for a wire name, defaulting to [SightingStatus.pending].
