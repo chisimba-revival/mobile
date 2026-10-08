@@ -221,6 +221,114 @@ class OperationQueue {
       _db.queuedOperations,
     )..where((t) => t.operationId.equals(operationId))).getSingleOrNull();
   }
+
+  /// The create for [entityId] that has not settled yet, if there is one.
+  ///
+  /// Unsettled means pending or inflight: in both cases the service has not
+  /// yet accepted the record, so anything that must arrive after it — a
+  /// waypoint against a trail log, an encounter against an outing — has to
+  /// name this operation as its prerequisite and wait for it to settle.
+  ///
+  /// The most recent one wins when there are several, because that is the
+  /// create whose payload the row currently carries.
+  Future<QueuedOperationRow?> unsettledCreate(String entityId) {
+    return _unsettled(entityId, OperationKind.create);
+  }
+
+  /// The update for [entityId] that has not settled yet, if there is one.
+  ///
+  /// Used when a save lands while an earlier update is on the wire: the newer
+  /// update waits behind the in-flight one rather than racing its revision.
+  Future<QueuedOperationRow?> unsettledUpdate(String entityId) {
+    return _unsettled(entityId, OperationKind.update);
+  }
+
+  Future<QueuedOperationRow?> _unsettled(
+    String entityId,
+    OperationKind kind,
+  ) async {
+    final rows =
+        await (_db.select(_db.queuedOperations)
+              ..where(
+                (t) =>
+                    t.entityId.equals(entityId) &
+                    t.kind.equals(kind.name) &
+                    t.state.equals(OperationState.settled.name).not(),
+              )
+              ..orderBy([(t) => OrderingTerm.desc(t.enqueuedAt)]))
+            .get();
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  /// Rewrite the waiting create for [entityId] with a newer payload.
+  ///
+  /// A record saved twice before the first push leaves the service has no
+  /// reason to hold two creates: the second save is the more complete account,
+  /// so the operation still waiting is updated in place — same operation id,
+  /// same idempotency key, newer content.
+  ///
+  /// Only a [OperationState.pending] row qualifies. An inflight create's bytes
+  /// may already be on the wire, and changing the payload under them would
+  /// make the retry of that batch send different content under the same
+  /// operation id, which is exactly what rule 7 exists to prevent. A caller
+  /// that finds an inflight create queues an update behind it instead.
+  ///
+  /// Returns true when a waiting create was rewritten.
+  Future<bool> replacePendingCreate({
+    required EntityKind entity,
+    required String entityId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final rows =
+        await (_db.select(_db.queuedOperations)
+              ..where(
+                (t) =>
+                    t.entityId.equals(entityId) &
+                    t.kind.equals(OperationKind.create.name) &
+                    t.state.equals(OperationState.pending.name),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.enqueuedAt)]))
+            .get();
+    if (rows.isEmpty || rows.first.entity != entity) {
+      return false;
+    }
+    await (_db.update(_db.queuedOperations)
+          ..where((t) => t.operationId.equals(rows.first.operationId)))
+        .write(QueuedOperationsCompanion(payload: Value(jsonEncode(payload))));
+    return true;
+  }
+
+  /// Rewrite the waiting update for [entityId] with a newer payload.
+  ///
+  /// The same argument as [replacePendingCreate], one operation later: two
+  /// saves before the first one reaches the service are one update, not two
+  /// that would race each other's revisions. Only a pending row qualifies —
+  /// see [replacePendingCreate] for why an inflight row is left alone.
+  ///
+  /// Returns true when a waiting update was rewritten.
+  Future<bool> replacePendingUpdate({
+    required EntityKind entity,
+    required String entityId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final rows =
+        await (_db.select(_db.queuedOperations)
+              ..where(
+                (t) =>
+                    t.entityId.equals(entityId) &
+                    t.kind.equals(OperationKind.update.name) &
+                    t.state.equals(OperationState.pending.name),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.enqueuedAt)]))
+            .get();
+    if (rows.isEmpty || rows.first.entity != entity) {
+      return false;
+    }
+    await (_db.update(_db.queuedOperations)
+          ..where((t) => t.operationId.equals(rows.first.operationId)))
+        .write(QueuedOperationsCompanion(payload: Value(jsonEncode(payload))));
+    return true;
+  }
 }
 
 /// Recover the operation a queued row stands for.

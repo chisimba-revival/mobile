@@ -38,6 +38,10 @@ const _$EntityKindEnumMap = {
   EntityKind.sighting: 'sighting',
   EntityKind.signOff: 'sign_off',
   EntityKind.media: 'media',
+  EntityKind.outing: 'outing',
+  EntityKind.dangerousGame: 'dangerous_game',
+  EntityKind.trailWaypoint: 'trail_waypoint',
+  EntityKind.unknown: 'unknown',
 };
 
 const _$OperationKindEnumMap = {

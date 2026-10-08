@@ -88,6 +88,14 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
         return 'Sign-off';
       case EntityKind.media:
         return 'Media';
+      case EntityKind.outing:
+        return 'Outing';
+      case EntityKind.dangerousGame:
+        return 'Dangerous game';
+      case EntityKind.trailWaypoint:
+        return 'Waypoint';
+      case EntityKind.unknown:
+        return 'Unknown record';
     }
   }
 

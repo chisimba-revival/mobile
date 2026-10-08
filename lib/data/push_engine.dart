@@ -10,7 +10,7 @@ import 'tables.dart';
 Map<String, dynamic> operationToWire(PendingOperation operation) {
   return <String, dynamic>{
     'operation_id': operation.operationId,
-    'entity': operation.entity.name,
+    'entity': wireEntityFor(operation.entity),
     'entity_id': operation.entityId,
     'kind': operation.kind.name,
     'base_revision': operation.baseRevision,

@@ -23,6 +23,10 @@ void main() {
     contextCode: 'kiswahili',
     trailCode: 'TRL-04',
     startedAt: _start,
+    // The service refuses a hike without both, so the start form collects
+    // them; the writer takes the same pair.
+    rifleRole: 'second',
+    walkLengthKm: 4.2,
   );
 
   group('the path walked', () {

@@ -32,6 +32,7 @@ part 'database.g.dart';
     Drives,
     TrailLogs,
     TrailWaypoints,
+    DangerousGameEncounters,
     PlannedRoutes,
     RouteWaypoints,
     QueuedOperations,
@@ -53,7 +54,7 @@ class FieldLogDatabase extends _$FieldLogDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -69,6 +70,43 @@ class FieldLogDatabase extends _$FieldLogDatabase {
       if (from < 3) {
         await m.createTable(plannedRoutes);
         await m.createTable(routeWaypoints);
+      }
+      // Schema 4 carries the drive's logbook fields (vehicle, inspection,
+      // hours and off-road rollup), the hike's fields (rifle role, guide role
+      // and the rest), the waypoint's id and elevation, and the dangerous-game
+      // encounter table. Every added column is nullable, so existing rows —
+      // including a drive started before this schema existed — stay valid
+      // without a default being invented for them.
+      if (from < 4) {
+        await m.addColumn(drives, drives.status);
+        await m.addColumn(drives, drives.guideId);
+        await m.addColumn(drives, drives.vehicleId);
+        await m.addColumn(drives, drives.durationHours);
+        await m.addColumn(drives, drives.guestCount);
+        await m.addColumn(drives, drives.inspectionOilOk);
+        await m.addColumn(drives, drives.inspectionWaterOk);
+        await m.addColumn(drives, drives.inspectionTyresOk);
+        await m.addColumn(drives, drives.daylightHours);
+        await m.addColumn(drives, drives.nightHours);
+        await m.addColumn(drives, drives.offRoadSeconds);
+        await m.addColumn(drives, drives.offTrackUsed);
+        await m.addColumn(drives, drives.weather);
+        await m.addColumn(drives, drives.notes);
+
+        await m.addColumn(trailLogs, trailLogs.status);
+        await m.addColumn(trailLogs, trailLogs.rifleRole);
+        await m.addColumn(trailLogs, trailLogs.guideRole);
+        await m.addColumn(trailLogs, trailLogs.rifleDetails);
+        await m.addColumn(trailLogs, trailLogs.walkLengthKm);
+        await m.addColumn(trailLogs, trailLogs.hoursWalked);
+        await m.addColumn(trailLogs, trailLogs.description);
+        await m.addColumn(trailLogs, trailLogs.lessonsLearned);
+        await m.addColumn(trailLogs, trailLogs.weather);
+
+        await m.addColumn(trailWaypoints, trailWaypoints.serverId);
+        await m.addColumn(trailWaypoints, trailWaypoints.elevationM);
+
+        await m.createTable(dangerousGameEncounters);
       }
     },
     beforeOpen: (details) async {

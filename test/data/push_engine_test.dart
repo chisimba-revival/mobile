@@ -253,7 +253,10 @@ void main() {
       );
 
       expect(wire['operation_id'], 'op-1');
-      expect(wire['entity'], 'sighting');
+      // The service names a sighting `log_book_entry`. The local table name
+      // was never what the wire carried — sending it would be refused as an
+      // unsupported entity — so this is the translation, not a rename.
+      expect(wire['entity'], 'log_book_entry');
       expect(wire['entity_id'], 'local-1');
       expect(wire['kind'], 'create');
       expect(wire['base_revision'], 2);

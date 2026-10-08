@@ -148,6 +148,51 @@ class Drives extends Table {
   BoolColumn get hasPendingChanges =>
       boolean().withDefault(const Constant(false))();
 
+  /// Lifecycle as the service knows it: planned, active, completed or
+  /// cancelled. Null while the drive has only ever been local.
+  TextColumn get status => text().nullable()();
+
+  /// Who is guiding. The service carries this on the outing itself rather than
+  /// on the drive detail block, so it lives here.
+  TextColumn get guideId => text().nullable()();
+
+  /// The registration of the vehicle, when the logbook records one.
+  TextColumn get vehicleId => text().nullable()();
+
+  /// Hours behind the wheel, filled in when the drive ends.
+  ///
+  /// The service refuses a drive create without a duration greater than zero,
+  /// which is why a started-but-unfinished drive is held locally until there
+  /// is an answer to put here.
+  RealColumn get durationHours => real().nullable()();
+
+  /// Every person carried who is not the guide. Never negative, and the
+  /// service requires it on create alongside [durationHours].
+  IntColumn get guestCount => integer().nullable()();
+
+  /// The three pre-trip checks as separate answers. Each one counts on its
+  /// own — a service that stored a single "inspected" flag could not show
+  /// which check was skipped.
+  BoolColumn get inspectionOilOk => boolean().nullable()();
+  BoolColumn get inspectionWaterOk => boolean().nullable()();
+  BoolColumn get inspectionTyresOk => boolean().nullable()();
+
+  /// Hours by daylight and by night, kept apart because night driving is its
+  /// own qualification rather than a row on a map. Non-negative; the device
+  /// may offer a manual override when it disagrees with the clock.
+  RealColumn get daylightHours => real().nullable()();
+  RealColumn get nightHours => real().nullable()();
+
+  /// Seconds spent off-road — graded track, not the route — non-negative.
+  IntColumn get offRoadSeconds => integer().nullable()();
+
+  /// Whether the planned route went off-track. A judgement, recorded rather
+  /// than derived, because only the people in the vehicle know.
+  BoolColumn get offTrackUsed => boolean().nullable()();
+
+  TextColumn get weather => text().nullable()();
+  TextColumn get notes => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {localId};
 }
@@ -170,6 +215,29 @@ class TrailLogs extends Table {
   IntColumn get revision => integer().withDefault(const Constant(0))();
   BoolColumn get isTombstone => boolean().withDefault(const Constant(false))();
   DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  /// The four service fields a hike needs. Null while the log is local: the
+  /// service's hike create refuses without a rifle role and a walk length, so
+  /// a log started before those are known waits here until they are.
+  TextColumn get status => text().nullable()();
+
+  /// Who carries the rifle — first, second or neither — as the service
+  /// enumerates it.
+  TextColumn get rifleRole => text().nullable()();
+
+  /// Lead or backup guide, when the hike carries two. A different question
+  /// from [TrailLogs.driveId]'s guide: this is about the hike itself.
+  TextColumn get guideRole => text().nullable()();
+
+  /// What rifle and calibre, when there is one. Free text because the
+  /// contract declares the field without enumerating it.
+  TextColumn get rifleDetails => text().nullable()();
+
+  RealColumn get walkLengthKm => real().nullable()();
+  RealColumn get hoursWalked => real().nullable()();
+  TextColumn get description => text().nullable()();
+  TextColumn get lessonsLearned => text().nullable()();
+  TextColumn get weather => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {localId};
@@ -327,4 +395,70 @@ class ReferenceData extends Table {
 
   @override
   Set<Column> get primaryKey => {kind, code};
+}
+
+/// An encounter with dangerous game, recorded against an outing.
+///
+/// Create-only. Unlike a sighting there is no amendment path — an encounter
+/// is a single moment with what happened next, and the contract's correction
+/// rules belong to observations, not to this — so there is no
+/// `hasPendingChanges` here: once the create is queued, nothing local can
+/// diverge from what the service holds.
+///
+/// [outingId] deliberately carries no foreign key. The parent may be a drive
+/// or a trail log depending on which block was open, and a pull can deliver
+/// the encounter before this device has the outing. The id is the client-minted
+/// one either way, so it resolves to the right row when the parent arrives.
+@DataClassName('DangerousGameEncounterRow')
+class DangerousGameEncounters extends Table {
+  /// The id this device minted. The service takes the client's id as its own,
+  /// so this is also the wire id and the pull key.
+  TextColumn get localId => text()();
+
+  /// Set from the operation result — the same id, recorded once the service
+  /// has accepted it, so "accepted" is visible without asking the queue.
+  TextColumn get serverId => text().nullable()();
+
+  TextColumn get contextCode => text()();
+
+  /// The outing this happened against: the client-minted id of the drive or
+  /// trail log, whichever owns the encounter.
+  TextColumn get outingId => text()();
+
+  TextColumn get speciesCode => text()();
+
+  /// Metres, when the range was judged. Null when it was not, which is not
+  /// the same as zero: zero would assert contact.
+  RealColumn get distanceM => real().nullable()();
+
+  TextColumn get animalBehaviour => text().nullable()();
+  TextColumn get actionTaken => text().nullable()();
+
+  /// Split into plain reals for the same reason the sighting's location is:
+  /// filtering and sorting beat parsing a geometry on every row.
+  RealColumn get latitude => real()();
+  RealColumn get longitude => real()();
+
+  /// Kept on the device only. The service's table has no accuracy column —
+  /// an encounter is pinned from one position at one moment — so this is a
+  /// local note about how good that position was.
+  RealColumn get accuracyM => real().nullable()();
+
+  DateTimeColumn get capturedAt => dateTime()();
+  DateTimeColumn get recordedAt => dateTime()();
+
+  /// Who recorded it, when known. The service carries its own `created_by`
+  /// from the token, so this is the local echo.
+  TextColumn get createdBy => text().nullable()();
+
+  TextColumn get note => text().nullable()();
+
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
+  /// Rule 9: a deletion arrives as a record rather than as an absence.
+  BoolColumn get isTombstone => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {localId};
 }

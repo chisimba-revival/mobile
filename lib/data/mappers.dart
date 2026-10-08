@@ -75,6 +75,78 @@ Map<String, dynamic> sightingToState(WildlifeSighting s) {
   };
 }
 
+/// The contract's wire form for a drive outing.
+///
+/// Sparse on purpose. The service's update applies only the keys it receives,
+/// so an absent field means "leave this alone" rather than "clear it", and a
+/// null column is omitted for the same reason. [driveToState] is what a queued
+/// create or update carries; the columns it does not name stay as they are.
+Map<String, dynamic> driveToState(DriveRow d) {
+  return <String, dynamic>{
+    'outing_kind': 'drive',
+    'status': d.status ?? 'planned',
+    'start_time': d.startedAt.toUtc().toIso8601String(),
+    if (d.endedAt != null) 'end_time': d.endedAt!.toUtc().toIso8601String(),
+    if (d.guideId != null) 'guide_id': d.guideId,
+    if (d.weather != null) 'weather': d.weather,
+    if (d.notes != null) 'notes': d.notes,
+    if (d.durationHours != null) 'duration_hours': d.durationHours,
+    if (d.guestCount != null) 'guest_count': d.guestCount,
+    if (d.vehicleId != null) 'vehicle_id': d.vehicleId,
+    if (d.inspectionOilOk != null) 'inspection_oil_ok': d.inspectionOilOk,
+    if (d.inspectionWaterOk != null) 'inspection_water_ok': d.inspectionWaterOk,
+    if (d.inspectionTyresOk != null) 'inspection_tyres_ok': d.inspectionTyresOk,
+    if (d.daylightHours != null) 'daylight_hours': d.daylightHours,
+    if (d.nightHours != null) 'night_hours': d.nightHours,
+    if (d.offRoadSeconds != null) 'off_road_seconds': d.offRoadSeconds,
+    if (d.offTrackUsed != null) 'off_track_used': d.offTrackUsed,
+  };
+}
+
+/// The contract's wire form for a hike outing.
+///
+/// [TrailLogRow.trailCode] and [TrailLogRow.driveId] are deliberately absent:
+/// the service's outing has no such columns, and sending keys it does not
+/// read would pretend an agreement the contract does not make. Trail names
+/// stay on this device.
+Map<String, dynamic> hikeToState(TrailLogRow t) {
+  return <String, dynamic>{
+    'outing_kind': 'hike',
+    'status': t.status ?? 'planned',
+    'start_time': t.startedAt.toUtc().toIso8601String(),
+    if (t.endedAt != null) 'end_time': t.endedAt!.toUtc().toIso8601String(),
+    if (t.notes != null) 'notes': t.notes,
+    if (t.weather != null) 'weather': t.weather,
+    if (t.rifleRole != null) 'rifle_role': t.rifleRole,
+    if (t.walkLengthKm != null) 'walk_length_km': t.walkLengthKm,
+    if (t.hoursWalked != null) 'hours_walked': t.hoursWalked,
+    if (t.description != null) 'description': t.description,
+    if (t.lessonsLearned != null) 'lessons_learned': t.lessonsLearned,
+    if (t.guideRole != null) 'guide_role': t.guideRole,
+    if (t.rifleDetails != null) 'rifle_details': t.rifleDetails,
+  };
+}
+
+/// The contract's wire form for a dangerous-game encounter.
+///
+/// [DangerousGameEncounterRow.accuracyM] is absent because the service's
+/// table has no accuracy column: sending it would ask for a field that does
+/// not exist, and the device keeps its own accuracy without pretending the
+/// service shares it.
+Map<String, dynamic> encounterToState(DangerousGameEncounterRow e) {
+  return <String, dynamic>{
+    'outing_id': e.outingId,
+    'species_code': e.speciesCode,
+    'longitude': e.longitude,
+    'latitude': e.latitude,
+    'captured_at': e.capturedAt.toUtc().toIso8601String(),
+    if (e.distanceM != null) 'distance_m': e.distanceM,
+    if (e.animalBehaviour != null) 'animal_behaviour': e.animalBehaviour,
+    if (e.actionTaken != null) 'action_taken': e.actionTaken,
+    if (e.note != null) 'note': e.note,
+  };
+}
+
 /// The wire name of an enum value.
 ///
 /// Dispatched by type rather than by reflection over the generated codecs: the
@@ -86,7 +158,7 @@ String _wireValue(Object value) => switch (value) {
   SightingStatus v => statusWireName(v),
   SightingBehaviour v => behaviourWireName(v),
   AgeSexClass v => ageSexWireName(v),
-  EntityKind v => _entityWireName(v),
+  EntityKind v => wireEntityFor(v),
   OperationKind v => _operationWireName(v),
   PushOutcome v => _outcomeWireName(v),
   _ => value.toString(),
@@ -117,12 +189,43 @@ String ageSexWireName(AgeSexClass v) => switch (v) {
   AgeSexClass.unknown => 'unknown',
 };
 
-String _entityWireName(EntityKind v) => switch (v) {
-  EntityKind.drive => 'drive',
-  EntityKind.trailLog => 'trail_log',
-  EntityKind.sighting => 'sighting',
+/// The wire name for an entity kind, as the service names it.
+///
+/// The queue stores local table names (a drive, a trail log) while the service
+/// speaks its own four (`outing`, `log_book_entry`, `dangerous_game_encounter`,
+/// `trail_waypoint`), so this is a translation rather than a rename: a queued
+/// drive and a queued trail log are both an `outing` out there, and a queued
+/// sighting is a `log_book_entry`.
+String wireEntityFor(EntityKind v) => switch (v) {
+  EntityKind.drive || EntityKind.trailLog || EntityKind.outing => 'outing',
+  EntityKind.sighting => 'log_book_entry',
+  EntityKind.dangerousGame => 'dangerous_game_encounter',
+  EntityKind.trailWaypoint => 'trail_waypoint',
   EntityKind.signOff => 'sign_off',
   EntityKind.media => 'media',
+  EntityKind.unknown => 'unknown',
+};
+
+/// The local entity kind a wire type means, or null when the wire type is not
+/// understood.
+///
+/// Null rather than a guess: a change the client cannot name is held as
+/// [EntityKind.unknown] and shown as such, because a pull that mapped an
+/// unknown type onto a sighting would write somebody else's row into the
+/// trainee's own log and do it silently.
+EntityKind? entityFromWire(String wireType) => switch (wireType) {
+  'outing' => EntityKind.outing,
+  'log_book_entry' => EntityKind.sighting,
+  'dangerous_game_encounter' => EntityKind.dangerousGame,
+  'trail_waypoint' => EntityKind.trailWaypoint,
+  // Earlier feeds named these after the local tables, and a client that has
+  // been offline since before the rename will still meet them.
+  'drive' => EntityKind.drive,
+  'trail_log' => EntityKind.trailLog,
+  'sighting' => EntityKind.sighting,
+  'sign_off' => EntityKind.signOff,
+  'media' => EntityKind.media,
+  _ => null,
 };
 
 String _operationWireName(OperationKind v) => switch (v) {

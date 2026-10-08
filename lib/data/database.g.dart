@@ -1826,6 +1826,168 @@ class $DrivesTable extends Drives with TableInfo<$DrivesTable, DriveRow> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _guideIdMeta = const VerificationMeta(
+    'guideId',
+  );
+  @override
+  late final GeneratedColumn<String> guideId = GeneratedColumn<String>(
+    'guide_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _vehicleIdMeta = const VerificationMeta(
+    'vehicleId',
+  );
+  @override
+  late final GeneratedColumn<String> vehicleId = GeneratedColumn<String>(
+    'vehicle_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationHoursMeta = const VerificationMeta(
+    'durationHours',
+  );
+  @override
+  late final GeneratedColumn<double> durationHours = GeneratedColumn<double>(
+    'duration_hours',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _guestCountMeta = const VerificationMeta(
+    'guestCount',
+  );
+  @override
+  late final GeneratedColumn<int> guestCount = GeneratedColumn<int>(
+    'guest_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _inspectionOilOkMeta = const VerificationMeta(
+    'inspectionOilOk',
+  );
+  @override
+  late final GeneratedColumn<bool> inspectionOilOk = GeneratedColumn<bool>(
+    'inspection_oil_ok',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("inspection_oil_ok" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _inspectionWaterOkMeta = const VerificationMeta(
+    'inspectionWaterOk',
+  );
+  @override
+  late final GeneratedColumn<bool> inspectionWaterOk = GeneratedColumn<bool>(
+    'inspection_water_ok',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("inspection_water_ok" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _inspectionTyresOkMeta = const VerificationMeta(
+    'inspectionTyresOk',
+  );
+  @override
+  late final GeneratedColumn<bool> inspectionTyresOk = GeneratedColumn<bool>(
+    'inspection_tyres_ok',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("inspection_tyres_ok" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _daylightHoursMeta = const VerificationMeta(
+    'daylightHours',
+  );
+  @override
+  late final GeneratedColumn<double> daylightHours = GeneratedColumn<double>(
+    'daylight_hours',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nightHoursMeta = const VerificationMeta(
+    'nightHours',
+  );
+  @override
+  late final GeneratedColumn<double> nightHours = GeneratedColumn<double>(
+    'night_hours',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _offRoadSecondsMeta = const VerificationMeta(
+    'offRoadSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> offRoadSeconds = GeneratedColumn<int>(
+    'off_road_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _offTrackUsedMeta = const VerificationMeta(
+    'offTrackUsed',
+  );
+  @override
+  late final GeneratedColumn<bool> offTrackUsed = GeneratedColumn<bool>(
+    'off_track_used',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("off_track_used" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _weatherMeta = const VerificationMeta(
+    'weather',
+  );
+  @override
+  late final GeneratedColumn<String> weather = GeneratedColumn<String>(
+    'weather',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     localId,
@@ -1838,6 +2000,20 @@ class $DrivesTable extends Drives with TableInfo<$DrivesTable, DriveRow> {
     isTombstone,
     deletedAt,
     hasPendingChanges,
+    status,
+    guideId,
+    vehicleId,
+    durationHours,
+    guestCount,
+    inspectionOilOk,
+    inspectionWaterOk,
+    inspectionTyresOk,
+    daylightHours,
+    nightHours,
+    offRoadSeconds,
+    offTrackUsed,
+    weather,
+    notes,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1926,6 +2102,111 @@ class $DrivesTable extends Drives with TableInfo<$DrivesTable, DriveRow> {
         ),
       );
     }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('guide_id')) {
+      context.handle(
+        _guideIdMeta,
+        guideId.isAcceptableOrUnknown(data['guide_id']!, _guideIdMeta),
+      );
+    }
+    if (data.containsKey('vehicle_id')) {
+      context.handle(
+        _vehicleIdMeta,
+        vehicleId.isAcceptableOrUnknown(data['vehicle_id']!, _vehicleIdMeta),
+      );
+    }
+    if (data.containsKey('duration_hours')) {
+      context.handle(
+        _durationHoursMeta,
+        durationHours.isAcceptableOrUnknown(
+          data['duration_hours']!,
+          _durationHoursMeta,
+        ),
+      );
+    }
+    if (data.containsKey('guest_count')) {
+      context.handle(
+        _guestCountMeta,
+        guestCount.isAcceptableOrUnknown(data['guest_count']!, _guestCountMeta),
+      );
+    }
+    if (data.containsKey('inspection_oil_ok')) {
+      context.handle(
+        _inspectionOilOkMeta,
+        inspectionOilOk.isAcceptableOrUnknown(
+          data['inspection_oil_ok']!,
+          _inspectionOilOkMeta,
+        ),
+      );
+    }
+    if (data.containsKey('inspection_water_ok')) {
+      context.handle(
+        _inspectionWaterOkMeta,
+        inspectionWaterOk.isAcceptableOrUnknown(
+          data['inspection_water_ok']!,
+          _inspectionWaterOkMeta,
+        ),
+      );
+    }
+    if (data.containsKey('inspection_tyres_ok')) {
+      context.handle(
+        _inspectionTyresOkMeta,
+        inspectionTyresOk.isAcceptableOrUnknown(
+          data['inspection_tyres_ok']!,
+          _inspectionTyresOkMeta,
+        ),
+      );
+    }
+    if (data.containsKey('daylight_hours')) {
+      context.handle(
+        _daylightHoursMeta,
+        daylightHours.isAcceptableOrUnknown(
+          data['daylight_hours']!,
+          _daylightHoursMeta,
+        ),
+      );
+    }
+    if (data.containsKey('night_hours')) {
+      context.handle(
+        _nightHoursMeta,
+        nightHours.isAcceptableOrUnknown(data['night_hours']!, _nightHoursMeta),
+      );
+    }
+    if (data.containsKey('off_road_seconds')) {
+      context.handle(
+        _offRoadSecondsMeta,
+        offRoadSeconds.isAcceptableOrUnknown(
+          data['off_road_seconds']!,
+          _offRoadSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('off_track_used')) {
+      context.handle(
+        _offTrackUsedMeta,
+        offTrackUsed.isAcceptableOrUnknown(
+          data['off_track_used']!,
+          _offTrackUsedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('weather')) {
+      context.handle(
+        _weatherMeta,
+        weather.isAcceptableOrUnknown(data['weather']!, _weatherMeta),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
     return context;
   }
 
@@ -1975,6 +2256,62 @@ class $DrivesTable extends Drives with TableInfo<$DrivesTable, DriveRow> {
         DriftSqlType.bool,
         data['${effectivePrefix}has_pending_changes'],
       )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      ),
+      guideId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}guide_id'],
+      ),
+      vehicleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vehicle_id'],
+      ),
+      durationHours: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}duration_hours'],
+      ),
+      guestCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}guest_count'],
+      ),
+      inspectionOilOk: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}inspection_oil_ok'],
+      ),
+      inspectionWaterOk: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}inspection_water_ok'],
+      ),
+      inspectionTyresOk: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}inspection_tyres_ok'],
+      ),
+      daylightHours: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}daylight_hours'],
+      ),
+      nightHours: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}night_hours'],
+      ),
+      offRoadSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}off_road_seconds'],
+      ),
+      offTrackUsed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}off_track_used'],
+      ),
+      weather: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}weather'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
     );
   }
 
@@ -1998,6 +2335,50 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
   final bool isTombstone;
   final DateTime? deletedAt;
   final bool hasPendingChanges;
+
+  /// Lifecycle as the service knows it: planned, active, completed or
+  /// cancelled. Null while the drive has only ever been local.
+  final String? status;
+
+  /// Who is guiding. The service carries this on the outing itself rather than
+  /// on the drive detail block, so it lives here.
+  final String? guideId;
+
+  /// The registration of the vehicle, when the logbook records one.
+  final String? vehicleId;
+
+  /// Hours behind the wheel, filled in when the drive ends.
+  ///
+  /// The service refuses a drive create without a duration greater than zero,
+  /// which is why a started-but-unfinished drive is held locally until there
+  /// is an answer to put here.
+  final double? durationHours;
+
+  /// Every person carried who is not the guide. Never negative, and the
+  /// service requires it on create alongside [durationHours].
+  final int? guestCount;
+
+  /// The three pre-trip checks as separate answers. Each one counts on its
+  /// own — a service that stored a single "inspected" flag could not show
+  /// which check was skipped.
+  final bool? inspectionOilOk;
+  final bool? inspectionWaterOk;
+  final bool? inspectionTyresOk;
+
+  /// Hours by daylight and by night, kept apart because night driving is its
+  /// own qualification rather than a row on a map. Non-negative; the device
+  /// may offer a manual override when it disagrees with the clock.
+  final double? daylightHours;
+  final double? nightHours;
+
+  /// Seconds spent off-road — graded track, not the route — non-negative.
+  final int? offRoadSeconds;
+
+  /// Whether the planned route went off-track. A judgement, recorded rather
+  /// than derived, because only the people in the vehicle know.
+  final bool? offTrackUsed;
+  final String? weather;
+  final String? notes;
   const DriveRow({
     required this.localId,
     this.serverId,
@@ -2009,6 +2390,20 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
     required this.isTombstone,
     this.deletedAt,
     required this.hasPendingChanges,
+    this.status,
+    this.guideId,
+    this.vehicleId,
+    this.durationHours,
+    this.guestCount,
+    this.inspectionOilOk,
+    this.inspectionWaterOk,
+    this.inspectionTyresOk,
+    this.daylightHours,
+    this.nightHours,
+    this.offRoadSeconds,
+    this.offTrackUsed,
+    this.weather,
+    this.notes,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2031,6 +2426,48 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     map['has_pending_changes'] = Variable<bool>(hasPendingChanges);
+    if (!nullToAbsent || status != null) {
+      map['status'] = Variable<String>(status);
+    }
+    if (!nullToAbsent || guideId != null) {
+      map['guide_id'] = Variable<String>(guideId);
+    }
+    if (!nullToAbsent || vehicleId != null) {
+      map['vehicle_id'] = Variable<String>(vehicleId);
+    }
+    if (!nullToAbsent || durationHours != null) {
+      map['duration_hours'] = Variable<double>(durationHours);
+    }
+    if (!nullToAbsent || guestCount != null) {
+      map['guest_count'] = Variable<int>(guestCount);
+    }
+    if (!nullToAbsent || inspectionOilOk != null) {
+      map['inspection_oil_ok'] = Variable<bool>(inspectionOilOk);
+    }
+    if (!nullToAbsent || inspectionWaterOk != null) {
+      map['inspection_water_ok'] = Variable<bool>(inspectionWaterOk);
+    }
+    if (!nullToAbsent || inspectionTyresOk != null) {
+      map['inspection_tyres_ok'] = Variable<bool>(inspectionTyresOk);
+    }
+    if (!nullToAbsent || daylightHours != null) {
+      map['daylight_hours'] = Variable<double>(daylightHours);
+    }
+    if (!nullToAbsent || nightHours != null) {
+      map['night_hours'] = Variable<double>(nightHours);
+    }
+    if (!nullToAbsent || offRoadSeconds != null) {
+      map['off_road_seconds'] = Variable<int>(offRoadSeconds);
+    }
+    if (!nullToAbsent || offTrackUsed != null) {
+      map['off_track_used'] = Variable<bool>(offTrackUsed);
+    }
+    if (!nullToAbsent || weather != null) {
+      map['weather'] = Variable<String>(weather);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
     return map;
   }
 
@@ -2054,6 +2491,48 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
           ? const Value.absent()
           : Value(deletedAt),
       hasPendingChanges: Value(hasPendingChanges),
+      status: status == null && nullToAbsent
+          ? const Value.absent()
+          : Value(status),
+      guideId: guideId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(guideId),
+      vehicleId: vehicleId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vehicleId),
+      durationHours: durationHours == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationHours),
+      guestCount: guestCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(guestCount),
+      inspectionOilOk: inspectionOilOk == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inspectionOilOk),
+      inspectionWaterOk: inspectionWaterOk == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inspectionWaterOk),
+      inspectionTyresOk: inspectionTyresOk == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inspectionTyresOk),
+      daylightHours: daylightHours == null && nullToAbsent
+          ? const Value.absent()
+          : Value(daylightHours),
+      nightHours: nightHours == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nightHours),
+      offRoadSeconds: offRoadSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(offRoadSeconds),
+      offTrackUsed: offTrackUsed == null && nullToAbsent
+          ? const Value.absent()
+          : Value(offTrackUsed),
+      weather: weather == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weather),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
     );
   }
 
@@ -2073,6 +2552,20 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
       isTombstone: serializer.fromJson<bool>(json['isTombstone']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       hasPendingChanges: serializer.fromJson<bool>(json['hasPendingChanges']),
+      status: serializer.fromJson<String?>(json['status']),
+      guideId: serializer.fromJson<String?>(json['guideId']),
+      vehicleId: serializer.fromJson<String?>(json['vehicleId']),
+      durationHours: serializer.fromJson<double?>(json['durationHours']),
+      guestCount: serializer.fromJson<int?>(json['guestCount']),
+      inspectionOilOk: serializer.fromJson<bool?>(json['inspectionOilOk']),
+      inspectionWaterOk: serializer.fromJson<bool?>(json['inspectionWaterOk']),
+      inspectionTyresOk: serializer.fromJson<bool?>(json['inspectionTyresOk']),
+      daylightHours: serializer.fromJson<double?>(json['daylightHours']),
+      nightHours: serializer.fromJson<double?>(json['nightHours']),
+      offRoadSeconds: serializer.fromJson<int?>(json['offRoadSeconds']),
+      offTrackUsed: serializer.fromJson<bool?>(json['offTrackUsed']),
+      weather: serializer.fromJson<String?>(json['weather']),
+      notes: serializer.fromJson<String?>(json['notes']),
     );
   }
   @override
@@ -2089,6 +2582,20 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
       'isTombstone': serializer.toJson<bool>(isTombstone),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'hasPendingChanges': serializer.toJson<bool>(hasPendingChanges),
+      'status': serializer.toJson<String?>(status),
+      'guideId': serializer.toJson<String?>(guideId),
+      'vehicleId': serializer.toJson<String?>(vehicleId),
+      'durationHours': serializer.toJson<double?>(durationHours),
+      'guestCount': serializer.toJson<int?>(guestCount),
+      'inspectionOilOk': serializer.toJson<bool?>(inspectionOilOk),
+      'inspectionWaterOk': serializer.toJson<bool?>(inspectionWaterOk),
+      'inspectionTyresOk': serializer.toJson<bool?>(inspectionTyresOk),
+      'daylightHours': serializer.toJson<double?>(daylightHours),
+      'nightHours': serializer.toJson<double?>(nightHours),
+      'offRoadSeconds': serializer.toJson<int?>(offRoadSeconds),
+      'offTrackUsed': serializer.toJson<bool?>(offTrackUsed),
+      'weather': serializer.toJson<String?>(weather),
+      'notes': serializer.toJson<String?>(notes),
     };
   }
 
@@ -2103,6 +2610,20 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
     bool? isTombstone,
     Value<DateTime?> deletedAt = const Value.absent(),
     bool? hasPendingChanges,
+    Value<String?> status = const Value.absent(),
+    Value<String?> guideId = const Value.absent(),
+    Value<String?> vehicleId = const Value.absent(),
+    Value<double?> durationHours = const Value.absent(),
+    Value<int?> guestCount = const Value.absent(),
+    Value<bool?> inspectionOilOk = const Value.absent(),
+    Value<bool?> inspectionWaterOk = const Value.absent(),
+    Value<bool?> inspectionTyresOk = const Value.absent(),
+    Value<double?> daylightHours = const Value.absent(),
+    Value<double?> nightHours = const Value.absent(),
+    Value<int?> offRoadSeconds = const Value.absent(),
+    Value<bool?> offTrackUsed = const Value.absent(),
+    Value<String?> weather = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
   }) => DriveRow(
     localId: localId ?? this.localId,
     serverId: serverId.present ? serverId.value : this.serverId,
@@ -2114,6 +2635,32 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
     isTombstone: isTombstone ?? this.isTombstone,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     hasPendingChanges: hasPendingChanges ?? this.hasPendingChanges,
+    status: status.present ? status.value : this.status,
+    guideId: guideId.present ? guideId.value : this.guideId,
+    vehicleId: vehicleId.present ? vehicleId.value : this.vehicleId,
+    durationHours: durationHours.present
+        ? durationHours.value
+        : this.durationHours,
+    guestCount: guestCount.present ? guestCount.value : this.guestCount,
+    inspectionOilOk: inspectionOilOk.present
+        ? inspectionOilOk.value
+        : this.inspectionOilOk,
+    inspectionWaterOk: inspectionWaterOk.present
+        ? inspectionWaterOk.value
+        : this.inspectionWaterOk,
+    inspectionTyresOk: inspectionTyresOk.present
+        ? inspectionTyresOk.value
+        : this.inspectionTyresOk,
+    daylightHours: daylightHours.present
+        ? daylightHours.value
+        : this.daylightHours,
+    nightHours: nightHours.present ? nightHours.value : this.nightHours,
+    offRoadSeconds: offRoadSeconds.present
+        ? offRoadSeconds.value
+        : this.offRoadSeconds,
+    offTrackUsed: offTrackUsed.present ? offTrackUsed.value : this.offTrackUsed,
+    weather: weather.present ? weather.value : this.weather,
+    notes: notes.present ? notes.value : this.notes,
   );
   DriveRow copyWithCompanion(DrivesCompanion data) {
     return DriveRow(
@@ -2133,6 +2680,38 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
       hasPendingChanges: data.hasPendingChanges.present
           ? data.hasPendingChanges.value
           : this.hasPendingChanges,
+      status: data.status.present ? data.status.value : this.status,
+      guideId: data.guideId.present ? data.guideId.value : this.guideId,
+      vehicleId: data.vehicleId.present ? data.vehicleId.value : this.vehicleId,
+      durationHours: data.durationHours.present
+          ? data.durationHours.value
+          : this.durationHours,
+      guestCount: data.guestCount.present
+          ? data.guestCount.value
+          : this.guestCount,
+      inspectionOilOk: data.inspectionOilOk.present
+          ? data.inspectionOilOk.value
+          : this.inspectionOilOk,
+      inspectionWaterOk: data.inspectionWaterOk.present
+          ? data.inspectionWaterOk.value
+          : this.inspectionWaterOk,
+      inspectionTyresOk: data.inspectionTyresOk.present
+          ? data.inspectionTyresOk.value
+          : this.inspectionTyresOk,
+      daylightHours: data.daylightHours.present
+          ? data.daylightHours.value
+          : this.daylightHours,
+      nightHours: data.nightHours.present
+          ? data.nightHours.value
+          : this.nightHours,
+      offRoadSeconds: data.offRoadSeconds.present
+          ? data.offRoadSeconds.value
+          : this.offRoadSeconds,
+      offTrackUsed: data.offTrackUsed.present
+          ? data.offTrackUsed.value
+          : this.offTrackUsed,
+      weather: data.weather.present ? data.weather.value : this.weather,
+      notes: data.notes.present ? data.notes.value : this.notes,
     );
   }
 
@@ -2148,13 +2727,27 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
           ..write('revision: $revision, ')
           ..write('isTombstone: $isTombstone, ')
           ..write('deletedAt: $deletedAt, ')
-          ..write('hasPendingChanges: $hasPendingChanges')
+          ..write('hasPendingChanges: $hasPendingChanges, ')
+          ..write('status: $status, ')
+          ..write('guideId: $guideId, ')
+          ..write('vehicleId: $vehicleId, ')
+          ..write('durationHours: $durationHours, ')
+          ..write('guestCount: $guestCount, ')
+          ..write('inspectionOilOk: $inspectionOilOk, ')
+          ..write('inspectionWaterOk: $inspectionWaterOk, ')
+          ..write('inspectionTyresOk: $inspectionTyresOk, ')
+          ..write('daylightHours: $daylightHours, ')
+          ..write('nightHours: $nightHours, ')
+          ..write('offRoadSeconds: $offRoadSeconds, ')
+          ..write('offTrackUsed: $offTrackUsed, ')
+          ..write('weather: $weather, ')
+          ..write('notes: $notes')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     localId,
     serverId,
     contextCode,
@@ -2165,7 +2758,21 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
     isTombstone,
     deletedAt,
     hasPendingChanges,
-  );
+    status,
+    guideId,
+    vehicleId,
+    durationHours,
+    guestCount,
+    inspectionOilOk,
+    inspectionWaterOk,
+    inspectionTyresOk,
+    daylightHours,
+    nightHours,
+    offRoadSeconds,
+    offTrackUsed,
+    weather,
+    notes,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2179,7 +2786,21 @@ class DriveRow extends DataClass implements Insertable<DriveRow> {
           other.revision == this.revision &&
           other.isTombstone == this.isTombstone &&
           other.deletedAt == this.deletedAt &&
-          other.hasPendingChanges == this.hasPendingChanges);
+          other.hasPendingChanges == this.hasPendingChanges &&
+          other.status == this.status &&
+          other.guideId == this.guideId &&
+          other.vehicleId == this.vehicleId &&
+          other.durationHours == this.durationHours &&
+          other.guestCount == this.guestCount &&
+          other.inspectionOilOk == this.inspectionOilOk &&
+          other.inspectionWaterOk == this.inspectionWaterOk &&
+          other.inspectionTyresOk == this.inspectionTyresOk &&
+          other.daylightHours == this.daylightHours &&
+          other.nightHours == this.nightHours &&
+          other.offRoadSeconds == this.offRoadSeconds &&
+          other.offTrackUsed == this.offTrackUsed &&
+          other.weather == this.weather &&
+          other.notes == this.notes);
 }
 
 class DrivesCompanion extends UpdateCompanion<DriveRow> {
@@ -2193,6 +2814,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
   final Value<bool> isTombstone;
   final Value<DateTime?> deletedAt;
   final Value<bool> hasPendingChanges;
+  final Value<String?> status;
+  final Value<String?> guideId;
+  final Value<String?> vehicleId;
+  final Value<double?> durationHours;
+  final Value<int?> guestCount;
+  final Value<bool?> inspectionOilOk;
+  final Value<bool?> inspectionWaterOk;
+  final Value<bool?> inspectionTyresOk;
+  final Value<double?> daylightHours;
+  final Value<double?> nightHours;
+  final Value<int?> offRoadSeconds;
+  final Value<bool?> offTrackUsed;
+  final Value<String?> weather;
+  final Value<String?> notes;
   final Value<int> rowid;
   const DrivesCompanion({
     this.localId = const Value.absent(),
@@ -2205,6 +2840,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
     this.isTombstone = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.hasPendingChanges = const Value.absent(),
+    this.status = const Value.absent(),
+    this.guideId = const Value.absent(),
+    this.vehicleId = const Value.absent(),
+    this.durationHours = const Value.absent(),
+    this.guestCount = const Value.absent(),
+    this.inspectionOilOk = const Value.absent(),
+    this.inspectionWaterOk = const Value.absent(),
+    this.inspectionTyresOk = const Value.absent(),
+    this.daylightHours = const Value.absent(),
+    this.nightHours = const Value.absent(),
+    this.offRoadSeconds = const Value.absent(),
+    this.offTrackUsed = const Value.absent(),
+    this.weather = const Value.absent(),
+    this.notes = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DrivesCompanion.insert({
@@ -2218,6 +2867,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
     this.isTombstone = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.hasPendingChanges = const Value.absent(),
+    this.status = const Value.absent(),
+    this.guideId = const Value.absent(),
+    this.vehicleId = const Value.absent(),
+    this.durationHours = const Value.absent(),
+    this.guestCount = const Value.absent(),
+    this.inspectionOilOk = const Value.absent(),
+    this.inspectionWaterOk = const Value.absent(),
+    this.inspectionTyresOk = const Value.absent(),
+    this.daylightHours = const Value.absent(),
+    this.nightHours = const Value.absent(),
+    this.offRoadSeconds = const Value.absent(),
+    this.offTrackUsed = const Value.absent(),
+    this.weather = const Value.absent(),
+    this.notes = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : localId = Value(localId),
        contextCode = Value(contextCode),
@@ -2233,6 +2896,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
     Expression<bool>? isTombstone,
     Expression<DateTime>? deletedAt,
     Expression<bool>? hasPendingChanges,
+    Expression<String>? status,
+    Expression<String>? guideId,
+    Expression<String>? vehicleId,
+    Expression<double>? durationHours,
+    Expression<int>? guestCount,
+    Expression<bool>? inspectionOilOk,
+    Expression<bool>? inspectionWaterOk,
+    Expression<bool>? inspectionTyresOk,
+    Expression<double>? daylightHours,
+    Expression<double>? nightHours,
+    Expression<int>? offRoadSeconds,
+    Expression<bool>? offTrackUsed,
+    Expression<String>? weather,
+    Expression<String>? notes,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2246,6 +2923,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
       if (isTombstone != null) 'is_tombstone': isTombstone,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (hasPendingChanges != null) 'has_pending_changes': hasPendingChanges,
+      if (status != null) 'status': status,
+      if (guideId != null) 'guide_id': guideId,
+      if (vehicleId != null) 'vehicle_id': vehicleId,
+      if (durationHours != null) 'duration_hours': durationHours,
+      if (guestCount != null) 'guest_count': guestCount,
+      if (inspectionOilOk != null) 'inspection_oil_ok': inspectionOilOk,
+      if (inspectionWaterOk != null) 'inspection_water_ok': inspectionWaterOk,
+      if (inspectionTyresOk != null) 'inspection_tyres_ok': inspectionTyresOk,
+      if (daylightHours != null) 'daylight_hours': daylightHours,
+      if (nightHours != null) 'night_hours': nightHours,
+      if (offRoadSeconds != null) 'off_road_seconds': offRoadSeconds,
+      if (offTrackUsed != null) 'off_track_used': offTrackUsed,
+      if (weather != null) 'weather': weather,
+      if (notes != null) 'notes': notes,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2261,6 +2952,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
     Value<bool>? isTombstone,
     Value<DateTime?>? deletedAt,
     Value<bool>? hasPendingChanges,
+    Value<String?>? status,
+    Value<String?>? guideId,
+    Value<String?>? vehicleId,
+    Value<double?>? durationHours,
+    Value<int?>? guestCount,
+    Value<bool?>? inspectionOilOk,
+    Value<bool?>? inspectionWaterOk,
+    Value<bool?>? inspectionTyresOk,
+    Value<double?>? daylightHours,
+    Value<double?>? nightHours,
+    Value<int?>? offRoadSeconds,
+    Value<bool?>? offTrackUsed,
+    Value<String?>? weather,
+    Value<String?>? notes,
     Value<int>? rowid,
   }) {
     return DrivesCompanion(
@@ -2274,6 +2979,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
       isTombstone: isTombstone ?? this.isTombstone,
       deletedAt: deletedAt ?? this.deletedAt,
       hasPendingChanges: hasPendingChanges ?? this.hasPendingChanges,
+      status: status ?? this.status,
+      guideId: guideId ?? this.guideId,
+      vehicleId: vehicleId ?? this.vehicleId,
+      durationHours: durationHours ?? this.durationHours,
+      guestCount: guestCount ?? this.guestCount,
+      inspectionOilOk: inspectionOilOk ?? this.inspectionOilOk,
+      inspectionWaterOk: inspectionWaterOk ?? this.inspectionWaterOk,
+      inspectionTyresOk: inspectionTyresOk ?? this.inspectionTyresOk,
+      daylightHours: daylightHours ?? this.daylightHours,
+      nightHours: nightHours ?? this.nightHours,
+      offRoadSeconds: offRoadSeconds ?? this.offRoadSeconds,
+      offTrackUsed: offTrackUsed ?? this.offTrackUsed,
+      weather: weather ?? this.weather,
+      notes: notes ?? this.notes,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2311,6 +3030,48 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
     if (hasPendingChanges.present) {
       map['has_pending_changes'] = Variable<bool>(hasPendingChanges.value);
     }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (guideId.present) {
+      map['guide_id'] = Variable<String>(guideId.value);
+    }
+    if (vehicleId.present) {
+      map['vehicle_id'] = Variable<String>(vehicleId.value);
+    }
+    if (durationHours.present) {
+      map['duration_hours'] = Variable<double>(durationHours.value);
+    }
+    if (guestCount.present) {
+      map['guest_count'] = Variable<int>(guestCount.value);
+    }
+    if (inspectionOilOk.present) {
+      map['inspection_oil_ok'] = Variable<bool>(inspectionOilOk.value);
+    }
+    if (inspectionWaterOk.present) {
+      map['inspection_water_ok'] = Variable<bool>(inspectionWaterOk.value);
+    }
+    if (inspectionTyresOk.present) {
+      map['inspection_tyres_ok'] = Variable<bool>(inspectionTyresOk.value);
+    }
+    if (daylightHours.present) {
+      map['daylight_hours'] = Variable<double>(daylightHours.value);
+    }
+    if (nightHours.present) {
+      map['night_hours'] = Variable<double>(nightHours.value);
+    }
+    if (offRoadSeconds.present) {
+      map['off_road_seconds'] = Variable<int>(offRoadSeconds.value);
+    }
+    if (offTrackUsed.present) {
+      map['off_track_used'] = Variable<bool>(offTrackUsed.value);
+    }
+    if (weather.present) {
+      map['weather'] = Variable<String>(weather.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2330,6 +3091,20 @@ class DrivesCompanion extends UpdateCompanion<DriveRow> {
           ..write('isTombstone: $isTombstone, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('hasPendingChanges: $hasPendingChanges, ')
+          ..write('status: $status, ')
+          ..write('guideId: $guideId, ')
+          ..write('vehicleId: $vehicleId, ')
+          ..write('durationHours: $durationHours, ')
+          ..write('guestCount: $guestCount, ')
+          ..write('inspectionOilOk: $inspectionOilOk, ')
+          ..write('inspectionWaterOk: $inspectionWaterOk, ')
+          ..write('inspectionTyresOk: $inspectionTyresOk, ')
+          ..write('daylightHours: $daylightHours, ')
+          ..write('nightHours: $nightHours, ')
+          ..write('offRoadSeconds: $offRoadSeconds, ')
+          ..write('offTrackUsed: $offTrackUsed, ')
+          ..write('weather: $weather, ')
+          ..write('notes: $notes, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2466,6 +3241,103 @@ class $TrailLogsTable extends TrailLogs
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rifleRoleMeta = const VerificationMeta(
+    'rifleRole',
+  );
+  @override
+  late final GeneratedColumn<String> rifleRole = GeneratedColumn<String>(
+    'rifle_role',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _guideRoleMeta = const VerificationMeta(
+    'guideRole',
+  );
+  @override
+  late final GeneratedColumn<String> guideRole = GeneratedColumn<String>(
+    'guide_role',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rifleDetailsMeta = const VerificationMeta(
+    'rifleDetails',
+  );
+  @override
+  late final GeneratedColumn<String> rifleDetails = GeneratedColumn<String>(
+    'rifle_details',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _walkLengthKmMeta = const VerificationMeta(
+    'walkLengthKm',
+  );
+  @override
+  late final GeneratedColumn<double> walkLengthKm = GeneratedColumn<double>(
+    'walk_length_km',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _hoursWalkedMeta = const VerificationMeta(
+    'hoursWalked',
+  );
+  @override
+  late final GeneratedColumn<double> hoursWalked = GeneratedColumn<double>(
+    'hours_walked',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lessonsLearnedMeta = const VerificationMeta(
+    'lessonsLearned',
+  );
+  @override
+  late final GeneratedColumn<String> lessonsLearned = GeneratedColumn<String>(
+    'lessons_learned',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _weatherMeta = const VerificationMeta(
+    'weather',
+  );
+  @override
+  late final GeneratedColumn<String> weather = GeneratedColumn<String>(
+    'weather',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     localId,
@@ -2479,6 +3351,15 @@ class $TrailLogsTable extends TrailLogs
     revision,
     isTombstone,
     deletedAt,
+    status,
+    rifleRole,
+    guideRole,
+    rifleDetails,
+    walkLengthKm,
+    hoursWalked,
+    description,
+    lessonsLearned,
+    weather,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2574,6 +3455,75 @@ class $TrailLogsTable extends TrailLogs
         deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
       );
     }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('rifle_role')) {
+      context.handle(
+        _rifleRoleMeta,
+        rifleRole.isAcceptableOrUnknown(data['rifle_role']!, _rifleRoleMeta),
+      );
+    }
+    if (data.containsKey('guide_role')) {
+      context.handle(
+        _guideRoleMeta,
+        guideRole.isAcceptableOrUnknown(data['guide_role']!, _guideRoleMeta),
+      );
+    }
+    if (data.containsKey('rifle_details')) {
+      context.handle(
+        _rifleDetailsMeta,
+        rifleDetails.isAcceptableOrUnknown(
+          data['rifle_details']!,
+          _rifleDetailsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('walk_length_km')) {
+      context.handle(
+        _walkLengthKmMeta,
+        walkLengthKm.isAcceptableOrUnknown(
+          data['walk_length_km']!,
+          _walkLengthKmMeta,
+        ),
+      );
+    }
+    if (data.containsKey('hours_walked')) {
+      context.handle(
+        _hoursWalkedMeta,
+        hoursWalked.isAcceptableOrUnknown(
+          data['hours_walked']!,
+          _hoursWalkedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('lessons_learned')) {
+      context.handle(
+        _lessonsLearnedMeta,
+        lessonsLearned.isAcceptableOrUnknown(
+          data['lessons_learned']!,
+          _lessonsLearnedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('weather')) {
+      context.handle(
+        _weatherMeta,
+        weather.isAcceptableOrUnknown(data['weather']!, _weatherMeta),
+      );
+    }
     return context;
   }
 
@@ -2627,6 +3577,42 @@ class $TrailLogsTable extends TrailLogs
         DriftSqlType.dateTime,
         data['${effectivePrefix}deleted_at'],
       ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      ),
+      rifleRole: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rifle_role'],
+      ),
+      guideRole: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}guide_role'],
+      ),
+      rifleDetails: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rifle_details'],
+      ),
+      walkLengthKm: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}walk_length_km'],
+      ),
+      hoursWalked: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}hours_walked'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      lessonsLearned: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}lessons_learned'],
+      ),
+      weather: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}weather'],
+      ),
     );
   }
 
@@ -2648,6 +3634,28 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
   final int revision;
   final bool isTombstone;
   final DateTime? deletedAt;
+
+  /// The four service fields a hike needs. Null while the log is local: the
+  /// service's hike create refuses without a rifle role and a walk length, so
+  /// a log started before those are known waits here until they are.
+  final String? status;
+
+  /// Who carries the rifle — first, second or neither — as the service
+  /// enumerates it.
+  final String? rifleRole;
+
+  /// Lead or backup guide, when the hike carries two. A different question
+  /// from [TrailLogs.driveId]'s guide: this is about the hike itself.
+  final String? guideRole;
+
+  /// What rifle and calibre, when there is one. Free text because the
+  /// contract declares the field without enumerating it.
+  final String? rifleDetails;
+  final double? walkLengthKm;
+  final double? hoursWalked;
+  final String? description;
+  final String? lessonsLearned;
+  final String? weather;
   const TrailLogRow({
     required this.localId,
     this.serverId,
@@ -2660,6 +3668,15 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
     required this.revision,
     required this.isTombstone,
     this.deletedAt,
+    this.status,
+    this.rifleRole,
+    this.guideRole,
+    this.rifleDetails,
+    this.walkLengthKm,
+    this.hoursWalked,
+    this.description,
+    this.lessonsLearned,
+    this.weather,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2682,6 +3699,33 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
     map['is_tombstone'] = Variable<bool>(isTombstone);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    if (!nullToAbsent || status != null) {
+      map['status'] = Variable<String>(status);
+    }
+    if (!nullToAbsent || rifleRole != null) {
+      map['rifle_role'] = Variable<String>(rifleRole);
+    }
+    if (!nullToAbsent || guideRole != null) {
+      map['guide_role'] = Variable<String>(guideRole);
+    }
+    if (!nullToAbsent || rifleDetails != null) {
+      map['rifle_details'] = Variable<String>(rifleDetails);
+    }
+    if (!nullToAbsent || walkLengthKm != null) {
+      map['walk_length_km'] = Variable<double>(walkLengthKm);
+    }
+    if (!nullToAbsent || hoursWalked != null) {
+      map['hours_walked'] = Variable<double>(hoursWalked);
+    }
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || lessonsLearned != null) {
+      map['lessons_learned'] = Variable<String>(lessonsLearned);
+    }
+    if (!nullToAbsent || weather != null) {
+      map['weather'] = Variable<String>(weather);
     }
     return map;
   }
@@ -2707,6 +3751,33 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(deletedAt),
+      status: status == null && nullToAbsent
+          ? const Value.absent()
+          : Value(status),
+      rifleRole: rifleRole == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rifleRole),
+      guideRole: guideRole == null && nullToAbsent
+          ? const Value.absent()
+          : Value(guideRole),
+      rifleDetails: rifleDetails == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rifleDetails),
+      walkLengthKm: walkLengthKm == null && nullToAbsent
+          ? const Value.absent()
+          : Value(walkLengthKm),
+      hoursWalked: hoursWalked == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hoursWalked),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      lessonsLearned: lessonsLearned == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lessonsLearned),
+      weather: weather == null && nullToAbsent
+          ? const Value.absent()
+          : Value(weather),
     );
   }
 
@@ -2727,6 +3798,15 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
       revision: serializer.fromJson<int>(json['revision']),
       isTombstone: serializer.fromJson<bool>(json['isTombstone']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      status: serializer.fromJson<String?>(json['status']),
+      rifleRole: serializer.fromJson<String?>(json['rifleRole']),
+      guideRole: serializer.fromJson<String?>(json['guideRole']),
+      rifleDetails: serializer.fromJson<String?>(json['rifleDetails']),
+      walkLengthKm: serializer.fromJson<double?>(json['walkLengthKm']),
+      hoursWalked: serializer.fromJson<double?>(json['hoursWalked']),
+      description: serializer.fromJson<String?>(json['description']),
+      lessonsLearned: serializer.fromJson<String?>(json['lessonsLearned']),
+      weather: serializer.fromJson<String?>(json['weather']),
     );
   }
   @override
@@ -2744,6 +3824,15 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
       'revision': serializer.toJson<int>(revision),
       'isTombstone': serializer.toJson<bool>(isTombstone),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'status': serializer.toJson<String?>(status),
+      'rifleRole': serializer.toJson<String?>(rifleRole),
+      'guideRole': serializer.toJson<String?>(guideRole),
+      'rifleDetails': serializer.toJson<String?>(rifleDetails),
+      'walkLengthKm': serializer.toJson<double?>(walkLengthKm),
+      'hoursWalked': serializer.toJson<double?>(hoursWalked),
+      'description': serializer.toJson<String?>(description),
+      'lessonsLearned': serializer.toJson<String?>(lessonsLearned),
+      'weather': serializer.toJson<String?>(weather),
     };
   }
 
@@ -2759,6 +3848,15 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
     int? revision,
     bool? isTombstone,
     Value<DateTime?> deletedAt = const Value.absent(),
+    Value<String?> status = const Value.absent(),
+    Value<String?> rifleRole = const Value.absent(),
+    Value<String?> guideRole = const Value.absent(),
+    Value<String?> rifleDetails = const Value.absent(),
+    Value<double?> walkLengthKm = const Value.absent(),
+    Value<double?> hoursWalked = const Value.absent(),
+    Value<String?> description = const Value.absent(),
+    Value<String?> lessonsLearned = const Value.absent(),
+    Value<String?> weather = const Value.absent(),
   }) => TrailLogRow(
     localId: localId ?? this.localId,
     serverId: serverId.present ? serverId.value : this.serverId,
@@ -2771,6 +3869,17 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
     revision: revision ?? this.revision,
     isTombstone: isTombstone ?? this.isTombstone,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    status: status.present ? status.value : this.status,
+    rifleRole: rifleRole.present ? rifleRole.value : this.rifleRole,
+    guideRole: guideRole.present ? guideRole.value : this.guideRole,
+    rifleDetails: rifleDetails.present ? rifleDetails.value : this.rifleDetails,
+    walkLengthKm: walkLengthKm.present ? walkLengthKm.value : this.walkLengthKm,
+    hoursWalked: hoursWalked.present ? hoursWalked.value : this.hoursWalked,
+    description: description.present ? description.value : this.description,
+    lessonsLearned: lessonsLearned.present
+        ? lessonsLearned.value
+        : this.lessonsLearned,
+    weather: weather.present ? weather.value : this.weather,
   );
   TrailLogRow copyWithCompanion(TrailLogsCompanion data) {
     return TrailLogRow(
@@ -2789,6 +3898,25 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
           ? data.isTombstone.value
           : this.isTombstone,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      status: data.status.present ? data.status.value : this.status,
+      rifleRole: data.rifleRole.present ? data.rifleRole.value : this.rifleRole,
+      guideRole: data.guideRole.present ? data.guideRole.value : this.guideRole,
+      rifleDetails: data.rifleDetails.present
+          ? data.rifleDetails.value
+          : this.rifleDetails,
+      walkLengthKm: data.walkLengthKm.present
+          ? data.walkLengthKm.value
+          : this.walkLengthKm,
+      hoursWalked: data.hoursWalked.present
+          ? data.hoursWalked.value
+          : this.hoursWalked,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      lessonsLearned: data.lessonsLearned.present
+          ? data.lessonsLearned.value
+          : this.lessonsLearned,
+      weather: data.weather.present ? data.weather.value : this.weather,
     );
   }
 
@@ -2805,7 +3933,16 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
           ..write('notes: $notes, ')
           ..write('revision: $revision, ')
           ..write('isTombstone: $isTombstone, ')
-          ..write('deletedAt: $deletedAt')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('status: $status, ')
+          ..write('rifleRole: $rifleRole, ')
+          ..write('guideRole: $guideRole, ')
+          ..write('rifleDetails: $rifleDetails, ')
+          ..write('walkLengthKm: $walkLengthKm, ')
+          ..write('hoursWalked: $hoursWalked, ')
+          ..write('description: $description, ')
+          ..write('lessonsLearned: $lessonsLearned, ')
+          ..write('weather: $weather')
           ..write(')'))
         .toString();
   }
@@ -2823,6 +3960,15 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
     revision,
     isTombstone,
     deletedAt,
+    status,
+    rifleRole,
+    guideRole,
+    rifleDetails,
+    walkLengthKm,
+    hoursWalked,
+    description,
+    lessonsLearned,
+    weather,
   );
   @override
   bool operator ==(Object other) =>
@@ -2838,7 +3984,16 @@ class TrailLogRow extends DataClass implements Insertable<TrailLogRow> {
           other.notes == this.notes &&
           other.revision == this.revision &&
           other.isTombstone == this.isTombstone &&
-          other.deletedAt == this.deletedAt);
+          other.deletedAt == this.deletedAt &&
+          other.status == this.status &&
+          other.rifleRole == this.rifleRole &&
+          other.guideRole == this.guideRole &&
+          other.rifleDetails == this.rifleDetails &&
+          other.walkLengthKm == this.walkLengthKm &&
+          other.hoursWalked == this.hoursWalked &&
+          other.description == this.description &&
+          other.lessonsLearned == this.lessonsLearned &&
+          other.weather == this.weather);
 }
 
 class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
@@ -2853,6 +4008,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
   final Value<int> revision;
   final Value<bool> isTombstone;
   final Value<DateTime?> deletedAt;
+  final Value<String?> status;
+  final Value<String?> rifleRole;
+  final Value<String?> guideRole;
+  final Value<String?> rifleDetails;
+  final Value<double?> walkLengthKm;
+  final Value<double?> hoursWalked;
+  final Value<String?> description;
+  final Value<String?> lessonsLearned;
+  final Value<String?> weather;
   final Value<int> rowid;
   const TrailLogsCompanion({
     this.localId = const Value.absent(),
@@ -2866,6 +4030,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
     this.revision = const Value.absent(),
     this.isTombstone = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.rifleRole = const Value.absent(),
+    this.guideRole = const Value.absent(),
+    this.rifleDetails = const Value.absent(),
+    this.walkLengthKm = const Value.absent(),
+    this.hoursWalked = const Value.absent(),
+    this.description = const Value.absent(),
+    this.lessonsLearned = const Value.absent(),
+    this.weather = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TrailLogsCompanion.insert({
@@ -2880,6 +4053,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
     this.revision = const Value.absent(),
     this.isTombstone = const Value.absent(),
     this.deletedAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.rifleRole = const Value.absent(),
+    this.guideRole = const Value.absent(),
+    this.rifleDetails = const Value.absent(),
+    this.walkLengthKm = const Value.absent(),
+    this.hoursWalked = const Value.absent(),
+    this.description = const Value.absent(),
+    this.lessonsLearned = const Value.absent(),
+    this.weather = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : localId = Value(localId),
        contextCode = Value(contextCode),
@@ -2898,6 +4080,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
     Expression<int>? revision,
     Expression<bool>? isTombstone,
     Expression<DateTime>? deletedAt,
+    Expression<String>? status,
+    Expression<String>? rifleRole,
+    Expression<String>? guideRole,
+    Expression<String>? rifleDetails,
+    Expression<double>? walkLengthKm,
+    Expression<double>? hoursWalked,
+    Expression<String>? description,
+    Expression<String>? lessonsLearned,
+    Expression<String>? weather,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2912,6 +4103,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
       if (revision != null) 'revision': revision,
       if (isTombstone != null) 'is_tombstone': isTombstone,
       if (deletedAt != null) 'deleted_at': deletedAt,
+      if (status != null) 'status': status,
+      if (rifleRole != null) 'rifle_role': rifleRole,
+      if (guideRole != null) 'guide_role': guideRole,
+      if (rifleDetails != null) 'rifle_details': rifleDetails,
+      if (walkLengthKm != null) 'walk_length_km': walkLengthKm,
+      if (hoursWalked != null) 'hours_walked': hoursWalked,
+      if (description != null) 'description': description,
+      if (lessonsLearned != null) 'lessons_learned': lessonsLearned,
+      if (weather != null) 'weather': weather,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2928,6 +4128,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
     Value<int>? revision,
     Value<bool>? isTombstone,
     Value<DateTime?>? deletedAt,
+    Value<String?>? status,
+    Value<String?>? rifleRole,
+    Value<String?>? guideRole,
+    Value<String?>? rifleDetails,
+    Value<double?>? walkLengthKm,
+    Value<double?>? hoursWalked,
+    Value<String?>? description,
+    Value<String?>? lessonsLearned,
+    Value<String?>? weather,
     Value<int>? rowid,
   }) {
     return TrailLogsCompanion(
@@ -2942,6 +4151,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
       revision: revision ?? this.revision,
       isTombstone: isTombstone ?? this.isTombstone,
       deletedAt: deletedAt ?? this.deletedAt,
+      status: status ?? this.status,
+      rifleRole: rifleRole ?? this.rifleRole,
+      guideRole: guideRole ?? this.guideRole,
+      rifleDetails: rifleDetails ?? this.rifleDetails,
+      walkLengthKm: walkLengthKm ?? this.walkLengthKm,
+      hoursWalked: hoursWalked ?? this.hoursWalked,
+      description: description ?? this.description,
+      lessonsLearned: lessonsLearned ?? this.lessonsLearned,
+      weather: weather ?? this.weather,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2982,6 +4200,33 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
     if (deletedAt.present) {
       map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (rifleRole.present) {
+      map['rifle_role'] = Variable<String>(rifleRole.value);
+    }
+    if (guideRole.present) {
+      map['guide_role'] = Variable<String>(guideRole.value);
+    }
+    if (rifleDetails.present) {
+      map['rifle_details'] = Variable<String>(rifleDetails.value);
+    }
+    if (walkLengthKm.present) {
+      map['walk_length_km'] = Variable<double>(walkLengthKm.value);
+    }
+    if (hoursWalked.present) {
+      map['hours_walked'] = Variable<double>(hoursWalked.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (lessonsLearned.present) {
+      map['lessons_learned'] = Variable<String>(lessonsLearned.value);
+    }
+    if (weather.present) {
+      map['weather'] = Variable<String>(weather.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3002,6 +4247,15 @@ class TrailLogsCompanion extends UpdateCompanion<TrailLogRow> {
           ..write('revision: $revision, ')
           ..write('isTombstone: $isTombstone, ')
           ..write('deletedAt: $deletedAt, ')
+          ..write('status: $status, ')
+          ..write('rifleRole: $rifleRole, ')
+          ..write('guideRole: $guideRole, ')
+          ..write('rifleDetails: $rifleDetails, ')
+          ..write('walkLengthKm: $walkLengthKm, ')
+          ..write('hoursWalked: $hoursWalked, ')
+          ..write('description: $description, ')
+          ..write('lessonsLearned: $lessonsLearned, ')
+          ..write('weather: $weather, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3039,6 +4293,17 @@ class $TrailWaypointsTable extends TrailWaypoints
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<String> serverId = GeneratedColumn<String>(
+    'server_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _latitudeMeta = const VerificationMeta(
     'latitude',
   );
@@ -3072,6 +4337,17 @@ class $TrailWaypointsTable extends TrailWaypoints
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _elevationMMeta = const VerificationMeta(
+    'elevationM',
+  );
+  @override
+  late final GeneratedColumn<double> elevationM = GeneratedColumn<double>(
+    'elevation_m',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _recordedAtMeta = const VerificationMeta(
     'recordedAt',
   );
@@ -3096,9 +4372,11 @@ class $TrailWaypointsTable extends TrailWaypoints
   List<GeneratedColumn> get $columns => [
     trailLogId,
     ordinal,
+    serverId,
     latitude,
     longitude,
     accuracyMetres,
+    elevationM,
     recordedAt,
     note,
   ];
@@ -3133,6 +4411,12 @@ class $TrailWaypointsTable extends TrailWaypoints
     } else if (isInserting) {
       context.missing(_ordinalMeta);
     }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
     if (data.containsKey('latitude')) {
       context.handle(
         _latitudeMeta,
@@ -3156,6 +4440,12 @@ class $TrailWaypointsTable extends TrailWaypoints
           data['accuracy_metres']!,
           _accuracyMetresMeta,
         ),
+      );
+    }
+    if (data.containsKey('elevation_m')) {
+      context.handle(
+        _elevationMMeta,
+        elevationM.isAcceptableOrUnknown(data['elevation_m']!, _elevationMMeta),
       );
     }
     if (data.containsKey('recorded_at')) {
@@ -3189,6 +4479,10 @@ class $TrailWaypointsTable extends TrailWaypoints
         DriftSqlType.int,
         data['${effectivePrefix}ordinal'],
       )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server_id'],
+      ),
       latitude: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}latitude'],
@@ -3200,6 +4494,10 @@ class $TrailWaypointsTable extends TrailWaypoints
       accuracyMetres: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}accuracy_metres'],
+      ),
+      elevationM: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}elevation_m'],
       ),
       recordedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -3224,12 +4522,22 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
   /// Position in the sequence, from zero. Assigned once, at append time, and
   /// never changed.
   final int ordinal;
+
+  /// The id this device minted for the waypoint, and the service's id once it
+  /// has been accepted — the same string, because the service takes the
+  /// client's id. Null only while the waypoint is still local, which is how a
+  /// pull tells one it has already seen from one it has not.
+  final String? serverId;
   final double latitude;
   final double longitude;
 
   /// Measured accuracy at the time. Part of the record, so it is never smoothed
   /// into a tidier number after the fact.
   final double? accuracyMetres;
+
+  /// Height above sea level in metres, when the device had one. Judged along
+  /// with the position, never interpolated after the fact.
+  final double? elevationM;
   final DateTime recordedAt;
 
   /// What the trainee noted here. Free text, because it may be a track, a call,
@@ -3238,9 +4546,11 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
   const TrailWaypoint({
     required this.trailLogId,
     required this.ordinal,
+    this.serverId,
     required this.latitude,
     required this.longitude,
     this.accuracyMetres,
+    this.elevationM,
     required this.recordedAt,
     this.note,
   });
@@ -3249,10 +4559,16 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
     final map = <String, Expression>{};
     map['trail_log_id'] = Variable<String>(trailLogId);
     map['ordinal'] = Variable<int>(ordinal);
+    if (!nullToAbsent || serverId != null) {
+      map['server_id'] = Variable<String>(serverId);
+    }
     map['latitude'] = Variable<double>(latitude);
     map['longitude'] = Variable<double>(longitude);
     if (!nullToAbsent || accuracyMetres != null) {
       map['accuracy_metres'] = Variable<double>(accuracyMetres);
+    }
+    if (!nullToAbsent || elevationM != null) {
+      map['elevation_m'] = Variable<double>(elevationM);
     }
     map['recorded_at'] = Variable<DateTime>(recordedAt);
     if (!nullToAbsent || note != null) {
@@ -3265,11 +4581,17 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
     return TrailWaypointsCompanion(
       trailLogId: Value(trailLogId),
       ordinal: Value(ordinal),
+      serverId: serverId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverId),
       latitude: Value(latitude),
       longitude: Value(longitude),
       accuracyMetres: accuracyMetres == null && nullToAbsent
           ? const Value.absent()
           : Value(accuracyMetres),
+      elevationM: elevationM == null && nullToAbsent
+          ? const Value.absent()
+          : Value(elevationM),
       recordedAt: Value(recordedAt),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
     );
@@ -3283,9 +4605,11 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
     return TrailWaypoint(
       trailLogId: serializer.fromJson<String>(json['trailLogId']),
       ordinal: serializer.fromJson<int>(json['ordinal']),
+      serverId: serializer.fromJson<String?>(json['serverId']),
       latitude: serializer.fromJson<double>(json['latitude']),
       longitude: serializer.fromJson<double>(json['longitude']),
       accuracyMetres: serializer.fromJson<double?>(json['accuracyMetres']),
+      elevationM: serializer.fromJson<double?>(json['elevationM']),
       recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
       note: serializer.fromJson<String?>(json['note']),
     );
@@ -3296,9 +4620,11 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
     return <String, dynamic>{
       'trailLogId': serializer.toJson<String>(trailLogId),
       'ordinal': serializer.toJson<int>(ordinal),
+      'serverId': serializer.toJson<String?>(serverId),
       'latitude': serializer.toJson<double>(latitude),
       'longitude': serializer.toJson<double>(longitude),
       'accuracyMetres': serializer.toJson<double?>(accuracyMetres),
+      'elevationM': serializer.toJson<double?>(elevationM),
       'recordedAt': serializer.toJson<DateTime>(recordedAt),
       'note': serializer.toJson<String?>(note),
     };
@@ -3307,19 +4633,23 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
   TrailWaypoint copyWith({
     String? trailLogId,
     int? ordinal,
+    Value<String?> serverId = const Value.absent(),
     double? latitude,
     double? longitude,
     Value<double?> accuracyMetres = const Value.absent(),
+    Value<double?> elevationM = const Value.absent(),
     DateTime? recordedAt,
     Value<String?> note = const Value.absent(),
   }) => TrailWaypoint(
     trailLogId: trailLogId ?? this.trailLogId,
     ordinal: ordinal ?? this.ordinal,
+    serverId: serverId.present ? serverId.value : this.serverId,
     latitude: latitude ?? this.latitude,
     longitude: longitude ?? this.longitude,
     accuracyMetres: accuracyMetres.present
         ? accuracyMetres.value
         : this.accuracyMetres,
+    elevationM: elevationM.present ? elevationM.value : this.elevationM,
     recordedAt: recordedAt ?? this.recordedAt,
     note: note.present ? note.value : this.note,
   );
@@ -3329,11 +4659,15 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
           ? data.trailLogId.value
           : this.trailLogId,
       ordinal: data.ordinal.present ? data.ordinal.value : this.ordinal,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
       longitude: data.longitude.present ? data.longitude.value : this.longitude,
       accuracyMetres: data.accuracyMetres.present
           ? data.accuracyMetres.value
           : this.accuracyMetres,
+      elevationM: data.elevationM.present
+          ? data.elevationM.value
+          : this.elevationM,
       recordedAt: data.recordedAt.present
           ? data.recordedAt.value
           : this.recordedAt,
@@ -3346,9 +4680,11 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
     return (StringBuffer('TrailWaypoint(')
           ..write('trailLogId: $trailLogId, ')
           ..write('ordinal: $ordinal, ')
+          ..write('serverId: $serverId, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('accuracyMetres: $accuracyMetres, ')
+          ..write('elevationM: $elevationM, ')
           ..write('recordedAt: $recordedAt, ')
           ..write('note: $note')
           ..write(')'))
@@ -3359,9 +4695,11 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
   int get hashCode => Object.hash(
     trailLogId,
     ordinal,
+    serverId,
     latitude,
     longitude,
     accuracyMetres,
+    elevationM,
     recordedAt,
     note,
   );
@@ -3371,9 +4709,11 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
       (other is TrailWaypoint &&
           other.trailLogId == this.trailLogId &&
           other.ordinal == this.ordinal &&
+          other.serverId == this.serverId &&
           other.latitude == this.latitude &&
           other.longitude == this.longitude &&
           other.accuracyMetres == this.accuracyMetres &&
+          other.elevationM == this.elevationM &&
           other.recordedAt == this.recordedAt &&
           other.note == this.note);
 }
@@ -3381,18 +4721,22 @@ class TrailWaypoint extends DataClass implements Insertable<TrailWaypoint> {
 class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
   final Value<String> trailLogId;
   final Value<int> ordinal;
+  final Value<String?> serverId;
   final Value<double> latitude;
   final Value<double> longitude;
   final Value<double?> accuracyMetres;
+  final Value<double?> elevationM;
   final Value<DateTime> recordedAt;
   final Value<String?> note;
   final Value<int> rowid;
   const TrailWaypointsCompanion({
     this.trailLogId = const Value.absent(),
     this.ordinal = const Value.absent(),
+    this.serverId = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
     this.accuracyMetres = const Value.absent(),
+    this.elevationM = const Value.absent(),
     this.recordedAt = const Value.absent(),
     this.note = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3400,9 +4744,11 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
   TrailWaypointsCompanion.insert({
     required String trailLogId,
     required int ordinal,
+    this.serverId = const Value.absent(),
     required double latitude,
     required double longitude,
     this.accuracyMetres = const Value.absent(),
+    this.elevationM = const Value.absent(),
     required DateTime recordedAt,
     this.note = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3414,9 +4760,11 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
   static Insertable<TrailWaypoint> custom({
     Expression<String>? trailLogId,
     Expression<int>? ordinal,
+    Expression<String>? serverId,
     Expression<double>? latitude,
     Expression<double>? longitude,
     Expression<double>? accuracyMetres,
+    Expression<double>? elevationM,
     Expression<DateTime>? recordedAt,
     Expression<String>? note,
     Expression<int>? rowid,
@@ -3424,9 +4772,11 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
     return RawValuesInsertable({
       if (trailLogId != null) 'trail_log_id': trailLogId,
       if (ordinal != null) 'ordinal': ordinal,
+      if (serverId != null) 'server_id': serverId,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (accuracyMetres != null) 'accuracy_metres': accuracyMetres,
+      if (elevationM != null) 'elevation_m': elevationM,
       if (recordedAt != null) 'recorded_at': recordedAt,
       if (note != null) 'note': note,
       if (rowid != null) 'rowid': rowid,
@@ -3436,9 +4786,11 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
   TrailWaypointsCompanion copyWith({
     Value<String>? trailLogId,
     Value<int>? ordinal,
+    Value<String?>? serverId,
     Value<double>? latitude,
     Value<double>? longitude,
     Value<double?>? accuracyMetres,
+    Value<double?>? elevationM,
     Value<DateTime>? recordedAt,
     Value<String?>? note,
     Value<int>? rowid,
@@ -3446,9 +4798,11 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
     return TrailWaypointsCompanion(
       trailLogId: trailLogId ?? this.trailLogId,
       ordinal: ordinal ?? this.ordinal,
+      serverId: serverId ?? this.serverId,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       accuracyMetres: accuracyMetres ?? this.accuracyMetres,
+      elevationM: elevationM ?? this.elevationM,
       recordedAt: recordedAt ?? this.recordedAt,
       note: note ?? this.note,
       rowid: rowid ?? this.rowid,
@@ -3464,6 +4818,9 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
     if (ordinal.present) {
       map['ordinal'] = Variable<int>(ordinal.value);
     }
+    if (serverId.present) {
+      map['server_id'] = Variable<String>(serverId.value);
+    }
     if (latitude.present) {
       map['latitude'] = Variable<double>(latitude.value);
     }
@@ -3472,6 +4829,9 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
     }
     if (accuracyMetres.present) {
       map['accuracy_metres'] = Variable<double>(accuracyMetres.value);
+    }
+    if (elevationM.present) {
+      map['elevation_m'] = Variable<double>(elevationM.value);
     }
     if (recordedAt.present) {
       map['recorded_at'] = Variable<DateTime>(recordedAt.value);
@@ -3490,11 +4850,1074 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
     return (StringBuffer('TrailWaypointsCompanion(')
           ..write('trailLogId: $trailLogId, ')
           ..write('ordinal: $ordinal, ')
+          ..write('serverId: $serverId, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
           ..write('accuracyMetres: $accuracyMetres, ')
+          ..write('elevationM: $elevationM, ')
           ..write('recordedAt: $recordedAt, ')
           ..write('note: $note, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DangerousGameEncountersTable extends DangerousGameEncounters
+    with TableInfo<$DangerousGameEncountersTable, DangerousGameEncounterRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DangerousGameEncountersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _localIdMeta = const VerificationMeta(
+    'localId',
+  );
+  @override
+  late final GeneratedColumn<String> localId = GeneratedColumn<String>(
+    'local_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<String> serverId = GeneratedColumn<String>(
+    'server_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contextCodeMeta = const VerificationMeta(
+    'contextCode',
+  );
+  @override
+  late final GeneratedColumn<String> contextCode = GeneratedColumn<String>(
+    'context_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _outingIdMeta = const VerificationMeta(
+    'outingId',
+  );
+  @override
+  late final GeneratedColumn<String> outingId = GeneratedColumn<String>(
+    'outing_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _speciesCodeMeta = const VerificationMeta(
+    'speciesCode',
+  );
+  @override
+  late final GeneratedColumn<String> speciesCode = GeneratedColumn<String>(
+    'species_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _distanceMMeta = const VerificationMeta(
+    'distanceM',
+  );
+  @override
+  late final GeneratedColumn<double> distanceM = GeneratedColumn<double>(
+    'distance_m',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _animalBehaviourMeta = const VerificationMeta(
+    'animalBehaviour',
+  );
+  @override
+  late final GeneratedColumn<String> animalBehaviour = GeneratedColumn<String>(
+    'animal_behaviour',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _actionTakenMeta = const VerificationMeta(
+    'actionTaken',
+  );
+  @override
+  late final GeneratedColumn<String> actionTaken = GeneratedColumn<String>(
+    'action_taken',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accuracyMMeta = const VerificationMeta(
+    'accuracyM',
+  );
+  @override
+  late final GeneratedColumn<double> accuracyM = GeneratedColumn<double>(
+    'accuracy_m',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _capturedAtMeta = const VerificationMeta(
+    'capturedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> capturedAt = GeneratedColumn<DateTime>(
+    'captured_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isTombstoneMeta = const VerificationMeta(
+    'isTombstone',
+  );
+  @override
+  late final GeneratedColumn<bool> isTombstone = GeneratedColumn<bool>(
+    'is_tombstone',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_tombstone" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    localId,
+    serverId,
+    contextCode,
+    outingId,
+    speciesCode,
+    distanceM,
+    animalBehaviour,
+    actionTaken,
+    latitude,
+    longitude,
+    accuracyM,
+    capturedAt,
+    recordedAt,
+    createdBy,
+    note,
+    revision,
+    isTombstone,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dangerous_game_encounters';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DangerousGameEncounterRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('local_id')) {
+      context.handle(
+        _localIdMeta,
+        localId.isAcceptableOrUnknown(data['local_id']!, _localIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localIdMeta);
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('context_code')) {
+      context.handle(
+        _contextCodeMeta,
+        contextCode.isAcceptableOrUnknown(
+          data['context_code']!,
+          _contextCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contextCodeMeta);
+    }
+    if (data.containsKey('outing_id')) {
+      context.handle(
+        _outingIdMeta,
+        outingId.isAcceptableOrUnknown(data['outing_id']!, _outingIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_outingIdMeta);
+    }
+    if (data.containsKey('species_code')) {
+      context.handle(
+        _speciesCodeMeta,
+        speciesCode.isAcceptableOrUnknown(
+          data['species_code']!,
+          _speciesCodeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_speciesCodeMeta);
+    }
+    if (data.containsKey('distance_m')) {
+      context.handle(
+        _distanceMMeta,
+        distanceM.isAcceptableOrUnknown(data['distance_m']!, _distanceMMeta),
+      );
+    }
+    if (data.containsKey('animal_behaviour')) {
+      context.handle(
+        _animalBehaviourMeta,
+        animalBehaviour.isAcceptableOrUnknown(
+          data['animal_behaviour']!,
+          _animalBehaviourMeta,
+        ),
+      );
+    }
+    if (data.containsKey('action_taken')) {
+      context.handle(
+        _actionTakenMeta,
+        actionTaken.isAcceptableOrUnknown(
+          data['action_taken']!,
+          _actionTakenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('accuracy_m')) {
+      context.handle(
+        _accuracyMMeta,
+        accuracyM.isAcceptableOrUnknown(data['accuracy_m']!, _accuracyMMeta),
+      );
+    }
+    if (data.containsKey('captured_at')) {
+      context.handle(
+        _capturedAtMeta,
+        capturedAt.isAcceptableOrUnknown(data['captured_at']!, _capturedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_capturedAtMeta);
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    }
+    if (data.containsKey('is_tombstone')) {
+      context.handle(
+        _isTombstoneMeta,
+        isTombstone.isAcceptableOrUnknown(
+          data['is_tombstone']!,
+          _isTombstoneMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {localId};
+  @override
+  DangerousGameEncounterRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DangerousGameEncounterRow(
+      localId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server_id'],
+      ),
+      contextCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}context_code'],
+      )!,
+      outingId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}outing_id'],
+      )!,
+      speciesCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}species_code'],
+      )!,
+      distanceM: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}distance_m'],
+      ),
+      animalBehaviour: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}animal_behaviour'],
+      ),
+      actionTaken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}action_taken'],
+      ),
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      accuracyM: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}accuracy_m'],
+      ),
+      capturedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}captured_at'],
+      )!,
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      isTombstone: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_tombstone'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $DangerousGameEncountersTable createAlias(String alias) {
+    return $DangerousGameEncountersTable(attachedDatabase, alias);
+  }
+}
+
+class DangerousGameEncounterRow extends DataClass
+    implements Insertable<DangerousGameEncounterRow> {
+  /// The id this device minted. The service takes the client's id as its own,
+  /// so this is also the wire id and the pull key.
+  final String localId;
+
+  /// Set from the operation result — the same id, recorded once the service
+  /// has accepted it, so "accepted" is visible without asking the queue.
+  final String? serverId;
+  final String contextCode;
+
+  /// The outing this happened against: the client-minted id of the drive or
+  /// trail log, whichever owns the encounter.
+  final String outingId;
+  final String speciesCode;
+
+  /// Metres, when the range was judged. Null when it was not, which is not
+  /// the same as zero: zero would assert contact.
+  final double? distanceM;
+  final String? animalBehaviour;
+  final String? actionTaken;
+
+  /// Split into plain reals for the same reason the sighting's location is:
+  /// filtering and sorting beat parsing a geometry on every row.
+  final double latitude;
+  final double longitude;
+
+  /// Kept on the device only. The service's table has no accuracy column —
+  /// an encounter is pinned from one position at one moment — so this is a
+  /// local note about how good that position was.
+  final double? accuracyM;
+  final DateTime capturedAt;
+  final DateTime recordedAt;
+
+  /// Who recorded it, when known. The service carries its own `created_by`
+  /// from the token, so this is the local echo.
+  final String? createdBy;
+  final String? note;
+  final int revision;
+
+  /// Rule 9: a deletion arrives as a record rather than as an absence.
+  final bool isTombstone;
+  final DateTime? deletedAt;
+  const DangerousGameEncounterRow({
+    required this.localId,
+    this.serverId,
+    required this.contextCode,
+    required this.outingId,
+    required this.speciesCode,
+    this.distanceM,
+    this.animalBehaviour,
+    this.actionTaken,
+    required this.latitude,
+    required this.longitude,
+    this.accuracyM,
+    required this.capturedAt,
+    required this.recordedAt,
+    this.createdBy,
+    this.note,
+    required this.revision,
+    required this.isTombstone,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['local_id'] = Variable<String>(localId);
+    if (!nullToAbsent || serverId != null) {
+      map['server_id'] = Variable<String>(serverId);
+    }
+    map['context_code'] = Variable<String>(contextCode);
+    map['outing_id'] = Variable<String>(outingId);
+    map['species_code'] = Variable<String>(speciesCode);
+    if (!nullToAbsent || distanceM != null) {
+      map['distance_m'] = Variable<double>(distanceM);
+    }
+    if (!nullToAbsent || animalBehaviour != null) {
+      map['animal_behaviour'] = Variable<String>(animalBehaviour);
+    }
+    if (!nullToAbsent || actionTaken != null) {
+      map['action_taken'] = Variable<String>(actionTaken);
+    }
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    if (!nullToAbsent || accuracyM != null) {
+      map['accuracy_m'] = Variable<double>(accuracyM);
+    }
+    map['captured_at'] = Variable<DateTime>(capturedAt);
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['revision'] = Variable<int>(revision);
+    map['is_tombstone'] = Variable<bool>(isTombstone);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  DangerousGameEncountersCompanion toCompanion(bool nullToAbsent) {
+    return DangerousGameEncountersCompanion(
+      localId: Value(localId),
+      serverId: serverId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverId),
+      contextCode: Value(contextCode),
+      outingId: Value(outingId),
+      speciesCode: Value(speciesCode),
+      distanceM: distanceM == null && nullToAbsent
+          ? const Value.absent()
+          : Value(distanceM),
+      animalBehaviour: animalBehaviour == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animalBehaviour),
+      actionTaken: actionTaken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(actionTaken),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      accuracyM: accuracyM == null && nullToAbsent
+          ? const Value.absent()
+          : Value(accuracyM),
+      capturedAt: Value(capturedAt),
+      recordedAt: Value(recordedAt),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      revision: Value(revision),
+      isTombstone: Value(isTombstone),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory DangerousGameEncounterRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DangerousGameEncounterRow(
+      localId: serializer.fromJson<String>(json['localId']),
+      serverId: serializer.fromJson<String?>(json['serverId']),
+      contextCode: serializer.fromJson<String>(json['contextCode']),
+      outingId: serializer.fromJson<String>(json['outingId']),
+      speciesCode: serializer.fromJson<String>(json['speciesCode']),
+      distanceM: serializer.fromJson<double?>(json['distanceM']),
+      animalBehaviour: serializer.fromJson<String?>(json['animalBehaviour']),
+      actionTaken: serializer.fromJson<String?>(json['actionTaken']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      accuracyM: serializer.fromJson<double?>(json['accuracyM']),
+      capturedAt: serializer.fromJson<DateTime>(json['capturedAt']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
+      note: serializer.fromJson<String?>(json['note']),
+      revision: serializer.fromJson<int>(json['revision']),
+      isTombstone: serializer.fromJson<bool>(json['isTombstone']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'localId': serializer.toJson<String>(localId),
+      'serverId': serializer.toJson<String?>(serverId),
+      'contextCode': serializer.toJson<String>(contextCode),
+      'outingId': serializer.toJson<String>(outingId),
+      'speciesCode': serializer.toJson<String>(speciesCode),
+      'distanceM': serializer.toJson<double?>(distanceM),
+      'animalBehaviour': serializer.toJson<String?>(animalBehaviour),
+      'actionTaken': serializer.toJson<String?>(actionTaken),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'accuracyM': serializer.toJson<double?>(accuracyM),
+      'capturedAt': serializer.toJson<DateTime>(capturedAt),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+      'createdBy': serializer.toJson<String?>(createdBy),
+      'note': serializer.toJson<String?>(note),
+      'revision': serializer.toJson<int>(revision),
+      'isTombstone': serializer.toJson<bool>(isTombstone),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  DangerousGameEncounterRow copyWith({
+    String? localId,
+    Value<String?> serverId = const Value.absent(),
+    String? contextCode,
+    String? outingId,
+    String? speciesCode,
+    Value<double?> distanceM = const Value.absent(),
+    Value<String?> animalBehaviour = const Value.absent(),
+    Value<String?> actionTaken = const Value.absent(),
+    double? latitude,
+    double? longitude,
+    Value<double?> accuracyM = const Value.absent(),
+    DateTime? capturedAt,
+    DateTime? recordedAt,
+    Value<String?> createdBy = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+    int? revision,
+    bool? isTombstone,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => DangerousGameEncounterRow(
+    localId: localId ?? this.localId,
+    serverId: serverId.present ? serverId.value : this.serverId,
+    contextCode: contextCode ?? this.contextCode,
+    outingId: outingId ?? this.outingId,
+    speciesCode: speciesCode ?? this.speciesCode,
+    distanceM: distanceM.present ? distanceM.value : this.distanceM,
+    animalBehaviour: animalBehaviour.present
+        ? animalBehaviour.value
+        : this.animalBehaviour,
+    actionTaken: actionTaken.present ? actionTaken.value : this.actionTaken,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    accuracyM: accuracyM.present ? accuracyM.value : this.accuracyM,
+    capturedAt: capturedAt ?? this.capturedAt,
+    recordedAt: recordedAt ?? this.recordedAt,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
+    note: note.present ? note.value : this.note,
+    revision: revision ?? this.revision,
+    isTombstone: isTombstone ?? this.isTombstone,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  DangerousGameEncounterRow copyWithCompanion(
+    DangerousGameEncountersCompanion data,
+  ) {
+    return DangerousGameEncounterRow(
+      localId: data.localId.present ? data.localId.value : this.localId,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      contextCode: data.contextCode.present
+          ? data.contextCode.value
+          : this.contextCode,
+      outingId: data.outingId.present ? data.outingId.value : this.outingId,
+      speciesCode: data.speciesCode.present
+          ? data.speciesCode.value
+          : this.speciesCode,
+      distanceM: data.distanceM.present ? data.distanceM.value : this.distanceM,
+      animalBehaviour: data.animalBehaviour.present
+          ? data.animalBehaviour.value
+          : this.animalBehaviour,
+      actionTaken: data.actionTaken.present
+          ? data.actionTaken.value
+          : this.actionTaken,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      accuracyM: data.accuracyM.present ? data.accuracyM.value : this.accuracyM,
+      capturedAt: data.capturedAt.present
+          ? data.capturedAt.value
+          : this.capturedAt,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
+      note: data.note.present ? data.note.value : this.note,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      isTombstone: data.isTombstone.present
+          ? data.isTombstone.value
+          : this.isTombstone,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DangerousGameEncounterRow(')
+          ..write('localId: $localId, ')
+          ..write('serverId: $serverId, ')
+          ..write('contextCode: $contextCode, ')
+          ..write('outingId: $outingId, ')
+          ..write('speciesCode: $speciesCode, ')
+          ..write('distanceM: $distanceM, ')
+          ..write('animalBehaviour: $animalBehaviour, ')
+          ..write('actionTaken: $actionTaken, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('accuracyM: $accuracyM, ')
+          ..write('capturedAt: $capturedAt, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('note: $note, ')
+          ..write('revision: $revision, ')
+          ..write('isTombstone: $isTombstone, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    localId,
+    serverId,
+    contextCode,
+    outingId,
+    speciesCode,
+    distanceM,
+    animalBehaviour,
+    actionTaken,
+    latitude,
+    longitude,
+    accuracyM,
+    capturedAt,
+    recordedAt,
+    createdBy,
+    note,
+    revision,
+    isTombstone,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DangerousGameEncounterRow &&
+          other.localId == this.localId &&
+          other.serverId == this.serverId &&
+          other.contextCode == this.contextCode &&
+          other.outingId == this.outingId &&
+          other.speciesCode == this.speciesCode &&
+          other.distanceM == this.distanceM &&
+          other.animalBehaviour == this.animalBehaviour &&
+          other.actionTaken == this.actionTaken &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.accuracyM == this.accuracyM &&
+          other.capturedAt == this.capturedAt &&
+          other.recordedAt == this.recordedAt &&
+          other.createdBy == this.createdBy &&
+          other.note == this.note &&
+          other.revision == this.revision &&
+          other.isTombstone == this.isTombstone &&
+          other.deletedAt == this.deletedAt);
+}
+
+class DangerousGameEncountersCompanion
+    extends UpdateCompanion<DangerousGameEncounterRow> {
+  final Value<String> localId;
+  final Value<String?> serverId;
+  final Value<String> contextCode;
+  final Value<String> outingId;
+  final Value<String> speciesCode;
+  final Value<double?> distanceM;
+  final Value<String?> animalBehaviour;
+  final Value<String?> actionTaken;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<double?> accuracyM;
+  final Value<DateTime> capturedAt;
+  final Value<DateTime> recordedAt;
+  final Value<String?> createdBy;
+  final Value<String?> note;
+  final Value<int> revision;
+  final Value<bool> isTombstone;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const DangerousGameEncountersCompanion({
+    this.localId = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.contextCode = const Value.absent(),
+    this.outingId = const Value.absent(),
+    this.speciesCode = const Value.absent(),
+    this.distanceM = const Value.absent(),
+    this.animalBehaviour = const Value.absent(),
+    this.actionTaken = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.accuracyM = const Value.absent(),
+    this.capturedAt = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.note = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.isTombstone = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DangerousGameEncountersCompanion.insert({
+    required String localId,
+    this.serverId = const Value.absent(),
+    required String contextCode,
+    required String outingId,
+    required String speciesCode,
+    this.distanceM = const Value.absent(),
+    this.animalBehaviour = const Value.absent(),
+    this.actionTaken = const Value.absent(),
+    required double latitude,
+    required double longitude,
+    this.accuracyM = const Value.absent(),
+    required DateTime capturedAt,
+    required DateTime recordedAt,
+    this.createdBy = const Value.absent(),
+    this.note = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.isTombstone = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : localId = Value(localId),
+       contextCode = Value(contextCode),
+       outingId = Value(outingId),
+       speciesCode = Value(speciesCode),
+       latitude = Value(latitude),
+       longitude = Value(longitude),
+       capturedAt = Value(capturedAt),
+       recordedAt = Value(recordedAt);
+  static Insertable<DangerousGameEncounterRow> custom({
+    Expression<String>? localId,
+    Expression<String>? serverId,
+    Expression<String>? contextCode,
+    Expression<String>? outingId,
+    Expression<String>? speciesCode,
+    Expression<double>? distanceM,
+    Expression<String>? animalBehaviour,
+    Expression<String>? actionTaken,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<double>? accuracyM,
+    Expression<DateTime>? capturedAt,
+    Expression<DateTime>? recordedAt,
+    Expression<String>? createdBy,
+    Expression<String>? note,
+    Expression<int>? revision,
+    Expression<bool>? isTombstone,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (localId != null) 'local_id': localId,
+      if (serverId != null) 'server_id': serverId,
+      if (contextCode != null) 'context_code': contextCode,
+      if (outingId != null) 'outing_id': outingId,
+      if (speciesCode != null) 'species_code': speciesCode,
+      if (distanceM != null) 'distance_m': distanceM,
+      if (animalBehaviour != null) 'animal_behaviour': animalBehaviour,
+      if (actionTaken != null) 'action_taken': actionTaken,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (accuracyM != null) 'accuracy_m': accuracyM,
+      if (capturedAt != null) 'captured_at': capturedAt,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (createdBy != null) 'created_by': createdBy,
+      if (note != null) 'note': note,
+      if (revision != null) 'revision': revision,
+      if (isTombstone != null) 'is_tombstone': isTombstone,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DangerousGameEncountersCompanion copyWith({
+    Value<String>? localId,
+    Value<String?>? serverId,
+    Value<String>? contextCode,
+    Value<String>? outingId,
+    Value<String>? speciesCode,
+    Value<double?>? distanceM,
+    Value<String?>? animalBehaviour,
+    Value<String?>? actionTaken,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<double?>? accuracyM,
+    Value<DateTime>? capturedAt,
+    Value<DateTime>? recordedAt,
+    Value<String?>? createdBy,
+    Value<String?>? note,
+    Value<int>? revision,
+    Value<bool>? isTombstone,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return DangerousGameEncountersCompanion(
+      localId: localId ?? this.localId,
+      serverId: serverId ?? this.serverId,
+      contextCode: contextCode ?? this.contextCode,
+      outingId: outingId ?? this.outingId,
+      speciesCode: speciesCode ?? this.speciesCode,
+      distanceM: distanceM ?? this.distanceM,
+      animalBehaviour: animalBehaviour ?? this.animalBehaviour,
+      actionTaken: actionTaken ?? this.actionTaken,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      accuracyM: accuracyM ?? this.accuracyM,
+      capturedAt: capturedAt ?? this.capturedAt,
+      recordedAt: recordedAt ?? this.recordedAt,
+      createdBy: createdBy ?? this.createdBy,
+      note: note ?? this.note,
+      revision: revision ?? this.revision,
+      isTombstone: isTombstone ?? this.isTombstone,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (localId.present) {
+      map['local_id'] = Variable<String>(localId.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<String>(serverId.value);
+    }
+    if (contextCode.present) {
+      map['context_code'] = Variable<String>(contextCode.value);
+    }
+    if (outingId.present) {
+      map['outing_id'] = Variable<String>(outingId.value);
+    }
+    if (speciesCode.present) {
+      map['species_code'] = Variable<String>(speciesCode.value);
+    }
+    if (distanceM.present) {
+      map['distance_m'] = Variable<double>(distanceM.value);
+    }
+    if (animalBehaviour.present) {
+      map['animal_behaviour'] = Variable<String>(animalBehaviour.value);
+    }
+    if (actionTaken.present) {
+      map['action_taken'] = Variable<String>(actionTaken.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (accuracyM.present) {
+      map['accuracy_m'] = Variable<double>(accuracyM.value);
+    }
+    if (capturedAt.present) {
+      map['captured_at'] = Variable<DateTime>(capturedAt.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (isTombstone.present) {
+      map['is_tombstone'] = Variable<bool>(isTombstone.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DangerousGameEncountersCompanion(')
+          ..write('localId: $localId, ')
+          ..write('serverId: $serverId, ')
+          ..write('contextCode: $contextCode, ')
+          ..write('outingId: $outingId, ')
+          ..write('speciesCode: $speciesCode, ')
+          ..write('distanceM: $distanceM, ')
+          ..write('animalBehaviour: $animalBehaviour, ')
+          ..write('actionTaken: $actionTaken, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('accuracyM: $accuracyM, ')
+          ..write('capturedAt: $capturedAt, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('note: $note, ')
+          ..write('revision: $revision, ')
+          ..write('isTombstone: $isTombstone, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6895,6 +9318,8 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
   late final $DrivesTable drives = $DrivesTable(this);
   late final $TrailLogsTable trailLogs = $TrailLogsTable(this);
   late final $TrailWaypointsTable trailWaypoints = $TrailWaypointsTable(this);
+  late final $DangerousGameEncountersTable dangerousGameEncounters =
+      $DangerousGameEncountersTable(this);
   late final $PlannedRoutesTable plannedRoutes = $PlannedRoutesTable(this);
   late final $RouteWaypointsTable routeWaypoints = $RouteWaypointsTable(this);
   late final $QueuedOperationsTable queuedOperations = $QueuedOperationsTable(
@@ -6912,6 +9337,7 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
     drives,
     trailLogs,
     trailWaypoints,
+    dangerousGameEncounters,
     plannedRoutes,
     routeWaypoints,
     queuedOperations,
@@ -7656,6 +10082,20 @@ typedef $$DrivesTableCreateCompanionBuilder = DrivesCompanion Function({
   Value<bool> isTombstone,
   Value<DateTime?> deletedAt,
   Value<bool> hasPendingChanges,
+  Value<String?> status,
+  Value<String?> guideId,
+  Value<String?> vehicleId,
+  Value<double?> durationHours,
+  Value<int?> guestCount,
+  Value<bool?> inspectionOilOk,
+  Value<bool?> inspectionWaterOk,
+  Value<bool?> inspectionTyresOk,
+  Value<double?> daylightHours,
+  Value<double?> nightHours,
+  Value<int?> offRoadSeconds,
+  Value<bool?> offTrackUsed,
+  Value<String?> weather,
+  Value<String?> notes,
   Value<int> rowid,
 });
 typedef $$DrivesTableUpdateCompanionBuilder = DrivesCompanion Function({
@@ -7669,6 +10109,20 @@ typedef $$DrivesTableUpdateCompanionBuilder = DrivesCompanion Function({
   Value<bool> isTombstone,
   Value<DateTime?> deletedAt,
   Value<bool> hasPendingChanges,
+  Value<String?> status,
+  Value<String?> guideId,
+  Value<String?> vehicleId,
+  Value<double?> durationHours,
+  Value<int?> guestCount,
+  Value<bool?> inspectionOilOk,
+  Value<bool?> inspectionWaterOk,
+  Value<bool?> inspectionTyresOk,
+  Value<double?> daylightHours,
+  Value<double?> nightHours,
+  Value<int?> offRoadSeconds,
+  Value<bool?> offTrackUsed,
+  Value<String?> weather,
+  Value<String?> notes,
   Value<int> rowid,
 });
 
@@ -7756,6 +10210,76 @@ class $$DrivesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get guideId => $composableBuilder(
+    column: $table.guideId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vehicleId => $composableBuilder(
+    column: $table.vehicleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get durationHours => $composableBuilder(
+    column: $table.durationHours,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get guestCount => $composableBuilder(
+    column: $table.guestCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get inspectionOilOk => $composableBuilder(
+    column: $table.inspectionOilOk,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get inspectionWaterOk => $composableBuilder(
+    column: $table.inspectionWaterOk,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get inspectionTyresOk => $composableBuilder(
+    column: $table.inspectionTyresOk,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get daylightHours => $composableBuilder(
+    column: $table.daylightHours,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get nightHours => $composableBuilder(
+    column: $table.nightHours,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get offRoadSeconds => $composableBuilder(
+    column: $table.offRoadSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get offTrackUsed => $composableBuilder(
+    column: $table.offTrackUsed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get weather => $composableBuilder(
+    column: $table.weather,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> plannedRoutesRefs(
     Expression<bool> Function($$PlannedRoutesTableFilterComposer f) f,
   ) {
@@ -7840,6 +10364,76 @@ class $$DrivesTableOrderingComposer
     column: $table.hasPendingChanges,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get guideId => $composableBuilder(
+    column: $table.guideId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get vehicleId => $composableBuilder(
+    column: $table.vehicleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get durationHours => $composableBuilder(
+    column: $table.durationHours,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get guestCount => $composableBuilder(
+    column: $table.guestCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get inspectionOilOk => $composableBuilder(
+    column: $table.inspectionOilOk,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get inspectionWaterOk => $composableBuilder(
+    column: $table.inspectionWaterOk,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get inspectionTyresOk => $composableBuilder(
+    column: $table.inspectionTyresOk,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get daylightHours => $composableBuilder(
+    column: $table.daylightHours,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get nightHours => $composableBuilder(
+    column: $table.nightHours,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get offRoadSeconds => $composableBuilder(
+    column: $table.offRoadSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get offTrackUsed => $composableBuilder(
+    column: $table.offTrackUsed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get weather => $composableBuilder(
+    column: $table.weather,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DrivesTableAnnotationComposer
@@ -7886,6 +10480,66 @@ class $$DrivesTableAnnotationComposer
     column: $table.hasPendingChanges,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get guideId =>
+      $composableBuilder(column: $table.guideId, builder: (column) => column);
+
+  GeneratedColumn<String> get vehicleId =>
+      $composableBuilder(column: $table.vehicleId, builder: (column) => column);
+
+  GeneratedColumn<double> get durationHours => $composableBuilder(
+    column: $table.durationHours,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get guestCount => $composableBuilder(
+    column: $table.guestCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get inspectionOilOk => $composableBuilder(
+    column: $table.inspectionOilOk,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get inspectionWaterOk => $composableBuilder(
+    column: $table.inspectionWaterOk,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get inspectionTyresOk => $composableBuilder(
+    column: $table.inspectionTyresOk,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get daylightHours => $composableBuilder(
+    column: $table.daylightHours,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get nightHours => $composableBuilder(
+    column: $table.nightHours,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get offRoadSeconds => $composableBuilder(
+    column: $table.offRoadSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get offTrackUsed => $composableBuilder(
+    column: $table.offTrackUsed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get weather =>
+      $composableBuilder(column: $table.weather, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
 
   Expression<T> plannedRoutesRefs<T extends Object>(
     Expression<T> Function($$PlannedRoutesTableAnnotationComposer a) f,
@@ -7951,6 +10605,20 @@ class $$DrivesTableTableManager
                 Value<bool> isTombstone = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<bool> hasPendingChanges = const Value.absent(),
+                Value<String?> status = const Value.absent(),
+                Value<String?> guideId = const Value.absent(),
+                Value<String?> vehicleId = const Value.absent(),
+                Value<double?> durationHours = const Value.absent(),
+                Value<int?> guestCount = const Value.absent(),
+                Value<bool?> inspectionOilOk = const Value.absent(),
+                Value<bool?> inspectionWaterOk = const Value.absent(),
+                Value<bool?> inspectionTyresOk = const Value.absent(),
+                Value<double?> daylightHours = const Value.absent(),
+                Value<double?> nightHours = const Value.absent(),
+                Value<int?> offRoadSeconds = const Value.absent(),
+                Value<bool?> offTrackUsed = const Value.absent(),
+                Value<String?> weather = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DrivesCompanion(
                 localId: localId,
@@ -7963,6 +10631,20 @@ class $$DrivesTableTableManager
                 isTombstone: isTombstone,
                 deletedAt: deletedAt,
                 hasPendingChanges: hasPendingChanges,
+                status: status,
+                guideId: guideId,
+                vehicleId: vehicleId,
+                durationHours: durationHours,
+                guestCount: guestCount,
+                inspectionOilOk: inspectionOilOk,
+                inspectionWaterOk: inspectionWaterOk,
+                inspectionTyresOk: inspectionTyresOk,
+                daylightHours: daylightHours,
+                nightHours: nightHours,
+                offRoadSeconds: offRoadSeconds,
+                offTrackUsed: offTrackUsed,
+                weather: weather,
+                notes: notes,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7977,6 +10659,20 @@ class $$DrivesTableTableManager
                 Value<bool> isTombstone = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<bool> hasPendingChanges = const Value.absent(),
+                Value<String?> status = const Value.absent(),
+                Value<String?> guideId = const Value.absent(),
+                Value<String?> vehicleId = const Value.absent(),
+                Value<double?> durationHours = const Value.absent(),
+                Value<int?> guestCount = const Value.absent(),
+                Value<bool?> inspectionOilOk = const Value.absent(),
+                Value<bool?> inspectionWaterOk = const Value.absent(),
+                Value<bool?> inspectionTyresOk = const Value.absent(),
+                Value<double?> daylightHours = const Value.absent(),
+                Value<double?> nightHours = const Value.absent(),
+                Value<int?> offRoadSeconds = const Value.absent(),
+                Value<bool?> offTrackUsed = const Value.absent(),
+                Value<String?> weather = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DrivesCompanion.insert(
                 localId: localId,
@@ -7989,6 +10685,20 @@ class $$DrivesTableTableManager
                 isTombstone: isTombstone,
                 deletedAt: deletedAt,
                 hasPendingChanges: hasPendingChanges,
+                status: status,
+                guideId: guideId,
+                vehicleId: vehicleId,
+                durationHours: durationHours,
+                guestCount: guestCount,
+                inspectionOilOk: inspectionOilOk,
+                inspectionWaterOk: inspectionWaterOk,
+                inspectionTyresOk: inspectionTyresOk,
+                daylightHours: daylightHours,
+                nightHours: nightHours,
+                offRoadSeconds: offRoadSeconds,
+                offTrackUsed: offTrackUsed,
+                weather: weather,
+                notes: notes,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -8062,6 +10772,15 @@ typedef $$TrailLogsTableCreateCompanionBuilder = TrailLogsCompanion Function({
   Value<int> revision,
   Value<bool> isTombstone,
   Value<DateTime?> deletedAt,
+  Value<String?> status,
+  Value<String?> rifleRole,
+  Value<String?> guideRole,
+  Value<String?> rifleDetails,
+  Value<double?> walkLengthKm,
+  Value<double?> hoursWalked,
+  Value<String?> description,
+  Value<String?> lessonsLearned,
+  Value<String?> weather,
   Value<int> rowid,
 });
 typedef $$TrailLogsTableUpdateCompanionBuilder = TrailLogsCompanion Function({
@@ -8076,6 +10795,15 @@ typedef $$TrailLogsTableUpdateCompanionBuilder = TrailLogsCompanion Function({
   Value<int> revision,
   Value<bool> isTombstone,
   Value<DateTime?> deletedAt,
+  Value<String?> status,
+  Value<String?> rifleRole,
+  Value<String?> guideRole,
+  Value<String?> rifleDetails,
+  Value<double?> walkLengthKm,
+  Value<double?> hoursWalked,
+  Value<String?> description,
+  Value<String?> lessonsLearned,
+  Value<String?> weather,
   Value<int> rowid,
 });
 
@@ -8168,6 +10896,51 @@ class $$TrailLogsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rifleRole => $composableBuilder(
+    column: $table.rifleRole,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get guideRole => $composableBuilder(
+    column: $table.guideRole,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rifleDetails => $composableBuilder(
+    column: $table.rifleDetails,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get walkLengthKm => $composableBuilder(
+    column: $table.walkLengthKm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get hoursWalked => $composableBuilder(
+    column: $table.hoursWalked,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lessonsLearned => $composableBuilder(
+    column: $table.lessonsLearned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get weather => $composableBuilder(
+    column: $table.weather,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> trailWaypointsRefs(
     Expression<bool> Function($$TrailWaypointsTableFilterComposer f) f,
   ) {
@@ -8257,6 +11030,51 @@ class $$TrailLogsTableOrderingComposer
     column: $table.deletedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rifleRole => $composableBuilder(
+    column: $table.rifleRole,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get guideRole => $composableBuilder(
+    column: $table.guideRole,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rifleDetails => $composableBuilder(
+    column: $table.rifleDetails,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get walkLengthKm => $composableBuilder(
+    column: $table.walkLengthKm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get hoursWalked => $composableBuilder(
+    column: $table.hoursWalked,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lessonsLearned => $composableBuilder(
+    column: $table.lessonsLearned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get weather => $composableBuilder(
+    column: $table.weather,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TrailLogsTableAnnotationComposer
@@ -8304,6 +11122,43 @@ class $$TrailLogsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get rifleRole =>
+      $composableBuilder(column: $table.rifleRole, builder: (column) => column);
+
+  GeneratedColumn<String> get guideRole =>
+      $composableBuilder(column: $table.guideRole, builder: (column) => column);
+
+  GeneratedColumn<String> get rifleDetails => $composableBuilder(
+    column: $table.rifleDetails,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get walkLengthKm => $composableBuilder(
+    column: $table.walkLengthKm,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get hoursWalked => $composableBuilder(
+    column: $table.hoursWalked,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lessonsLearned => $composableBuilder(
+    column: $table.lessonsLearned,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get weather =>
+      $composableBuilder(column: $table.weather, builder: (column) => column);
 
   Expression<T> trailWaypointsRefs<T extends Object>(
     Expression<T> Function($$TrailWaypointsTableAnnotationComposer a) f,
@@ -8370,6 +11225,15 @@ class $$TrailLogsTableTableManager
                 Value<int> revision = const Value.absent(),
                 Value<bool> isTombstone = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String?> status = const Value.absent(),
+                Value<String?> rifleRole = const Value.absent(),
+                Value<String?> guideRole = const Value.absent(),
+                Value<String?> rifleDetails = const Value.absent(),
+                Value<double?> walkLengthKm = const Value.absent(),
+                Value<double?> hoursWalked = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> lessonsLearned = const Value.absent(),
+                Value<String?> weather = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TrailLogsCompanion(
                 localId: localId,
@@ -8383,6 +11247,15 @@ class $$TrailLogsTableTableManager
                 revision: revision,
                 isTombstone: isTombstone,
                 deletedAt: deletedAt,
+                status: status,
+                rifleRole: rifleRole,
+                guideRole: guideRole,
+                rifleDetails: rifleDetails,
+                walkLengthKm: walkLengthKm,
+                hoursWalked: hoursWalked,
+                description: description,
+                lessonsLearned: lessonsLearned,
+                weather: weather,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8398,6 +11271,15 @@ class $$TrailLogsTableTableManager
                 Value<int> revision = const Value.absent(),
                 Value<bool> isTombstone = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String?> status = const Value.absent(),
+                Value<String?> rifleRole = const Value.absent(),
+                Value<String?> guideRole = const Value.absent(),
+                Value<String?> rifleDetails = const Value.absent(),
+                Value<double?> walkLengthKm = const Value.absent(),
+                Value<double?> hoursWalked = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> lessonsLearned = const Value.absent(),
+                Value<String?> weather = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TrailLogsCompanion.insert(
                 localId: localId,
@@ -8411,6 +11293,15 @@ class $$TrailLogsTableTableManager
                 revision: revision,
                 isTombstone: isTombstone,
                 deletedAt: deletedAt,
+                status: status,
+                rifleRole: rifleRole,
+                guideRole: guideRole,
+                rifleDetails: rifleDetails,
+                walkLengthKm: walkLengthKm,
+                hoursWalked: hoursWalked,
+                description: description,
+                lessonsLearned: lessonsLearned,
+                weather: weather,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -8477,9 +11368,11 @@ typedef $$TrailWaypointsTableCreateCompanionBuilder =
     TrailWaypointsCompanion Function({
       required String trailLogId,
       required int ordinal,
+      Value<String?> serverId,
       required double latitude,
       required double longitude,
       Value<double?> accuracyMetres,
+      Value<double?> elevationM,
       required DateTime recordedAt,
       Value<String?> note,
       Value<int> rowid,
@@ -8488,9 +11381,11 @@ typedef $$TrailWaypointsTableUpdateCompanionBuilder =
     TrailWaypointsCompanion Function({
       Value<String> trailLogId,
       Value<int> ordinal,
+      Value<String?> serverId,
       Value<double> latitude,
       Value<double> longitude,
       Value<double?> accuracyMetres,
+      Value<double?> elevationM,
       Value<DateTime> recordedAt,
       Value<String?> note,
       Value<int> rowid,
@@ -8541,6 +11436,11 @@ class $$TrailWaypointsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<double> get latitude => $composableBuilder(
     column: $table.latitude,
     builder: (column) => ColumnFilters(column),
@@ -8553,6 +11453,11 @@ class $$TrailWaypointsTableFilterComposer
 
   ColumnFilters<double> get accuracyMetres => $composableBuilder(
     column: $table.accuracyMetres,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get elevationM => $composableBuilder(
+    column: $table.elevationM,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8604,6 +11509,11 @@ class $$TrailWaypointsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get latitude => $composableBuilder(
     column: $table.latitude,
     builder: (column) => ColumnOrderings(column),
@@ -8616,6 +11526,11 @@ class $$TrailWaypointsTableOrderingComposer
 
   ColumnOrderings<double> get accuracyMetres => $composableBuilder(
     column: $table.accuracyMetres,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get elevationM => $composableBuilder(
+    column: $table.elevationM,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8665,6 +11580,9 @@ class $$TrailWaypointsTableAnnotationComposer
   GeneratedColumn<int> get ordinal =>
       $composableBuilder(column: $table.ordinal, builder: (column) => column);
 
+  GeneratedColumn<String> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
   GeneratedColumn<double> get latitude =>
       $composableBuilder(column: $table.latitude, builder: (column) => column);
 
@@ -8673,6 +11591,11 @@ class $$TrailWaypointsTableAnnotationComposer
 
   GeneratedColumn<double> get accuracyMetres => $composableBuilder(
     column: $table.accuracyMetres,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get elevationM => $composableBuilder(
+    column: $table.elevationM,
     builder: (column) => column,
   );
 
@@ -8740,18 +11663,22 @@ class $$TrailWaypointsTableTableManager
               ({
                 Value<String> trailLogId = const Value.absent(),
                 Value<int> ordinal = const Value.absent(),
+                Value<String?> serverId = const Value.absent(),
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
                 Value<double?> accuracyMetres = const Value.absent(),
+                Value<double?> elevationM = const Value.absent(),
                 Value<DateTime> recordedAt = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TrailWaypointsCompanion(
                 trailLogId: trailLogId,
                 ordinal: ordinal,
+                serverId: serverId,
                 latitude: latitude,
                 longitude: longitude,
                 accuracyMetres: accuracyMetres,
+                elevationM: elevationM,
                 recordedAt: recordedAt,
                 note: note,
                 rowid: rowid,
@@ -8760,18 +11687,22 @@ class $$TrailWaypointsTableTableManager
               ({
                 required String trailLogId,
                 required int ordinal,
+                Value<String?> serverId = const Value.absent(),
                 required double latitude,
                 required double longitude,
                 Value<double?> accuracyMetres = const Value.absent(),
+                Value<double?> elevationM = const Value.absent(),
                 required DateTime recordedAt,
                 Value<String?> note = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TrailWaypointsCompanion.insert(
                 trailLogId: trailLogId,
                 ordinal: ordinal,
+                serverId: serverId,
                 latitude: latitude,
                 longitude: longitude,
                 accuracyMetres: accuracyMetres,
+                elevationM: elevationM,
                 recordedAt: recordedAt,
                 note: note,
                 rowid: rowid,
@@ -8840,6 +11771,498 @@ typedef $$TrailWaypointsTableProcessedTableManager =
       (TrailWaypoint, $$TrailWaypointsTableReferences),
       TrailWaypoint,
       PrefetchHooks Function({bool trailLogId})
+    >;
+typedef $$DangerousGameEncountersTableCreateCompanionBuilder =
+    DangerousGameEncountersCompanion Function({
+      required String localId,
+      Value<String?> serverId,
+      required String contextCode,
+      required String outingId,
+      required String speciesCode,
+      Value<double?> distanceM,
+      Value<String?> animalBehaviour,
+      Value<String?> actionTaken,
+      required double latitude,
+      required double longitude,
+      Value<double?> accuracyM,
+      required DateTime capturedAt,
+      required DateTime recordedAt,
+      Value<String?> createdBy,
+      Value<String?> note,
+      Value<int> revision,
+      Value<bool> isTombstone,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$DangerousGameEncountersTableUpdateCompanionBuilder =
+    DangerousGameEncountersCompanion Function({
+      Value<String> localId,
+      Value<String?> serverId,
+      Value<String> contextCode,
+      Value<String> outingId,
+      Value<String> speciesCode,
+      Value<double?> distanceM,
+      Value<String?> animalBehaviour,
+      Value<String?> actionTaken,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<double?> accuracyM,
+      Value<DateTime> capturedAt,
+      Value<DateTime> recordedAt,
+      Value<String?> createdBy,
+      Value<String?> note,
+      Value<int> revision,
+      Value<bool> isTombstone,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$DangerousGameEncountersTableFilterComposer
+    extends Composer<_$FieldLogDatabase, $DangerousGameEncountersTable> {
+  $$DangerousGameEncountersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contextCode => $composableBuilder(
+    column: $table.contextCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get outingId => $composableBuilder(
+    column: $table.outingId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speciesCode => $composableBuilder(
+    column: $table.speciesCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get distanceM => $composableBuilder(
+    column: $table.distanceM,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get animalBehaviour => $composableBuilder(
+    column: $table.animalBehaviour,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actionTaken => $composableBuilder(
+    column: $table.actionTaken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get accuracyM => $composableBuilder(
+    column: $table.accuracyM,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DangerousGameEncountersTableOrderingComposer
+    extends Composer<_$FieldLogDatabase, $DangerousGameEncountersTable> {
+  $$DangerousGameEncountersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contextCode => $composableBuilder(
+    column: $table.contextCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get outingId => $composableBuilder(
+    column: $table.outingId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get speciesCode => $composableBuilder(
+    column: $table.speciesCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get distanceM => $composableBuilder(
+    column: $table.distanceM,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get animalBehaviour => $composableBuilder(
+    column: $table.animalBehaviour,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get actionTaken => $composableBuilder(
+    column: $table.actionTaken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get accuracyM => $composableBuilder(
+    column: $table.accuracyM,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DangerousGameEncountersTableAnnotationComposer
+    extends Composer<_$FieldLogDatabase, $DangerousGameEncountersTable> {
+  $$DangerousGameEncountersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get localId =>
+      $composableBuilder(column: $table.localId, builder: (column) => column);
+
+  GeneratedColumn<String> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<String> get contextCode => $composableBuilder(
+    column: $table.contextCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get outingId =>
+      $composableBuilder(column: $table.outingId, builder: (column) => column);
+
+  GeneratedColumn<String> get speciesCode => $composableBuilder(
+    column: $table.speciesCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get distanceM =>
+      $composableBuilder(column: $table.distanceM, builder: (column) => column);
+
+  GeneratedColumn<String> get animalBehaviour => $composableBuilder(
+    column: $table.animalBehaviour,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get actionTaken => $composableBuilder(
+    column: $table.actionTaken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<double> get accuracyM =>
+      $composableBuilder(column: $table.accuracyM, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$DangerousGameEncountersTableTableManager
+    extends
+        RootTableManager<
+          _$FieldLogDatabase,
+          $DangerousGameEncountersTable,
+          DangerousGameEncounterRow,
+          $$DangerousGameEncountersTableFilterComposer,
+          $$DangerousGameEncountersTableOrderingComposer,
+          $$DangerousGameEncountersTableAnnotationComposer,
+          $$DangerousGameEncountersTableCreateCompanionBuilder,
+          $$DangerousGameEncountersTableUpdateCompanionBuilder,
+          (
+            DangerousGameEncounterRow,
+            BaseReferences<
+              _$FieldLogDatabase,
+              $DangerousGameEncountersTable,
+              DangerousGameEncounterRow
+            >,
+          ),
+          DangerousGameEncounterRow,
+          PrefetchHooks Function()
+        > {
+  $$DangerousGameEncountersTableTableManager(
+    _$FieldLogDatabase db,
+    $DangerousGameEncountersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DangerousGameEncountersTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DangerousGameEncountersTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DangerousGameEncountersTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> localId = const Value.absent(),
+                Value<String?> serverId = const Value.absent(),
+                Value<String> contextCode = const Value.absent(),
+                Value<String> outingId = const Value.absent(),
+                Value<String> speciesCode = const Value.absent(),
+                Value<double?> distanceM = const Value.absent(),
+                Value<String?> animalBehaviour = const Value.absent(),
+                Value<String?> actionTaken = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<double?> accuracyM = const Value.absent(),
+                Value<DateTime> capturedAt = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+                Value<String?> createdBy = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<bool> isTombstone = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DangerousGameEncountersCompanion(
+                localId: localId,
+                serverId: serverId,
+                contextCode: contextCode,
+                outingId: outingId,
+                speciesCode: speciesCode,
+                distanceM: distanceM,
+                animalBehaviour: animalBehaviour,
+                actionTaken: actionTaken,
+                latitude: latitude,
+                longitude: longitude,
+                accuracyM: accuracyM,
+                capturedAt: capturedAt,
+                recordedAt: recordedAt,
+                createdBy: createdBy,
+                note: note,
+                revision: revision,
+                isTombstone: isTombstone,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String localId,
+                Value<String?> serverId = const Value.absent(),
+                required String contextCode,
+                required String outingId,
+                required String speciesCode,
+                Value<double?> distanceM = const Value.absent(),
+                Value<String?> animalBehaviour = const Value.absent(),
+                Value<String?> actionTaken = const Value.absent(),
+                required double latitude,
+                required double longitude,
+                Value<double?> accuracyM = const Value.absent(),
+                required DateTime capturedAt,
+                required DateTime recordedAt,
+                Value<String?> createdBy = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<bool> isTombstone = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DangerousGameEncountersCompanion.insert(
+                localId: localId,
+                serverId: serverId,
+                contextCode: contextCode,
+                outingId: outingId,
+                speciesCode: speciesCode,
+                distanceM: distanceM,
+                animalBehaviour: animalBehaviour,
+                actionTaken: actionTaken,
+                latitude: latitude,
+                longitude: longitude,
+                accuracyM: accuracyM,
+                capturedAt: capturedAt,
+                recordedAt: recordedAt,
+                createdBy: createdBy,
+                note: note,
+                revision: revision,
+                isTombstone: isTombstone,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $DangerousGameEncountersTable,
+                    DangerousGameEncounterRow
+                  >(table),
+                  BaseReferences<
+                    _$FieldLogDatabase,
+                    $DangerousGameEncountersTable,
+                    DangerousGameEncounterRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DangerousGameEncountersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$FieldLogDatabase,
+      $DangerousGameEncountersTable,
+      DangerousGameEncounterRow,
+      $$DangerousGameEncountersTableFilterComposer,
+      $$DangerousGameEncountersTableOrderingComposer,
+      $$DangerousGameEncountersTableAnnotationComposer,
+      $$DangerousGameEncountersTableCreateCompanionBuilder,
+      $$DangerousGameEncountersTableUpdateCompanionBuilder,
+      (
+        DangerousGameEncounterRow,
+        BaseReferences<
+          _$FieldLogDatabase,
+          $DangerousGameEncountersTable,
+          DangerousGameEncounterRow
+        >,
+      ),
+      DangerousGameEncounterRow,
+      PrefetchHooks Function()
     >;
 typedef $$PlannedRoutesTableCreateCompanionBuilder =
     PlannedRoutesCompanion Function({
@@ -10890,6 +14313,11 @@ class $FieldLogDatabaseManager {
       $$TrailLogsTableTableManager(_db, _db.trailLogs);
   $$TrailWaypointsTableTableManager get trailWaypoints =>
       $$TrailWaypointsTableTableManager(_db, _db.trailWaypoints);
+  $$DangerousGameEncountersTableTableManager get dangerousGameEncounters =>
+      $$DangerousGameEncountersTableTableManager(
+        _db,
+        _db.dangerousGameEncounters,
+      );
   $$PlannedRoutesTableTableManager get plannedRoutes =>
       $$PlannedRoutesTableTableManager(_db, _db.plannedRoutes);
   $$RouteWaypointsTableTableManager get routeWaypoints =>

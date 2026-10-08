@@ -30,6 +30,13 @@ enum OperationKind {
 }
 
 /// Which kind of record an operation applies to.
+///
+/// The values split by where they are read. The queue stores the *local*
+/// table a change belongs to (drive, trailLog, sighting, dangerousGame,
+/// trailWaypoint), while a pull change carries the *wire* type the service
+/// named (outing, log_book_entry and so on). [outing] and [unknown] are
+/// therefore pull-only: no queue row ever holds them, because a queued change
+/// always concerns a local table.
 enum EntityKind {
   @JsonValue('drive')
   drive,
@@ -45,6 +52,31 @@ enum EntityKind {
 
   @JsonValue('media')
   media,
+
+  /// The service's `outing`. What this row means locally — a drive or a trail
+  /// log — is decided by the kind the change body carries, not by this value,
+  /// which is why the pull side routes it further after reading the body.
+  @JsonValue('outing')
+  outing,
+
+  /// A dangerous-game encounter recorded against an outing.
+  @JsonValue('dangerous_game')
+  dangerousGame,
+
+  /// One waypoint along a trail log. Append-only: the queue may create one and
+  /// nothing else, because ordering is the content and a sequence is never
+  /// rewritten.
+  @JsonValue('trail_waypoint')
+  trailWaypoint,
+
+  /// A wire type this client does not know.
+  ///
+  /// A pull maps an unrecognised `entity_type` here rather than silently to a
+  /// kind it does understand: a held conflict saying "not understood" teaches a
+  /// person something, where a mislabelled sighting teaches them the wrong
+  /// thing.
+  @JsonValue('unknown')
+  unknown,
 }
 
 /// A change the client intends to make, queued locally before it is attempted.
