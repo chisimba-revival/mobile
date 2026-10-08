@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show InsertMode, OrderingTerm;
 import 'package:field_log/data/database.dart';
+import 'package:field_log/data/drive_writer.dart';
 import 'package:field_log/data/mappers.dart';
 import 'package:field_log/data/operation_queue.dart';
 import 'package:field_log/data/pull_engine.dart';
@@ -23,6 +24,7 @@ import 'package:field_log/net/chisimba_api.dart';
 import 'package:field_log/net/connectivity_watcher.dart';
 import 'package:field_log/net/session_store.dart';
 import 'package:field_log/screens/map_screen.dart';
+import 'package:field_log/screens/drive_logbook_screen.dart';
 import 'package:field_log/screens/pin_detail.dart';
 import 'package:field_log/screens/quick_capture_sheet.dart';
 import 'package:field_log/screens/route_editor_screen.dart';
@@ -201,6 +203,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   late final PullEngine _pull;
   late final SightingWriter _sightings;
   late final SightingAmender _amender;
+  late final DriveWriter _drives;
 
   /// Whether a sync is in flight, so a transport flap or a capture mid-sync
   /// does not start a second push against the same batch.
@@ -256,6 +259,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     _pull = PullEngine(widget.database);
     _sightings = SightingWriter(widget.database, _queue);
     _amender = SightingAmender(widget.database, _queue);
+    _drives = DriveWriter(widget.database, _queue);
     _read();
     _restore();
     _watchTransport();
@@ -595,6 +599,35 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => const TallyScreen(progress: TrailProgress.empty),
+      ),
+    );
+  }
+
+  /// The drive logbook: start, watch, and close a drive.
+  ///
+  /// The screen owns the live arithmetic; this wiring owns what the rest of
+  /// the app needs to know afterwards — that the drive now exists (so map
+  /// taps file against it) and that the queue may have grown (so the badge
+  /// and the sync both hear about it).
+  Future<void> _openDrive() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DriveLogbookScreen(
+          database: widget.database,
+          writer: _drives,
+          contextCode: _contextCode,
+          guideId: _user?.id,
+          onDriveStarted: (localId) {
+            // Sightings tapped from now on belong to this drive. Ending a
+            // drive does not clear it: observations made at the sighting
+            // point after the vehicle stops are still on that drive.
+            setState(() => _selectedOutingId = localId);
+          },
+          onDriveEnded: () {
+            _refreshQueued();
+            if (_status.hasTransport) unawaited(_sync());
+          },
+        ),
       ),
     );
   }
@@ -970,6 +1003,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       onDropPin: _captureAt,
       onOpenLedger: _openLedger,
       onOpenTally: _openTally,
+      onOpenDrive: _openDrive,
       onOpenSighting: _openSighting,
       onRecordSighting: _recordSighting,
     );

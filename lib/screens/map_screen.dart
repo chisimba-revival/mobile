@@ -73,6 +73,7 @@ class MapScreen extends StatefulWidget {
     required this.onRecordSighting,
     required this.onOpenLedger,
     required this.onOpenTally,
+    required this.onOpenDrive,
     required this.onOpenSighting,
     this.tileCache,
     this.signedInAs,
@@ -103,6 +104,9 @@ class MapScreen extends StatefulWidget {
   final void Function(String localId)? onOpenSighting;
 
   final VoidCallback? onOpenTally;
+
+  /// Opens the drive logbook: start a drive, watch it, close it.
+  final VoidCallback? onOpenDrive;
   final String? selectedLocalId;
 
   /// Who is holding the phone. Null when nobody is signed in, which is the
@@ -292,6 +296,7 @@ class _MapScreenState extends State<MapScreen>
             onRecordSighting: widget.onRecordSighting,
             onOpenLedger: widget.onOpenLedger,
             onOpenTally: widget.onOpenTally,
+            onOpenDrive: widget.onOpenDrive,
           ),
         ],
       ),
@@ -662,6 +667,7 @@ class _Dock extends StatelessWidget {
     required this.onRecordSighting,
     required this.onOpenLedger,
     required this.onOpenTally,
+    required this.onOpenDrive,
   });
 
   final FieldColours colours;
@@ -670,6 +676,7 @@ class _Dock extends StatelessWidget {
   final VoidCallback? onRecordSighting;
   final VoidCallback? onOpenLedger;
   final VoidCallback? onOpenTally;
+  final VoidCallback? onOpenDrive;
 
   @override
   Widget build(BuildContext context) {
@@ -708,6 +715,18 @@ class _Dock extends StatelessWidget {
                 const SizedBox(width: Insets.sm),
                 Expanded(
                   flex: 2,
+                  child: _GhostButton(
+                    label: 'Drive',
+                    colours: colours,
+                    onPressed: onOpenDrive,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: Insets.sm),
+            Row(
+              children: [
+                Expanded(
                   child: _GhostButton(
                     label: 'Progress',
                     colours: colours,
