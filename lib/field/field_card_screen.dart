@@ -1,7 +1,12 @@
+import 'package:field_log/data/reference_loader.dart';
+import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/field/card_state.dart';
+import 'package:field_log/net/chisimba_api.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_compass/flutter_compass.dart';
+import 'package:flutter/services.dart';
 
 /// The field card: what the trainee writes down, in the vehicle, offline.
 ///
@@ -23,6 +28,12 @@ class FieldCardScreen extends StatefulWidget {
     this.coordinateLabel = '',
     this.accuracyMetres,
     this.isTrailWalk = true,
+    this.outings = const [],
+    this.selectedOutingId,
+    this.onOutingChanged,
+    this.recentSpecies = const [],
+    this.onReloadSpecies,
+    this.onSpeciesUsed,
   });
 
   final FieldDraft initial;
@@ -46,6 +57,29 @@ class FieldCardScreen extends StatefulWidget {
   /// does not, and showing those fields on a drive would invite hours that mean
   /// nothing.
   final bool isTrailWalk;
+
+  /// Available outings to select from.
+  final List<Outing> outings;
+
+  /// Currently selected outing ID.
+  final String? selectedOutingId;
+
+  /// Called when the user selects a different outing.
+  final ValueChanged<String?>? onOutingChanged;
+
+  /// Species this device recorded recently, shown first in the picker so the
+  /// common case needs no typing at all.
+  final List<SpeciesChoice> recentSpecies;
+
+  /// Re-downloads the reference catalogue (bypassing the freshness window)
+  /// and returns it. The picker's empty state offers this as a retry; the
+  /// returned snapshot also feeds the open sheet, so a successful retry
+  /// repopulates the list in place.
+  final Future<ReferenceSnapshot> Function()? onReloadSpecies;
+
+  /// Called after a successful save with the species that was recorded, so
+  /// the caller can remember it as recently used.
+  final ValueChanged<SpeciesChoice>? onSpeciesUsed;
 
   @override
   State<FieldCardScreen> createState() => _FieldCardScreenState();
@@ -81,6 +115,10 @@ class _FieldCardScreenState extends State<FieldCardScreen> {
     setState(() => _saving = true);
     try {
       await widget.onSave(_draft.copyWith(notes: _notes.text));
+      final used = _selectedSpecies;
+      if (used != null) {
+        widget.onSpeciesUsed?.call(used);
+      }
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -93,68 +131,74 @@ class _FieldCardScreenState extends State<FieldCardScreen> {
     final colours = context.reserve;
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: colours.canopy,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _Header(
-              cardNumber: widget.cardNumber,
-              mode: _draft.mode,
-              onClose: widget.onCancel,
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  Insets.lg,
-                  Insets.md,
-                  Insets.lg,
-                  Insets.xxxl,
-                ),
-                children: [
-                  if (widget.coordinateLabel.isNotEmpty)
-                    _LocationStrip(
-                      coordinateLabel: widget.coordinateLabel,
-                      accuracyMetres: widget.accuracyMetres,
-                      colours: colours,
-                    ),
-                  const SizedBox(height: Insets.lg),
-                  _ModeSwitch(
-                    value: _draft.mode,
-                    onChanged: (mode) => _update(_draft.switchTo(mode)),
-                  ),
-                  const SizedBox(height: Insets.lg),
-                  if (_draft.isUnnamed)
-                    ..._unnamedGroups(colours, theme)
-                  else
-                    ..._identifiedGroups(colours, theme),
-                  const SizedBox(height: Insets.lg),
-                  _whereYouWere(colours, theme),
-                  const SizedBox(height: Insets.lg),
-                  _recordGroup(colours, theme),
-                  if (widget.isTrailWalk) ...[
-                    const SizedBox(height: Insets.lg),
-                    _trailWalkOnly(colours, theme),
-                  ],
-                ],
-              ),
-            ),
-            _Dock(
-              canSave: _draft.canSave,
-              saving: _saving,
-              reason: _draft.cannotSaveReason,
-              colours: colours,
-              onCancel: widget.onCancel,
-              onSave: _save,
-            ),
-          ],
+    return FieldScaffold(
+      leading: _Clip(text: widget.cardNumber.toString().padLeft(2, '0')),
+      eyebrow: _draft.mode == CaptureMode.unnamed
+          ? 'Field card · describing it'
+          : 'Field card · identified',
+      title: 'What did you see?',
+      onBack: widget.onCancel,
+      backTooltip: 'Discard this card',
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          Insets.lg,
+          Insets.md,
+          Insets.lg,
+          Insets.xxxl,
         ),
+        children: [
+          if (widget.coordinateLabel.isNotEmpty)
+            _LocationStrip(
+              coordinateLabel: widget.coordinateLabel,
+              accuracyMetres: widget.accuracyMetres,
+              colours: colours,
+            ),
+          const SizedBox(height: Insets.lg),
+          _ModeSwitch(
+            value: _draft.mode,
+            onChanged: (mode) => _update(_draft.switchTo(mode)),
+          ),
+          const SizedBox(height: Insets.lg),
+          if (_draft.isUnnamed)
+            ..._unnamedGroups(colours, theme)
+          else
+            ..._identifiedGroups(colours, theme),
+          const SizedBox(height: Insets.lg),
+          _whereYouWere(colours, theme),
+          const SizedBox(height: Insets.lg),
+          _recordGroup(colours, theme),
+          if (widget.isTrailWalk) ...[
+            const SizedBox(height: Insets.lg),
+            _trailWalkOnly(colours, theme),
+          ],
+        ],
+      ),
+      bottom: _Dock(
+        canSave: _draft.canSave,
+        saving: _saving,
+        reason: _draft.cannotSaveReason,
+        colours: colours,
+        onCancel: widget.onCancel,
+        onSave: _save,
       ),
     );
   }
 
   List<Widget> _identifiedGroups(FieldColours colours, ThemeData theme) {
     return [
+      if (widget.outings.isNotEmpty) ...[
+        _Group(
+          label: 'Outing',
+          hint: 'Which drive, hike, or camp is this sighting on?',
+          child: _OutingField(
+            outings: widget.outings,
+            selectedId: widget.selectedOutingId,
+            colours: colours,
+            onChanged: widget.onOutingChanged ?? (_) {},
+          ),
+        ),
+        const SizedBox(height: Insets.lg),
+      ],
       _Group(
         label: 'The sighting',
         hint: _draft.speciesCode == null
@@ -169,6 +213,8 @@ class _FieldCardScreenState extends State<FieldCardScreen> {
               onPick: (choice) =>
                   _update(_draft.copyWith(speciesCode: choice.code)),
               options: widget.species,
+              recent: widget.recentSpecies,
+              onReload: widget.onReloadSpecies,
             ),
             const SizedBox(height: Insets.lg),
             _CountStepper(
@@ -384,64 +430,6 @@ class _FieldCardScreenState extends State<FieldCardScreen> {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.cardNumber,
-    required this.mode,
-    required this.onClose,
-  });
-
-  final int cardNumber;
-  final CaptureMode mode;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final colours = context.reserve;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Insets.lg,
-        Insets.lg,
-        Insets.lg,
-        Insets.md,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _Clip(text: cardNumber.toString().padLeft(2, '0')),
-          const SizedBox(width: Insets.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Eyebrow(
-                  mode == CaptureMode.unnamed
-                      ? 'Field card · describing it'
-                      : 'Field card · identified',
-                ),
-                const SizedBox(height: Insets.xs),
-                Text(
-                  'What did you see?',
-                  style: TextStyle(
-                    fontFamily: Faces.book.first,
-                    fontSize: Faces.cardTitle,
-                    color: colours.bone,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: onClose,
-            icon: Icon(Icons.close, color: colours.ash2),
-            tooltip: 'Close without saving',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// The card's own number, as a clip on the corner of a field card.
 class _Clip extends StatelessWidget {
   const _Clip({required this.text});
@@ -473,31 +461,12 @@ class _Clip extends StatelessWidget {
   }
 }
 
-class _Eyebrow extends StatelessWidget {
-  const _Eyebrow(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colours = context.reserve;
-    return Text(
-      text,
-      style: TextStyle(
-        fontFamily: Faces.ui.first,
-        fontSize: Faces.stamp,
-        color: colours.ash2,
-      ),
-    );
-  }
-}
-
 /// The position strip.
 ///
 /// This never leaves the screen while the trainee types, because a record
 /// whose position is not visible while it is being written is a record that
 /// gets written about the wrong place.
-class _LocationStrip extends StatelessWidget {
+class _LocationStrip extends StatefulWidget {
   const _LocationStrip({
     required this.coordinateLabel,
     required this.accuracyMetres,
@@ -509,44 +478,148 @@ class _LocationStrip extends StatelessWidget {
   final FieldColours colours;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(Insets.md),
-      decoration: BoxDecoration(
-        color: colours.inset,
-        borderRadius: BorderRadius.circular(Corners.control),
-        border: Border.all(color: colours.rule),
+  State<_LocationStrip> createState() => _LocationStripState();
+}
+
+class _LocationStripState extends State<_LocationStrip> {
+  double? _heading;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCompass();
+  }
+
+  void _startCompass() {
+    FlutterCompass.events?.listen((event) {
+      if (!mounted) return;
+      final heading = event.heading;
+      if (heading != null) {
+        setState(() => _heading = heading);
+      }
+    });
+  }
+
+  /// Determines the GPS fix quality based on accuracy and satellite count.
+  ///
+  /// This is a heuristic since the platform doesn't expose fix type directly.
+  /// - 3D fix: accuracy ≤ 10m and ≥ 4 satellites
+  /// - 2D fix: accuracy ≤ 50m and ≥ 3 satellites
+  /// - No fix: otherwise
+  String _fixQuality() {
+    final acc = widget.accuracyMetres;
+    if (acc == null || acc == 0) return 'No fix';
+    // We don't have satellite count in the strip, so use accuracy only
+    if (acc <= 10) return '3D';
+    if (acc <= 50) return '2D';
+    return 'Weak';
+  }
+
+  Color _fixColor(FieldColours colours) {
+    final quality = _fixQuality();
+    switch (quality) {
+      case '3D':
+        return colours.moss;
+      case '2D':
+        return colours.straw;
+      default:
+        return colours.ash3;
+    }
+  }
+
+  Future<void> _copyCoords() async {
+    await Clipboard.setData(ClipboardData(text: widget.coordinateLabel));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Coordinates copied'),
+        duration: const Duration(seconds: 2),
       ),
-      child: Row(
-        children: [
-          Icon(Icons.my_location, size: 16, color: colours.straw),
-          const SizedBox(width: Insets.sm),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  fontFamily: Faces.ui.first,
-                  fontSize: Faces.supporting,
-                  color: colours.ash2,
-                ),
-                children: [
-                  const TextSpan(text: 'Pinned at '),
-                  TextSpan(
-                    text: coordinateLabel,
-                    style: TextStyle(color: colours.bone),
-                  ),
-                  if (accuracyMetres != null) ...[
-                    const TextSpan(text: '  ±'),
-                    TextSpan(
-                      text: '${accuracyMetres!.round()} m',
-                      style: TextStyle(color: colours.bone),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = widget.colours;
+    final fixQuality = _fixQuality();
+    final fixColour = _fixColor(colours);
+
+    return Semantics(
+      button: true,
+      label: 'Location: ${widget.coordinateLabel}. Tap to copy.',
+      onTap: _copyCoords,
+      child: InkWell(
+        onTap: _copyCoords,
+        borderRadius: BorderRadius.circular(Corners.control),
+        child: Container(
+          padding: const EdgeInsets.all(Insets.md),
+          decoration: BoxDecoration(
+            color: colours.inset,
+            borderRadius: BorderRadius.circular(Corners.control),
+            border: Border.all(color: colours.rule),
           ),
-        ],
+          child: Row(
+            children: [
+              Icon(Icons.my_location, size: 16, color: colours.straw),
+              const SizedBox(width: Insets.sm),
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontFamily: Faces.ui.first,
+                      fontSize: Faces.supporting,
+                      color: colours.ash2,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Pinned at '),
+                      TextSpan(
+                        text: widget.coordinateLabel,
+                        style: TextStyle(color: colours.bone),
+                      ),
+                      if (widget.accuracyMetres != null) ...[
+                        const TextSpan(text: '  ±'),
+                        TextSpan(
+                          text: '${widget.accuracyMetres!.round()} m',
+                          style: TextStyle(color: colours.bone),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              // Compass rose (tiny, rotates with device heading)
+              if (_heading != null) ...[
+                const SizedBox(width: Insets.sm),
+                Transform.rotate(
+                  angle: -_heading! * 3.141592653589793 / 180,
+                  child: Icon(Icons.explore, size: 14, color: colours.ash2),
+                ),
+              ],
+              const SizedBox(width: Insets.sm),
+              // Fix quality badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Insets.xs,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: fixColour.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(Corners.chip),
+                  border: Border.all(color: fixColour, width: 0.8),
+                ),
+                child: Text(
+                  fixQuality,
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.stamp,
+                    fontWeight: FontWeight.w600,
+                    color: fixColour,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -769,12 +842,16 @@ class _SpeciesField extends StatelessWidget {
     required this.colours,
     required this.onPick,
     required this.options,
+    this.recent = const [],
+    this.onReload,
   });
 
   final SpeciesChoice? choice;
   final FieldColours colours;
   final ValueChanged<SpeciesChoice> onPick;
   final List<SpeciesChoice> options;
+  final List<SpeciesChoice> recent;
+  final Future<ReferenceSnapshot> Function()? onReload;
 
   @override
   Widget build(BuildContext context) {
@@ -848,12 +925,83 @@ class _SpeciesField extends StatelessWidget {
           top: Radius.circular(Corners.sheet),
         ),
       ),
-      builder: (context) =>
-          _SpeciesPicker(options: options, selected: choice, colours: colours),
+      builder: (context) => _SpeciesPicker(
+        options: options,
+        selected: choice,
+        colours: colours,
+        recent: recent,
+        onReload: onReload,
+      ),
     );
     if (picked != null) {
       onPick(picked);
     }
+  }
+}
+
+/// Outing selector dropdown.
+class _OutingField extends StatelessWidget {
+  const _OutingField({
+    required this.outings,
+    required this.selectedId,
+    required this.colours,
+    required this.onChanged,
+  });
+
+  final List<Outing> outings;
+  final String? selectedId;
+  final FieldColours colours;
+  final ValueChanged<String?> onChanged;
+
+  String _labelFor(Outing outing) {
+    final kind = outing.kind;
+    final status = outing.status;
+    final date = outing.plannedStart.isNotEmpty
+        ? outing.plannedStart.substring(0, 10)
+        : '';
+    return '$kind — $status — $date';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: Insets.md),
+      decoration: BoxDecoration(
+        color: colours.inset,
+        borderRadius: BorderRadius.circular(Corners.control),
+        border: Border.all(color: colours.rule),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selectedId,
+          isExpanded: true,
+          dropdownColor: colours.canopyRaised,
+          hint: Text(
+            'Select an outing',
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.body,
+              color: colours.ash3,
+            ),
+          ),
+          items: [
+            for (final outing in outings)
+              DropdownMenuItem<String>(
+                value: outing.id,
+                child: Text(
+                  _labelFor(outing),
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.body,
+                    color: colours.bone,
+                  ),
+                ),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
   }
 }
 
@@ -862,11 +1010,22 @@ class _SpeciesPicker extends StatefulWidget {
     required this.options,
     required this.selected,
     required this.colours,
+    this.recent = const [],
+    this.onReload,
   });
 
   final List<SpeciesChoice> options;
   final SpeciesChoice? selected;
   final FieldColours colours;
+
+  /// Recently used species, shown first when the query is empty. Entries
+  /// whose code is no longer in the catalogue are dropped rather than offered
+  /// — a pick the card cannot resolve back to a name would look unset.
+  final List<SpeciesChoice> recent;
+
+  /// Re-downloads the catalogue and returns it; see
+  /// [FieldCardScreen.onReloadSpecies].
+  final Future<ReferenceSnapshot> Function()? onReload;
 
   @override
   State<_SpeciesPicker> createState() => _SpeciesPickerState();
@@ -875,11 +1034,36 @@ class _SpeciesPicker extends StatefulWidget {
 class _SpeciesPickerState extends State<_SpeciesPicker> {
   String _query = '';
 
+  /// Set by a successful reload, overriding the options the sheet was opened
+  /// with so a retry repopulates the list without reopening it.
+  ReferenceSnapshot? _reloaded;
+  bool _loading = false;
+
+  List<SpeciesChoice> get _all => _reloaded?.species ?? widget.options;
+
+  Future<void> _reload() async {
+    final reload = widget.onReload;
+    if (reload == null || _loading) return;
+    setState(() => _loading = true);
+    try {
+      final snapshot = await reload();
+      if (!mounted) return;
+      setState(() {
+        _reloaded = snapshot;
+        _loading = false;
+      });
+    } on Object {
+      // The loader is expected to swallow its own failures; this only guards
+      // a caller that supplies its own callback.
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final matches = widget.options
-        .where((option) => option.matches(_query))
-        .toList();
+    final query = _query.trim();
+    final matches = _all.where((option) => option.matches(query)).toList();
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
@@ -920,66 +1104,228 @@ class _SpeciesPickerState extends State<_SpeciesPicker> {
                   ),
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: matches.length,
-                  itemBuilder: (context, index) {
-                    final option = matches[index];
-                    final isSelected = option.code == widget.selected?.code;
-                    return Semantics(
-                      selected: isSelected,
-                      child: InkWell(
-                        onTap: () => Navigator.of(context).pop(option),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: Insets.lg,
-                            vertical: Insets.md,
-                          ),
-                          child: Row(
-                            children: [
-                              _Clip(text: option.code),
-                              const SizedBox(width: Insets.md),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      option.commonName,
-                                      style: TextStyle(
-                                        fontFamily: Faces.book.first,
-                                        fontSize: Faces.body,
-                                        color: widget.colours.bone,
-                                      ),
-                                    ),
-                                    Text(
-                                      option.scientificName,
-                                      style: TextStyle(
-                                        fontFamily: Faces.book.first,
-                                        fontSize: Faces.supporting,
-                                        fontStyle: FontStyle.italic,
-                                        color: widget.colours.ash2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (option.isSign)
-                                Text(
-                                  'sign',
-                                  style: TextStyle(
-                                    fontFamily: Faces.ui.first,
-                                    fontSize: Faces.stamp,
-                                    color: widget.colours.ash3,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+              Expanded(child: _buildBody(query, matches)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The area below the search field, in the order a guide meets it:
+  /// downloading, nothing to show, no match, then the list itself.
+  Widget _buildBody(String query, List<SpeciesChoice> matches) {
+    if (_loading) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: widget.colours.moss,
+              ),
+            ),
+            const SizedBox(height: Insets.md),
+            Text(
+              'Downloading the species list…',
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.supporting,
+                color: widget.colours.ash3,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_all.isEmpty) {
+      final failed = _reloaded?.refreshError != null;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Insets.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'No species list yet',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: Faces.book.first,
+                  fontSize: Faces.body,
+                  color: widget.colours.bone,
                 ),
               ),
+              const SizedBox(height: Insets.sm),
+              Text(
+                failed
+                    ? 'Could not reach the reserve office. Try again when you have a connection.'
+                    : 'The list downloads once and is kept on this device.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.supporting,
+                  height: 1.4,
+                  color: widget.colours.ash3,
+                ),
+              ),
+              if (widget.onReload != null) ...[
+                const SizedBox(height: Insets.lg),
+                OutlinedButton.icon(
+                  onPressed: _reload,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: widget.colours.bone,
+                    side: BorderSide(color: widget.colours.ruleStrong),
+                  ),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Download the species list'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (query.isNotEmpty && matches.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Insets.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Nothing matches "$query"',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: Faces.book.first,
+                  fontSize: Faces.body,
+                  color: widget.colours.bone,
+                ),
+              ),
+              const SizedBox(height: Insets.sm),
+              Text(
+                'Try a shorter word, the code, or the scientific name.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.supporting,
+                  height: 1.4,
+                  color: widget.colours.ash3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final entries = _entries(query, matches);
+    return ListView.builder(
+      itemCount: entries.length,
+      itemBuilder: (context, index) {
+        final entry = entries[index];
+        if (entry is String) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              Insets.lg,
+              Insets.md,
+              Insets.lg,
+              Insets.xs,
+            ),
+            child: Text(
+              entry,
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.stamp,
+                letterSpacing: 0.6,
+                color: widget.colours.ash2,
+              ),
+            ),
+          );
+        }
+        return _rowFor(entry as SpeciesChoice);
+      },
+    );
+  }
+
+  /// Flattens the list into rows with section headers. Headers only appear
+  /// when the recents section has something to say; with no recents the list
+  /// is the plain catalogue it always was.
+  List<Object> _entries(String query, List<SpeciesChoice> matches) {
+    if (query.isNotEmpty) return matches;
+    final shownCodes = <String>{};
+    final recentRows = <SpeciesChoice>[];
+    for (final recent in widget.recent) {
+      if (shownCodes.contains(recent.code)) continue;
+      final match = _all.where((o) => o.code == recent.code);
+      if (match.isNotEmpty) {
+        shownCodes.add(recent.code);
+        // The catalogue copy, not the stored one: names get corrected.
+        recentRows.add(match.first);
+      }
+    }
+    if (recentRows.isEmpty) return matches;
+    return <Object>[
+      'Recently used',
+      ...recentRows,
+      'All species',
+      for (final option in matches)
+        if (!shownCodes.contains(option.code)) option,
+    ];
+  }
+
+  Widget _rowFor(SpeciesChoice option) {
+    final isSelected = option.code == widget.selected?.code;
+    return Semantics(
+      selected: isSelected,
+      child: InkWell(
+        onTap: () => Navigator.of(context).pop(option),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.lg,
+            vertical: Insets.md,
+          ),
+          child: Row(
+            children: [
+              _Clip(text: option.code),
+              const SizedBox(width: Insets.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      option.commonName,
+                      style: TextStyle(
+                        fontFamily: Faces.book.first,
+                        fontSize: Faces.body,
+                        color: widget.colours.bone,
+                      ),
+                    ),
+                    Text(
+                      option.scientificName,
+                      style: TextStyle(
+                        fontFamily: Faces.book.first,
+                        fontSize: Faces.supporting,
+                        fontStyle: FontStyle.italic,
+                        color: widget.colours.ash2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (option.isSign)
+                Text(
+                  'sign',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.stamp,
+                    color: widget.colours.ash3,
+                  ),
+                ),
             ],
           ),
         ),

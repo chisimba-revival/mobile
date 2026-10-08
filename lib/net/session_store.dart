@@ -45,6 +45,9 @@ class SessionStore {
           final num value => value.toInt(),
           _ => null,
         },
+        issuedAt: json['issued_at'] != null
+            ? DateTime.tryParse('${json['issued_at']}')
+            : null,
       );
       return tokens.isUsable ? tokens : null;
     } on Object catch (error) {
@@ -64,6 +67,7 @@ class SessionStore {
         'access_token': tokens.accessToken,
         'refresh_token': tokens.refreshToken,
         'expires_in': tokens.expiresInSeconds,
+        'issued_at': tokens.issuedAt?.toIso8601String(),
       }),
       flush: true,
     );
@@ -104,6 +108,7 @@ class StoredTokens {
     required this.accessToken,
     required this.refreshToken,
     this.expiresInSeconds,
+    this.issuedAt,
   });
 
   /// Present so that an interrupted write, which truncates, is detected as no
@@ -113,6 +118,40 @@ class StoredTokens {
   final String accessToken;
   final String refreshToken;
   final int? expiresInSeconds;
+  final DateTime? issuedAt;
 
   bool get isUsable => accessToken.isNotEmpty && refreshToken.isNotEmpty;
+
+  /// Whether the access token is still valid (or within 60 seconds of expiry).
+  bool get isAccessTokenValid {
+    if (issuedAt == null || expiresInSeconds == null) {
+      return true; // Can't determine, assume valid
+    }
+    final expiry = issuedAt!.add(Duration(seconds: expiresInSeconds!));
+    return DateTime.now().isBefore(
+      expiry.subtract(const Duration(seconds: 60)),
+    );
+  }
+
+  /// Whether the access token has expired (or will within 30 seconds).
+  bool get isAccessTokenExpired {
+    if (issuedAt == null || expiresInSeconds == null) {
+      return false; // Can't determine, assume not expired
+    }
+    final expiry = issuedAt!.add(Duration(seconds: expiresInSeconds!));
+    return DateTime.now().isAfter(expiry.subtract(const Duration(seconds: 30)));
+  }
+
+  /// Create a copy with updated access token and new issuedAt.
+  StoredTokens copyWithNewAccessToken({
+    required String newAccessToken,
+    int? newExpiresInSeconds,
+  }) {
+    return StoredTokens(
+      accessToken: newAccessToken,
+      refreshToken: refreshToken,
+      expiresInSeconds: newExpiresInSeconds ?? expiresInSeconds,
+      issuedAt: DateTime.now(),
+    );
+  }
 }

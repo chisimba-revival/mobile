@@ -1,5 +1,7 @@
+import 'package:field_log/data/database.dart' show PlannedRoute, RouteWaypoint;
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/osm_tiles.dart';
+import 'package:field_log/map/route_layer.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/pin_visual.dart';
@@ -25,11 +27,15 @@ class GpsReading {
     required this.accuracyMetres,
     required this.satellites,
     required this.fixedAt,
+    this.latitude = 0.0,
+    this.longitude = 0.0,
   });
 
   final double accuracyMetres;
   final int satellites;
   final DateTime fixedAt;
+  final double latitude;
+  final double longitude;
 }
 
 /// One observation as the map shows it.
@@ -56,7 +62,7 @@ class MapPin {
 /// The observation pin never moves once placed. A position is corrected with a
 /// note, never by dragging, because a logbook that can be quietly tidied into a
 /// shape is not a logbook.
-class MapScreen extends StatelessWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({
     super.key,
     required this.pins,
@@ -64,14 +70,20 @@ class MapScreen extends StatelessWidget {
     required this.colours,
     required this.online,
     required this.gps,
+    required this.onRecordSighting,
+    required this.onOpenLedger,
+    required this.onOpenTally,
+    required this.onOpenSighting,
     this.tileCache,
-    this.onRecordSighting,
-    this.onOpenLedger,
-    this.onOpenSighting,
-    this.onOpenTally,
-    this.selectedLocalId,
     this.signedInAs,
     this.onTapSignedInAs,
+    this.onOpenSettings,
+    this.onMapTap,
+    this.selectedLocalId,
+    this.onDropPin,
+    this.route,
+    this.routeWaypoints,
+    this.currentPosition,
   });
 
   final List<MapPin> pins;
@@ -104,7 +116,83 @@ class MapScreen extends StatelessWidget {
   /// Opens the account. The chip is the only control on the map that belongs to
   /// the person rather than to the ground, so tapping it should do the one
   /// thing a person would expect: show them their account.
+  ///
+  /// It must never sign the person out: a name you can press by accident is
+  /// not a name you can trust to stay pressed. Signing out lives inside the
+  /// account screen, behind a question.
   final VoidCallback? onTapSignedInAs;
+
+  /// Opens the menu: account, server address, reference data, about. Always
+  /// offered, signed in or not, so a signed-out device whose sign-in banner
+  /// was dismissed still has a door back in.
+  final VoidCallback? onOpenSettings;
+
+  /// Called when the map is tapped (not a pin). Used to drop a pin at the
+  /// tapped location.
+  final void Function(LatLng point)? onMapTap;
+
+  /// Called when the user long-presses the map to drop a pin. Receives the
+  /// tapped coordinate. The caller decides what to do (e.g., open field card).
+  final void Function(LatLng point)? onDropPin;
+
+  /// Optional planned route to display on the map.
+  final PlannedRoute? route;
+
+  /// Waypoints for the planned route.
+  final List<RouteWaypoint>? routeWaypoints;
+
+  /// Current GPS position for active segment highlighting.
+  final LatLng? currentPosition;
+
+  @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
+  LatLng? _ghostPin;
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _showGhostPin(LatLng point) {
+    setState(() {
+      _ghostPin = point;
+      _pulseController.repeat(reverse: true);
+    });
+  }
+
+  void _clearGhostPin() {
+    setState(() {
+      _ghostPin = null;
+      _pulseController.stop();
+      _pulseController.reset();
+    });
+  }
+
+  void _confirmGhostPin() {
+    final point = _ghostPin;
+    if (point == null) return;
+    _clearGhostPin();
+    widget.onDropPin?.call(point);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,19 +207,35 @@ class MapScreen extends StatelessWidget {
               // tile the cache cannot supply. The inset colour is what the
               // vector layer below draws on, so a missing tile shows the ground
               // rather than a hole.
-              backgroundColor: colours.inset,
+              backgroundColor: widget.colours.inset,
               initialCenter: reserveCentre,
               initialZoom: 14,
               minZoom: 8,
               maxZoom: 18,
+              onTap: widget.onMapTap == null
+                  ? null
+                  : (tapPosition, point) => widget.onMapTap!(point),
+              onLongPress: widget.onDropPin == null
+                  ? null
+                  : (tapPosition, point) => _showGhostPin(point),
             ),
             children: [
               // Mobile layers, so they move and rotate with the map.
-              _VectorLayer(colours: colours),
-              _TileLayer(cache: tileCache, online: online),
+              _VectorLayer(colours: widget.colours),
+              _TileLayer(cache: widget.tileCache, online: widget.online),
+              // Planned route layer (if available)
+              if (widget.route != null &&
+                  widget.routeWaypoints != null &&
+                  widget.routeWaypoints!.isNotEmpty)
+                RouteLayer(
+                  route: widget.route!,
+                  waypoints: widget.routeWaypoints!,
+                  colours: widget.colours,
+                  currentPosition: widget.currentPosition ?? LatLng(0, 0),
+                ),
               MarkerLayer(
                 markers: [
-                  for (final pin in pins)
+                  for (final pin in widget.pins)
                     Marker(
                       key: ValueKey(pin.localId),
                       point: pin.point,
@@ -142,10 +246,24 @@ class MapScreen extends StatelessWidget {
                       alignment: Alignment.bottomCenter,
                       child: _Pin(
                         pin: pin,
-                        colours: colours,
-                        onTap: onOpenSighting == null
+                        colours: widget.colours,
+                        onTap: widget.onOpenSighting == null
                             ? null
-                            : () => onOpenSighting!(pin.localId),
+                            : () => widget.onOpenSighting!(pin.localId),
+                      ),
+                    ),
+                  // Ghost pin marker (appears on long-press)
+                  if (_ghostPin != null)
+                    Marker(
+                      key: const ValueKey('ghost-pin'),
+                      point: _ghostPin!,
+                      width: 46,
+                      height: 46,
+                      alignment: Alignment.bottomCenter,
+                      child: _GhostPin(
+                        colours: widget.colours,
+                        animation: _pulseAnimation,
+                        onTap: _confirmGhostPin,
                       ),
                     ),
                 ],
@@ -155,20 +273,25 @@ class MapScreen extends StatelessWidget {
 
           // Static chrome.
           _AppBar(
-            colours: colours,
+            colours: widget.colours,
             text: text,
-            online: online,
-            signedInAs: signedInAs,
-            onTapSignedInAs: onTapSignedInAs,
+            online: widget.online,
+            signedInAs: widget.signedInAs,
+            onTapSignedInAs: widget.onTapSignedInAs,
+            onOpenSettings: widget.onOpenSettings,
           ),
-          _GpsBar(gps: gps, colours: colours, online: online),
+          _GpsBar(
+            gps: widget.gps,
+            colours: widget.colours,
+            online: widget.online,
+          ),
           _Dock(
-            colours: colours,
+            colours: widget.colours,
             text: text,
-            queuedCount: queuedCount,
-            onRecordSighting: onRecordSighting,
-            onOpenLedger: onOpenLedger,
-            onOpenTally: onOpenTally,
+            queuedCount: widget.queuedCount,
+            onRecordSighting: widget.onRecordSighting,
+            onOpenLedger: widget.onOpenLedger,
+            onOpenTally: widget.onOpenTally,
           ),
         ],
       ),
@@ -267,6 +390,51 @@ class _Pin extends StatelessWidget {
   }
 }
 
+/// A ghost pin that appears on long-press, pulsing to invite confirmation.
+///
+/// Tapping it confirms the location and opens the field card with the
+/// coordinates pre-filled. The pulse animation runs at 50% opacity so it
+/// reads as provisional, not committed.
+class _GhostPin extends StatelessWidget {
+  const _GhostPin({
+    required this.colours,
+    required this.animation,
+    required this.onTap,
+  });
+
+  final FieldColours colours;
+  final Animation<double> animation;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: animation.value,
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Semantics(
+              button: true,
+              label: 'Confirm pin location',
+              child: CustomPaint(
+                size: const Size(46, 46),
+                painter: PinPainter(
+                  visual: ghostPinVisual,
+                  colours: colours,
+                  selected: false,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _AppBar extends StatelessWidget {
   const _AppBar({
     required this.colours,
@@ -274,10 +442,12 @@ class _AppBar extends StatelessWidget {
     required this.online,
     required this.signedInAs,
     required this.onTapSignedInAs,
+    required this.onOpenSettings,
   });
 
   final String? signedInAs;
   final VoidCallback? onTapSignedInAs;
+  final VoidCallback? onOpenSettings;
 
   final FieldColours colours;
   final TextTheme text;
@@ -310,7 +480,7 @@ class _AppBar extends StatelessWidget {
                   ),
                   const SizedBox(height: Insets.xs),
                   Text(
-                    'Morning walk · 2nd rifle',
+                    'Field LogBook',
                     style: text.titleMedium?.copyWith(color: colours.bone),
                   ),
                 ],
@@ -323,6 +493,14 @@ class _AppBar extends StatelessWidget {
                 onTap: onTapSignedInAs,
               ),
             _NetworkChip(online: online, colours: colours),
+            if (onOpenSettings != null)
+              IconButton(
+                onPressed: onOpenSettings,
+                icon: Icon(Icons.menu, color: colours.ash1),
+                tooltip: 'Settings',
+                padding: const EdgeInsets.all(Insets.xs),
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              ),
           ],
         ),
       ),
@@ -534,14 +712,6 @@ class _Dock extends StatelessWidget {
                     label: 'Progress',
                     colours: colours,
                     onPressed: onOpenTally,
-                  ),
-                ),
-                const SizedBox(width: Insets.sm),
-                Expanded(
-                  child: _GhostButton(
-                    label: 'End walk',
-                    colours: colours,
-                    onPressed: () {},
                   ),
                 ),
               ],

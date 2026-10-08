@@ -1,3 +1,8 @@
+import 'package:field_log/data/database.dart';
+import 'package:field_log/data/operation_queue.dart';
+import 'package:field_log/data/tables.dart' show OperationState;
+import 'package:field_log/models/sync_operation.dart';
+import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:flutter/material.dart';
@@ -7,111 +12,187 @@ import 'package:flutter/material.dart';
 /// This screen exists to tell the truth about a machine rather than to be a
 /// control panel. Nothing here can be pressed to make a queued change send
 /// sooner, so nothing here is presented as a button.
-class SyncLedgerScreen extends StatelessWidget {
+class SyncLedgerScreen extends StatefulWidget {
   const SyncLedgerScreen({
     super.key,
-    required this.entries,
+    this.database,
+    this.entries,
     required this.online,
     this.onClose,
   });
 
-  final List<LedgerEntry> entries;
+  final FieldLogDatabase? database;
+  final List<LedgerEntry>? entries;
   final bool online;
   final VoidCallback? onClose;
+
+  @override
+  State<SyncLedgerScreen> createState() => _SyncLedgerScreenState();
+}
+
+class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
+  late final OperationQueue _queue;
+  List<LedgerEntry> _entries = const [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // If entries are provided (for testing), use them directly
+    if (widget.entries != null) {
+      _entries = widget.entries!;
+      _loading = false;
+    } else if (widget.database != null) {
+      _queue = OperationQueue(widget.database!);
+      _loadEntries();
+    } else {
+      _loading = false;
+    }
+  }
+
+  Future<void> _loadEntries() async {
+    final rows = await _queue.nextBatch(limit: 100);
+    final entries = rows.map(_toLedgerEntry).toList();
+    if (mounted) {
+      setState(() {
+        _entries = entries;
+        _loading = false;
+      });
+    }
+  }
+
+  LedgerEntry _toLedgerEntry(QueuedOperationRow row) {
+    final operation = row.toOperation();
+    final title = _entityTitle(row.entity);
+    final detail = _operationDetail(row, operation);
+    final state = _ledgerState(row.state);
+    final attemptNote = _attemptNote(row);
+
+    return LedgerEntry(
+      title: title,
+      detail: detail,
+      state: state,
+      attemptNote: attemptNote,
+    );
+  }
+
+  String _entityTitle(EntityKind entity) {
+    switch (entity) {
+      case EntityKind.sighting:
+        return 'Sighting';
+      case EntityKind.drive:
+        return 'Drive';
+      case EntityKind.trailLog:
+        return 'Trail log';
+      case EntityKind.signOff:
+        return 'Sign-off';
+      case EntityKind.media:
+        return 'Media';
+    }
+  }
+
+  String _operationDetail(QueuedOperationRow row, PendingOperation? op) {
+    final kind = row.kind.name;
+    final entityId = row.entityId.substring(0, 8);
+    if (op != null) {
+      final speciesCode = op.payload['species_code'] as String?;
+      if (speciesCode != null && speciesCode.isNotEmpty) {
+        return '$kind $entityId… ($speciesCode)';
+      }
+    }
+    return '$kind $entityId…';
+  }
+
+  LedgerState _ledgerState(OperationState state) {
+    switch (state) {
+      case OperationState.pending:
+        return LedgerState.queued;
+      case OperationState.inflight:
+        return LedgerState.deferred;
+      case OperationState.settled:
+        return LedgerState.applied;
+    }
+  }
+
+  String? _attemptNote(QueuedOperationRow row) {
+    if (row.attempts > 0) {
+      return 'Tried ${row.attempts}x${row.settledAt != null ? " — settled" : ""}';
+    }
+    if (row.errorCode != null && row.errorCode!.isNotEmpty) {
+      return 'Error: ${row.errorCode}';
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final colours = context.reserve;
 
-    if (entries.isEmpty) {
-      return _EmptyLedger(online: online, onClose: onClose);
+    if (_loading) {
+      return FieldScaffold(
+        eyebrow: 'Offline queue',
+        title: 'What is waiting to upload',
+        body: Center(child: CircularProgressIndicator(color: colours.moss)),
+      );
     }
 
-    return Scaffold(
-      backgroundColor: colours.canopy,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                Insets.lg,
-                Insets.lg,
-                Insets.lg,
-                Insets.md,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Offline queue',
-                          style: TextStyle(
-                            fontFamily: Faces.ui.first,
-                            fontSize: Faces.stamp,
-                            color: colours.ash2,
-                          ),
-                        ),
-                        const SizedBox(height: Insets.xs),
-                        Text(
-                          'What is waiting to upload',
-                          style: TextStyle(
-                            fontFamily: Faces.book.first,
-                            fontSize: Faces.cardTitle,
-                            color: colours.bone,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (onClose != null)
-                    IconButton(
-                      onPressed: onClose,
-                      icon: Icon(Icons.close, color: colours.ash2),
-                      tooltip: 'Close',
-                    ),
-                ],
+    if (_entries.isEmpty) {
+      return FieldScaffold(
+        eyebrow: 'Offline queue',
+        title: 'What is waiting to upload',
+        body: _EmptyLedger(online: widget.online, onClose: widget.onClose),
+      );
+    }
+
+    return FieldScaffold(
+      eyebrow: 'Offline queue',
+      title: 'What is waiting to upload',
+      actions: [
+        if (widget.onClose != null)
+          IconButton(
+            onPressed: widget.onClose,
+            icon: Icon(Icons.close, color: colours.ash2),
+            tooltip: 'Close',
+          ),
+      ],
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              Insets.lg,
+              0,
+              Insets.lg,
+              Insets.md,
+            ),
+            child: Text(
+              widget.online
+                  ? 'This queue retries itself. Nothing here needs pressing '
+                        'in a moving vehicle.'
+                  : 'No signal. Everything below is safe on this phone and '
+                        'goes on its own when there is.',
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.supporting,
+                height: 1.4,
+                color: colours.ash3,
               ),
             ),
-            Padding(
+          ),
+          Expanded(
+            child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(
                 Insets.lg,
                 0,
                 Insets.lg,
-                Insets.md,
+                Insets.xxxl,
               ),
-              child: Text(
-                online
-                    ? 'This queue retries itself. Nothing here needs pressing '
-                          'in a moving vehicle.'
-                    : 'No signal. Everything below is safe on this phone and '
-                          'goes on its own when there is.',
-                style: TextStyle(
-                  fontFamily: Faces.ui.first,
-                  fontSize: Faces.supporting,
-                  height: 1.4,
-                  color: colours.ash3,
-                ),
-              ),
+              itemCount: _entries.length,
+              separatorBuilder: (_, _) => const SizedBox(height: Insets.sm),
+              itemBuilder: (context, index) =>
+                  _LedgerRow(entry: _entries[index]),
             ),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(
-                  Insets.lg,
-                  0,
-                  Insets.lg,
-                  Insets.xxxl,
-                ),
-                itemCount: entries.length,
-                separatorBuilder: (_, _) => const SizedBox(height: Insets.sm),
-                itemBuilder: (context, index) =>
-                    _LedgerRow(entry: entries[index]),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -126,69 +207,66 @@ class _EmptyLedger extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colours = context.reserve;
-    return Scaffold(
-      backgroundColor: colours.canopy,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(Insets.xxxl),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.cloud_done_outlined, size: 32, color: colours.moss),
-                const SizedBox(height: Insets.md),
-                Text(
-                  'Nothing is waiting',
+    // No Scaffold of its own: the caller wraps this in a FieldScaffold so
+    // every state of the queue — empty or full — has the same back arrow.
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Insets.xxxl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_done_outlined, size: 32, color: colours.moss),
+            const SizedBox(height: Insets.md),
+            Text(
+              'Nothing is waiting',
+              style: TextStyle(
+                fontFamily: Faces.book.first,
+                fontSize: Faces.cardTitle,
+                color: colours.bone,
+              ),
+            ),
+            const SizedBox(height: Insets.sm),
+            Text(
+              'Everything recorded has been sent.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.supporting,
+                color: colours.ash2,
+              ),
+            ),
+            const SizedBox(height: Insets.sm),
+            // An empty queue is exactly where a reader wonders whether
+            // anything is being tried at all, so it says so here too.
+            Text(
+              online
+                  ? 'This queue retries itself. Nothing here needs '
+                        'pressing in a moving vehicle.'
+                  : 'No signal. Anything recorded from here on is safe on '
+                        'this phone and goes on its own when there is.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.supporting,
+                height: 1.4,
+                color: colours.ash3,
+              ),
+            ),
+            if (onClose != null) ...[
+              const SizedBox(height: Insets.xl),
+              TextButton(
+                onPressed: onClose,
+                child: Text(
+                  'Back to the map',
                   style: TextStyle(
-                    fontFamily: Faces.book.first,
-                    fontSize: Faces.cardTitle,
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.label,
                     color: colours.bone,
                   ),
                 ),
-                const SizedBox(height: Insets.sm),
-                Text(
-                  'Everything recorded has been sent.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: Faces.ui.first,
-                    fontSize: Faces.supporting,
-                    color: colours.ash2,
-                  ),
-                ),
-                const SizedBox(height: Insets.sm),
-                // An empty queue is exactly where a reader wonders whether
-                // anything is being tried at all, so it says so here too.
-                Text(
-                  online
-                      ? 'This queue retries itself. Nothing here needs '
-                            'pressing in a moving vehicle.'
-                      : 'No signal. Anything recorded from here on is safe on '
-                            'this phone and goes on its own when there is.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: Faces.ui.first,
-                    fontSize: Faces.supporting,
-                    height: 1.4,
-                    color: colours.ash3,
-                  ),
-                ),
-                if (onClose != null) ...[
-                  const SizedBox(height: Insets.xl),
-                  TextButton(
-                    onPressed: onClose,
-                    child: Text(
-                      'Back to the map',
-                      style: TextStyle(
-                        fontFamily: Faces.ui.first,
-                        fontSize: Faces.label,
-                        color: colours.bone,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+              ),
+            ],
+          ],
         ),
       ),
     );

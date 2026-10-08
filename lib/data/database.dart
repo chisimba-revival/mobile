@@ -14,6 +14,7 @@ import '../models/sighting.dart';
 import '../models/sync_operation.dart';
 import 'tables.dart';
 import 'trail_log_tables.dart';
+import 'route_tables.dart';
 
 part 'database.g.dart';
 
@@ -31,6 +32,8 @@ part 'database.g.dart';
     Drives,
     TrailLogs,
     TrailWaypoints,
+    PlannedRoutes,
+    RouteWaypoints,
     QueuedOperations,
     Conflicts,
     SyncCursors,
@@ -50,7 +53,7 @@ class FieldLogDatabase extends _$FieldLogDatabase {
   }
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -58,12 +61,14 @@ class FieldLogDatabase extends _$FieldLogDatabase {
       await m.createAll();
     },
     onUpgrade: (m, from, to) async {
-      // Schema 2 added trail_waypoints. Every earlier table is unchanged, and
-      // the upgrade is additive on purpose: a trail log's waypoints are
-      // append-only, so there is no existing waypoint data that a rewrite
-      // would have to carry across.
+      // Schema 2 added trail_waypoints.
       if (from < 2) {
         await m.createTable(trailWaypoints);
+      }
+      // Schema 3 added planned_routes and route_waypoints for outing route planning.
+      if (from < 3) {
+        await m.createTable(plannedRoutes);
+        await m.createTable(routeWaypoints);
       }
     },
     beforeOpen: (details) async {

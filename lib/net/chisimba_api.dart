@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../models/sync_operation.dart';
+
 /// The signed-in person, as the service describes them.
 ///
 /// A plain value rather than a row or a map, so a screen can be built and
@@ -13,6 +15,8 @@ class FieldUser {
     this.fullname,
     this.email,
     this.isActive,
+    this.grants,
+    this.activeContext,
   });
 
   factory FieldUser.fromJson(Map<String, dynamic> json) => FieldUser(
@@ -30,6 +34,8 @@ class FieldUser {
       final String value => value != '0' && value.isNotEmpty,
       _ => null,
     },
+    grants: (json['grants'] as List<dynamic>?)?.map((e) => '$e').toList(),
+    activeContext: _textOrNull(json['active_context'] ?? json['ctx']),
   );
 
   final String id;
@@ -37,6 +43,8 @@ class FieldUser {
   final String? fullname;
   final String? email;
   final bool? isActive;
+  final List<String>? grants;
+  final String? activeContext;
 
   /// What to call the person. The full name if the service has one, otherwise
   /// the username, and never an empty string, because a blank chip in the
@@ -57,6 +65,9 @@ class FieldUser {
     }
     return username.isEmpty ? 'there' : username;
   }
+
+  /// Whether this user has the field:write grant.
+  bool get canWriteField => grants?.contains('field:write') ?? false;
 }
 
 Map<String, dynamic> _mapOrEmpty(Object? value) =>
@@ -189,6 +200,50 @@ class LoginEvidence {
       csrfToken.isNotEmpty && nonce.isNotEmpty && signature.isNotEmpty;
 }
 
+/// Remembers the session cookie across requests on the client's own Dio.
+///
+/// The service binds the CSRF token it hands out with the login evidence to
+/// the PHP session cookie set on that same response. A client that drops the
+/// cookie sends back a token the server cannot find in any session, and gets
+/// a 401 that reads exactly like a wrong password — which is worse than a
+/// clear error, because the person starts hunting for a typo they do not
+/// have. dart:io's HttpClient does not carry cookies for us; this does.
+class _SessionCookieJar extends Interceptor {
+  final Map<String, String> _cookies = {};
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (_cookies.isNotEmpty) {
+      options.headers['cookie'] = _cookies.entries
+          .map((e) => '${e.key}=${e.value}')
+          .join('; ');
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final setCookies = response.headers['set-cookie'];
+    if (setCookies != null) {
+      for (final raw in setCookies) {
+        // Only the first segment is name=value; the rest are attributes
+        // (Path, HttpOnly, SameSite) that never belong in a request header.
+        final pair = raw.split(';').first.trim();
+        final eq = pair.indexOf('=');
+        if (eq <= 0) continue;
+        final name = pair.substring(0, eq).trim();
+        final value = pair.substring(eq + 1).trim();
+        if (value.isEmpty) {
+          _cookies.remove(name);
+        } else {
+          _cookies[name] = value;
+        }
+      }
+    }
+    handler.next(response);
+  }
+}
+
 /// Talks to the Chisimba field guiding service.
 ///
 /// The service is not reachable from a device until it is deployed, so every
@@ -199,7 +254,7 @@ class ChisimbaApi {
     Dio? dio,
     required this.baseUrl,
     Future<void> Function(Duration)? wait,
-  }) : _dio = dio ?? Dio(),
+  }) : _dio = dio ?? (Dio()..interceptors.add(_SessionCookieJar())),
        _wait = wait ?? Future<void>.delayed;
 
   final Dio _dio;
@@ -208,7 +263,12 @@ class ChisimbaApi {
   /// The service root, without the version. The version is part of every path
   /// so a future v2 is a different client rather than a different branch
   /// through the same one.
-  final String baseUrl;
+  ///
+  /// Mutable so the office address can be corrected on the sign-in screen: a
+  /// field device is pointed at whichever server the reserve actually runs,
+  /// and that is not known at build time. Cookies from the previous server are
+  /// harmless on the next one — the first response overwrites them by name.
+  String baseUrl;
 
   String _path(String path) => '$baseUrl$path';
 
@@ -321,6 +381,32 @@ class ChisimbaApi {
     }
   }
 
+  /// Refresh the access token using the refresh token.
+  ///
+  /// Returns a new FieldSession with fresh tokens, or throws AuthFailure
+  /// if the refresh token is expired or invalid.
+  Future<FieldSession> refreshSession(String refreshToken) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _path('/api/v1/auth/refresh'),
+        data: <String, dynamic>{'refresh_token': refreshToken},
+      );
+      final data = response.data?['data'];
+      if (data is! Map<String, dynamic>) {
+        throw const AuthFailure('Token refresh failed: unreadable response.');
+      }
+      final session = FieldSession.fromLoginResponse(data);
+      if (!session.isUsable) {
+        throw const AuthFailure(
+          'Token refresh failed: no usable token returned.',
+        );
+      }
+      return session;
+    } on DioException catch (error) {
+      throw _asFailure(error);
+    }
+  }
+
   AuthFailure _asFailure(DioException error) {
     final response = error.response;
     if (response == null) {
@@ -328,4 +414,451 @@ class ChisimbaApi {
     }
     return AuthFailure.fromResponse(response);
   }
+
+  /// GET /api/v1/species
+  Future<SpeciesList> getSpecies(String accessToken) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _path('/api/v1/species'),
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      // The field service returns some collections bare ({'species': [...]})
+      // and some wrapped ({'data': [...]}); accept either, like pull does.
+      final data = response.data?['data'] ?? response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const AuthFailure('Could not read species list.');
+      }
+      return SpeciesList.fromJson(data);
+    } on DioException catch (error) {
+      throw _asFailure(error);
+    }
+  }
+
+  /// GET /api/v1/competencies
+  Future<CompetencyList> getCompetencies(String accessToken) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _path('/api/v1/competencies'),
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = response.data?['data'] ?? response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const AuthFailure('Could not read competencies list.');
+      }
+      return CompetencyList.fromJson(data);
+    } on DioException catch (error) {
+      throw _asFailure(error);
+    }
+  }
+
+  /// GET /api/v1/outings
+  Future<OutingList> getOutings(String accessToken) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _path('/api/v1/outings'),
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = response.data?['data'] ?? response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const AuthFailure('Could not read outings list.');
+      }
+      return OutingList.fromJson(data);
+    } on DioException catch (error) {
+      throw _asFailure(error);
+    }
+  }
+
+  /// POST /api/v1/sync/push
+  Future<PushResponse> push(String accessToken, PushRequest request) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _path('/api/v1/sync/push'),
+        data: request.toJson(),
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = response.data?['data'] ?? response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const AuthFailure('Could not read push response.');
+      }
+      return PushResponse.fromJson(data);
+    } on DioException catch (error) {
+      throw _asFailure(error);
+    }
+  }
+
+  /// POST /api/v1/sync/pull
+  Future<PullResponse> pull(String accessToken, PullRequest request) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _path('/api/v1/sync/pull'),
+        data: request.toJson(),
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      final data = response.data?['data'] ?? response.data;
+      if (data is! Map<String, dynamic>) {
+        throw const AuthFailure('Could not read pull response.');
+      }
+      return PullResponse.fromJson(data);
+    } on DioException catch (error) {
+      throw _asFailure(error);
+    }
+  }
+}
+
+/// Species reference data from the service.
+class SpeciesList {
+  const SpeciesList({required this.species});
+
+  factory SpeciesList.fromJson(Map<String, dynamic> json) => SpeciesList(
+    species: (json['species'] as List<dynamic>? ?? const [])
+        .map((e) => Species.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final List<Species> species;
+}
+
+/// A species from the reference catalogue.
+class Species {
+  const Species({
+    required this.code,
+    required this.commonName,
+    required this.scientificName,
+    required this.description,
+  });
+
+  factory Species.fromJson(Map<String, dynamic> json) => Species(
+    code: '${json['code'] ?? ''}',
+    commonName: '${json['common_name'] ?? ''}',
+    scientificName: '${json['scientific_name'] ?? ''}',
+    description: '${json['description'] ?? ''}',
+  );
+
+  final String code;
+  final String commonName;
+  final String scientificName;
+  final String description;
+}
+
+/// Competency reference data from the service.
+class CompetencyList {
+  const CompetencyList({required this.competencies});
+
+  factory CompetencyList.fromJson(Map<String, dynamic> json) => CompetencyList(
+    competencies: (json['competencies'] as List<dynamic>? ?? const [])
+        .map((e) => Competency.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final List<Competency> competencies;
+}
+
+/// A competency from the reference catalogue.
+class Competency {
+  const Competency({
+    required this.code,
+    required this.name,
+    required this.category,
+    required this.level,
+    required this.description,
+    required this.retired,
+  });
+
+  factory Competency.fromJson(Map<String, dynamic> json) => Competency(
+    code: '${json['code'] ?? ''}',
+    name: '${json['name'] ?? ''}',
+    category: '${json['category'] ?? ''}',
+    level: switch (json['level']) {
+      final num v => v.toInt(),
+      final String v => int.tryParse(v) ?? 0,
+      _ => 0,
+    },
+    description: '${json['description'] ?? ''}',
+    retired: switch (json['retired']) {
+      final bool v => v,
+      final String v => v == 'true',
+      _ => false,
+    },
+  );
+
+  final String code;
+  final String name;
+  final String category;
+  final int level;
+  final String description;
+  final bool retired;
+}
+
+/// Outings reference data from the service.
+class OutingList {
+  const OutingList({required this.outings});
+
+  factory OutingList.fromJson(Map<String, dynamic> json) => OutingList(
+    outings: (json['outings'] as List<dynamic>? ?? const [])
+        .map((e) => Outing.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final List<Outing> outings;
+}
+
+/// An outing from the reference catalogue.
+class Outing {
+  const Outing({
+    required this.id,
+    required this.kind,
+    required this.contextCode,
+    required this.guideId,
+    required this.traineeIds,
+    required this.status,
+    required this.plannedStart,
+    this.endedAt,
+    this.sealedAt,
+    this.notes,
+    required this.revision,
+  });
+
+  factory Outing.fromJson(Map<String, dynamic> json) => Outing(
+    id: '${json['id'] ?? ''}',
+    kind: '${json['kind'] ?? ''}',
+    contextCode: '${json['context_code'] ?? ''}',
+    guideId: '${json['guide_id'] ?? ''}',
+    traineeIds:
+        (json['trainee_ids'] as List<dynamic>?)?.map((e) => '$e').toList() ??
+        [],
+    status: '${json['status'] ?? ''}',
+    plannedStart: '${json['planned_start'] ?? ''}',
+    endedAt: json['ended_at'] as String?,
+    sealedAt: json['sealed_at'] as String?,
+    notes: json['notes'] as String?,
+    revision: switch (json['revision']) {
+      final num v => v.toInt(),
+      final String v => int.tryParse(v) ?? 0,
+      _ => 0,
+    },
+  );
+
+  final String id;
+  final String kind;
+  final String contextCode;
+  final String guideId;
+  final List<String> traineeIds;
+  final String status;
+  final String plannedStart;
+  final String? endedAt;
+  final String? sealedAt;
+  final String? notes;
+  final int revision;
+}
+
+/// Push request to the service.
+class PushRequest {
+  const PushRequest({required this.operations});
+
+  factory PushRequest.fromJson(Map<String, dynamic> json) => PushRequest(
+    operations: (json['operations'] as List<dynamic>? ?? const [])
+        .map((e) => PushOperation.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final List<PushOperation> operations;
+
+  Map<String, dynamic> toJson() => {
+    'operations': operations.map((e) => e.toJson()).toList(),
+  };
+}
+
+/// One operation in a push request.
+class PushOperation {
+  const PushOperation({
+    required this.operationId,
+    required this.entity,
+    required this.kind,
+    required this.entityId,
+    required this.baseRevision,
+    required this.capturedAt,
+    required this.recordedAt,
+    this.dependsOn,
+    required this.payload,
+  });
+
+  factory PushOperation.fromJson(Map<String, dynamic> json) => PushOperation(
+    operationId: '${json['operation_id'] ?? ''}',
+    entity: '${json['entity'] ?? ''}',
+    kind: '${json['kind'] ?? ''}',
+    entityId: '${json['entity_id'] ?? ''}',
+    baseRevision: json['base_revision'] as int?,
+    capturedAt: '${json['captured_at'] ?? ''}',
+    recordedAt: '${json['recorded_at'] ?? ''}',
+    dependsOn: (json['depends_on'] as List<dynamic>?)
+        ?.map((e) => '$e')
+        .toList(),
+    payload: (json['payload'] as Map<String, dynamic>? ?? const {}),
+  );
+
+  final String operationId;
+  final String entity;
+  final String kind;
+  final String entityId;
+  final int? baseRevision;
+  final String capturedAt;
+  final String recordedAt;
+  final List<String>? dependsOn;
+  final Map<String, dynamic> payload;
+
+  Map<String, dynamic> toJson() => {
+    'operation_id': operationId,
+    'entity': entity,
+    'kind': kind,
+    'entity_id': entityId,
+    if (baseRevision != null) 'base_revision': baseRevision,
+    'captured_at': capturedAt,
+    'recorded_at': recordedAt,
+    if (dependsOn != null && dependsOn!.isNotEmpty) 'depends_on': dependsOn,
+    'payload': payload,
+  };
+}
+
+/// Push response from the service.
+class PushResponse {
+  const PushResponse({required this.results});
+
+  factory PushResponse.fromJson(Map<String, dynamic> json) => PushResponse(
+    results: (json['results'] as List<dynamic>? ?? const [])
+        .map((e) => PushResult.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final List<PushResult> results;
+}
+
+/// One result from a push operation.
+class PushResult {
+  const PushResult({
+    required this.operationId,
+    required this.entity,
+    required this.entityId,
+    required this.outcome,
+    this.newRevision,
+    this.errorCode,
+    this.serverState,
+    this.serverRevision,
+  });
+
+  factory PushResult.fromJson(Map<String, dynamic> json) => PushResult(
+    operationId: '${json['operation_id'] ?? ''}',
+    entity: '${json['entity'] ?? ''}',
+    entityId: '${json['entity_id'] ?? ''}',
+    outcome: '${json['outcome'] ?? ''}',
+    newRevision: json['new_revision'] as int?,
+    errorCode: json['error_code'] as String?,
+    serverState: (json['server_state'] as Map<String, dynamic>?),
+    serverRevision: json['server_revision'] as int?,
+  );
+
+  final String operationId;
+  final String entity;
+  final String entityId;
+  final String outcome;
+  final int? newRevision;
+  final String? errorCode;
+  final Map<String, dynamic>? serverState;
+  final int? serverRevision;
+}
+
+/// Pull request to the service.
+class PullRequest {
+  const PullRequest({required this.cursor});
+
+  factory PullRequest.fromJson(Map<String, dynamic> json) =>
+      PullRequest(cursor: '${json['cursor'] ?? ''}');
+
+  final String cursor;
+
+  Map<String, dynamic> toJson() => {'cursor': cursor};
+}
+
+/// Pull response from the service.
+class PullResponse {
+  const PullResponse({
+    required this.status,
+    required this.changes,
+    required this.nextCursor,
+    required this.hasMore,
+    required this.serverTime,
+  });
+
+  factory PullResponse.fromJson(Map<String, dynamic> json) => PullResponse(
+    status: '${json['status'] ?? ''}',
+    changes: (json['changes'] as List<dynamic>? ?? const [])
+        .map((e) => ApiPullChange.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    nextCursor: json['next_cursor'] as String?,
+    hasMore: switch (json['has_more']) {
+      final bool v => v,
+      final String v => v == 'true',
+      _ => false,
+    },
+    serverTime:
+        DateTime.tryParse('${json['server_time'] ?? ''}') ??
+        DateTime.now().toUtc(),
+  );
+
+  final String status;
+  final List<ApiPullChange> changes;
+  final String? nextCursor;
+  final bool hasMore;
+  final DateTime serverTime;
+
+  /// Convert to the internal PullPage model used by PullEngine.
+  PullPage toPage() => PullPage(
+    changes: changes.map((c) => c.toPullChange()).toList(),
+    nextCursor: nextCursor,
+    hasMore: hasMore,
+    serverTime: serverTime,
+    status: status,
+  );
+}
+
+/// One change from a pull response (API format).
+class ApiPullChange {
+  const ApiPullChange({
+    required this.entityType,
+    required this.entityId,
+    required this.revision,
+    required this.changedAt,
+    required this.body,
+  });
+
+  factory ApiPullChange.fromJson(Map<String, dynamic> json) => ApiPullChange(
+    entityType: '${json['entity_type'] ?? ''}',
+    entityId: '${json['entity_id'] ?? ''}',
+    revision: switch (json['revision']) {
+      final num v => v.toInt(),
+      final String v => int.tryParse(v) ?? 0,
+      _ => 0,
+    },
+    changedAt:
+        DateTime.tryParse('${json['changed_at'] ?? ''}') ??
+        DateTime.now().toUtc(),
+    body: (json['body'] as Map<String, dynamic>? ?? const {}),
+  );
+
+  final String entityType;
+  final String entityId;
+  final int revision;
+  final DateTime changedAt;
+  final Map<String, dynamic> body;
+
+  /// Convert to the internal PullChange model used by PullEngine.
+  PullChange toPullChange() => PullChange(
+    entity: EntityKind.values.firstWhere(
+      (e) => e.name == entityType,
+      orElse: () => EntityKind.sighting,
+    ),
+    entityId: entityId,
+    revision: revision,
+    isTombstone: body['deleted_at'] != null,
+    state: body,
+  );
 }

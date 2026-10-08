@@ -94,6 +94,8 @@ class FieldDraft {
     this.lessonsLearned = '',
     this.hoursOnThisWalk,
     this.rifleRole = 'second',
+    this.capturedAt,
+    this.recordedAt,
   });
 
   final CaptureMode mode;
@@ -107,6 +109,8 @@ class FieldDraft {
   final String lessonsLearned;
   final double? hoursOnThisWalk;
   final String rifleRole;
+  final DateTime? capturedAt;
+  final DateTime? recordedAt;
 
   bool get isUnnamed => mode == CaptureMode.unnamed;
 
@@ -157,6 +161,8 @@ class FieldDraft {
     String? lessonsLearned,
     double? hoursOnThisWalk,
     String? rifleRole,
+    DateTime? capturedAt,
+    DateTime? recordedAt,
     bool clearSpecies = false,
     bool clearCount = false,
     bool clearBehaviour = false,
@@ -183,6 +189,8 @@ class FieldDraft {
           ? null
           : (hoursOnThisWalk ?? this.hoursOnThisWalk),
       rifleRole: rifleRole ?? this.rifleRole,
+      capturedAt: capturedAt ?? this.capturedAt,
+      recordedAt: recordedAt ?? this.recordedAt,
     );
   }
 

@@ -24,11 +24,15 @@ prototype. The toolchain is documented in
 Where this code and the contract disagree, the contract is wrong here, and the
 disagreement is recorded in the code that depends on it.
 
+The reasoning under the structure described below is in
+[docs/architecture.md](docs/architecture.md).
+
 ## Current state
 
-Screens, local store and the first real contact with the service. Every screen
+Screens, local store, sync engines and real service contact. Every screen
 exists and is tested; the app runs and mounts the map. It talks to a live
-Chisimba for sign-in, and there is no service behind the logbook itself.
+Chisimba for sign-in, **fetches species/competencies, pulls changes and pushes
+queued operations** on a 5-minute interval when online.
 
 ```
 lib/design/tokens.dart     the reserve vocabulary, transcribed from the design
@@ -47,7 +51,7 @@ lib/data/push_engine.dart  send a bounded batch and record every outcome
 lib/data/trail_log_writer.dart  record a path, and never edit one
 lib/data/sighting_amendments.dart  add to a record and queue it, together
 
-lib/net/chisimba_api.dart  sign-in, who am I, sign out
+lib/net/chisimba_api.dart  sign-in, who am I, sign out, species, competencies, sync push, sync pull
 lib/net/connectivity_watcher.dart  transport, which is not reachability
 lib/net/session_store.dart the two credential strings, and nothing else
 
@@ -155,25 +159,29 @@ body, the credentials are posted flat rather than nested, and an access token
 sent as an `X-API-Key` is refused with a 401. Two of those would have compiled
 happily and failed at runtime.
 
-The logbook has no service behind it. Contract delivery steps 1 to 10 are
-unimplemented, so the push and pull engines are tested against fixtures that
-return whatever the test tells them to. That is a real limit: an engine can be
-correct against the contract's wording and still be wrong against the service
-that eventually implements it. The fixtures pin the wire so a later change
-arrives as a test failure rather than a field of zeros, but they were written
-from the same reading of the contract as the client and cannot prove the service
-agrees.
+**Sync engines are now wired to the real service** — `ChisimbaApi` implements
+`getSpecies`, `getCompetencies`, `push`, `pull`, and `main.dart` runs a
+periodic pull+push every 5 minutes when online. The push/pull engines have been
+tested against fixtures; live integration is the next verification step.
 
-Positions are still placeholders. The map is centred on a fixed reserve
-coordinate, the GPS bar reports a reading that has not happened, and tapping a
-pin opens a record rather than dropping one. There is no positioning source
-wired up, so nothing on the map is the trainee's actual location yet. It is the
-epoch rather than `now` on purpose: an obviously wrong time is better than a
-plausible one.
+**GPS positioning is live** — `geolocator` provides a position stream updating
+every 5 metres with high accuracy. The `GpsReading` now includes real
+latitude/longitude, accuracy, satellite count, and timestamps. The GPS bar and
+field card use live data; pins are still dropped at fixed coordinates.
 
-Nothing the app records has ever left the device. The queue, the engines and the
-ledger are tested, and the ledger screen reports on real rows, but no push has
-ever reached a real service, and no pull has ever replaced local data.
+**Reference data now fetched** — `_recordSighting` fetches species from
+`/api/v1/species` and competencies from `/api/v1/competencies` when online.
+The field card shows real species choices and behaviour/age-sex-class chips.
+
+**SyncLedgerScreen reads real queue** — `OperationQueue` data displayed with
+pending/inflight/settled states and attempt counts.
+
+**TallyScreen reads real trail logs** — Hours computed from waypoint timestamps,
+kept apart by rifle role (`first`, `second`, `none`).
+
+No token refresh flow. Sign-out clears the token, but there is no refresh
+flow; a device offline longer than the access-token lifetime must sign in
+again.
 
 An operation whose `dependsOn` names an operation that was never queued, or that
 names a cycle, stays pending forever and is never sent. Nothing detects this, so

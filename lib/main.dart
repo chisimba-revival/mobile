@@ -23,6 +23,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -374,7 +375,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       colours: FieldColours.dark,
       online: _status.hasTransport,
       signedInAs: _user?.shortName,
-      onTapSignedInAs: _user == null ? _openSignIn : _signOut,
+      onTapSignedInAs: _user == null ? _openSignIn : null,
       tileCache: widget.tileCache,
       // Placeholder until a positioning source is wired. Reporting a fix that
       // has not happened would put a time in the record that never occurred, so
@@ -415,10 +416,22 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     );
   }
 
+
+  /// Points the client at a different server and remembers the choice.
+  ///
+  /// The client instance is shared by every caller (sync, reference data,
+  /// sign-in), so changing its baseUrl here is the whole configuration —
+  /// there is no second place that also needs to know.
+  Future<void> _saveServer(String url) async {
+    widget.api.baseUrl = url;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('chisimba_api_url', url);
+  }
+
   Future<void> _openSignIn() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SignInScreen(onSignIn: _signIn),
+        builder: (_) => SignInScreen(onSignIn: _signIn, initialServer: widget.api.baseUrl, onSaveServer: _saveServer),
         fullscreenDialog: true,
       ),
     );

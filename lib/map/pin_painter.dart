@@ -124,6 +124,7 @@ class PinPainter extends CustomPainter {
     PinState.verified => c.inkOn(c.moss),
     PinState.corrected => c.inkOn(c.dust),
     PinState.deleted => c.ash2,
+    PinState.ghost => c.inkOn(c.dust),
   };
 }
 
@@ -205,6 +206,16 @@ PinAppearance pinAppearanceFor(
   PinState.deleted => PinAppearance(
     fill: Colors.transparent,
     stroke: c.ash3,
+    hollow: true,
+    dashed: false,
+  ),
+  // Ghost pin: provisional, open (hollow) with dust stroke. The hollow shape
+  // distinguishes it from corrected (filled) and queued (dashed). The dust
+  // colour ties it to the accent, and the pulse animation in the widget
+  // provides the temporal cue.
+  PinState.ghost => PinAppearance(
+    fill: Colors.transparent,
+    stroke: c.dust,
     hollow: true,
     dashed: false,
   ),

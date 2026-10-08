@@ -32,7 +32,15 @@ class PinVisual {
   final String spoken;
 }
 
-enum PinState { unverified, queued, verified, corrected, needsReview, deleted }
+enum PinState {
+  unverified,
+  queued,
+  verified,
+  corrected,
+  needsReview,
+  deleted,
+  ghost,
+}
 
 /// Species codes the design treats as a sign of an animal rather than the
 /// animal itself. These are the codes whose records exist because something was
@@ -175,3 +183,15 @@ String _correctionReason(SightingRow row) {
   }
   return 'Reason: $reason';
 }
+
+/// A ghost pin visual for the provisional pin dropped on long-press.
+///
+/// It uses the `ghost` state which the painter renders at 50% opacity with
+/// a pulsing animation. The glyph is a middot to distinguish it from real pins.
+PinVisual get ghostPinVisual => const PinVisual(
+  state: PinState.ghost,
+  glyph: '·',
+  isSign: false,
+  isNote: false,
+  spoken: 'Provisional pin. Tap to confirm.',
+);

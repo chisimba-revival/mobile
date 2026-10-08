@@ -3501,6 +3501,974 @@ class TrailWaypointsCompanion extends UpdateCompanion<TrailWaypoint> {
   }
 }
 
+class $PlannedRoutesTable extends PlannedRoutes
+    with TableInfo<$PlannedRoutesTable, PlannedRoute> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PlannedRoutesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _localIdMeta = const VerificationMeta(
+    'localId',
+  );
+  @override
+  late final GeneratedColumn<String> localId = GeneratedColumn<String>(
+    'local_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<String> serverId = GeneratedColumn<String>(
+    'server_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _outingIdMeta = const VerificationMeta(
+    'outingId',
+  );
+  @override
+  late final GeneratedColumn<String> outingId = GeneratedColumn<String>(
+    'outing_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES drives (local_id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hasPendingChangesMeta = const VerificationMeta(
+    'hasPendingChanges',
+  );
+  @override
+  late final GeneratedColumn<bool> hasPendingChanges = GeneratedColumn<bool>(
+    'has_pending_changes',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_pending_changes" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isTombstoneMeta = const VerificationMeta(
+    'isTombstone',
+  );
+  @override
+  late final GeneratedColumn<bool> isTombstone = GeneratedColumn<bool>(
+    'is_tombstone',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_tombstone" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    localId,
+    serverId,
+    outingId,
+    createdAt,
+    updatedAt,
+    hasPendingChanges,
+    isTombstone,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'planned_routes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PlannedRoute> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('local_id')) {
+      context.handle(
+        _localIdMeta,
+        localId.isAcceptableOrUnknown(data['local_id']!, _localIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localIdMeta);
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('outing_id')) {
+      context.handle(
+        _outingIdMeta,
+        outingId.isAcceptableOrUnknown(data['outing_id']!, _outingIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_outingIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('has_pending_changes')) {
+      context.handle(
+        _hasPendingChangesMeta,
+        hasPendingChanges.isAcceptableOrUnknown(
+          data['has_pending_changes']!,
+          _hasPendingChangesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_tombstone')) {
+      context.handle(
+        _isTombstoneMeta,
+        isTombstone.isAcceptableOrUnknown(
+          data['is_tombstone']!,
+          _isTombstoneMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {localId};
+  @override
+  PlannedRoute map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PlannedRoute(
+      localId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server_id'],
+      ),
+      outingId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}outing_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      hasPendingChanges: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_pending_changes'],
+      )!,
+      isTombstone: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_tombstone'],
+      )!,
+    );
+  }
+
+  @override
+  $PlannedRoutesTable createAlias(String alias) {
+    return $PlannedRoutesTable(attachedDatabase, alias);
+  }
+}
+
+class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
+  /// The client-minted id for this route.
+  final String localId;
+
+  /// The server's id, once synced.
+  final String? serverId;
+
+  /// The outing this route belongs to.
+  final String outingId;
+
+  /// When the route was created locally.
+  final DateTime createdAt;
+
+  /// When the route was last modified locally.
+  final DateTime updatedAt;
+
+  /// Whether this route has local changes not yet sent to the server.
+  final bool hasPendingChanges;
+
+  /// Whether this route has been deleted (soft delete).
+  final bool isTombstone;
+  const PlannedRoute({
+    required this.localId,
+    this.serverId,
+    required this.outingId,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.hasPendingChanges,
+    required this.isTombstone,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['local_id'] = Variable<String>(localId);
+    if (!nullToAbsent || serverId != null) {
+      map['server_id'] = Variable<String>(serverId);
+    }
+    map['outing_id'] = Variable<String>(outingId);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['has_pending_changes'] = Variable<bool>(hasPendingChanges);
+    map['is_tombstone'] = Variable<bool>(isTombstone);
+    return map;
+  }
+
+  PlannedRoutesCompanion toCompanion(bool nullToAbsent) {
+    return PlannedRoutesCompanion(
+      localId: Value(localId),
+      serverId: serverId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverId),
+      outingId: Value(outingId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      hasPendingChanges: Value(hasPendingChanges),
+      isTombstone: Value(isTombstone),
+    );
+  }
+
+  factory PlannedRoute.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PlannedRoute(
+      localId: serializer.fromJson<String>(json['localId']),
+      serverId: serializer.fromJson<String?>(json['serverId']),
+      outingId: serializer.fromJson<String>(json['outingId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      hasPendingChanges: serializer.fromJson<bool>(json['hasPendingChanges']),
+      isTombstone: serializer.fromJson<bool>(json['isTombstone']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'localId': serializer.toJson<String>(localId),
+      'serverId': serializer.toJson<String?>(serverId),
+      'outingId': serializer.toJson<String>(outingId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'hasPendingChanges': serializer.toJson<bool>(hasPendingChanges),
+      'isTombstone': serializer.toJson<bool>(isTombstone),
+    };
+  }
+
+  PlannedRoute copyWith({
+    String? localId,
+    Value<String?> serverId = const Value.absent(),
+    String? outingId,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? hasPendingChanges,
+    bool? isTombstone,
+  }) => PlannedRoute(
+    localId: localId ?? this.localId,
+    serverId: serverId.present ? serverId.value : this.serverId,
+    outingId: outingId ?? this.outingId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    hasPendingChanges: hasPendingChanges ?? this.hasPendingChanges,
+    isTombstone: isTombstone ?? this.isTombstone,
+  );
+  PlannedRoute copyWithCompanion(PlannedRoutesCompanion data) {
+    return PlannedRoute(
+      localId: data.localId.present ? data.localId.value : this.localId,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      outingId: data.outingId.present ? data.outingId.value : this.outingId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      hasPendingChanges: data.hasPendingChanges.present
+          ? data.hasPendingChanges.value
+          : this.hasPendingChanges,
+      isTombstone: data.isTombstone.present
+          ? data.isTombstone.value
+          : this.isTombstone,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlannedRoute(')
+          ..write('localId: $localId, ')
+          ..write('serverId: $serverId, ')
+          ..write('outingId: $outingId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('hasPendingChanges: $hasPendingChanges, ')
+          ..write('isTombstone: $isTombstone')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    localId,
+    serverId,
+    outingId,
+    createdAt,
+    updatedAt,
+    hasPendingChanges,
+    isTombstone,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PlannedRoute &&
+          other.localId == this.localId &&
+          other.serverId == this.serverId &&
+          other.outingId == this.outingId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.hasPendingChanges == this.hasPendingChanges &&
+          other.isTombstone == this.isTombstone);
+}
+
+class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
+  final Value<String> localId;
+  final Value<String?> serverId;
+  final Value<String> outingId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<bool> hasPendingChanges;
+  final Value<bool> isTombstone;
+  final Value<int> rowid;
+  const PlannedRoutesCompanion({
+    this.localId = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.outingId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.hasPendingChanges = const Value.absent(),
+    this.isTombstone = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PlannedRoutesCompanion.insert({
+    required String localId,
+    this.serverId = const Value.absent(),
+    required String outingId,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.hasPendingChanges = const Value.absent(),
+    this.isTombstone = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : localId = Value(localId),
+       outingId = Value(outingId),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<PlannedRoute> custom({
+    Expression<String>? localId,
+    Expression<String>? serverId,
+    Expression<String>? outingId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<bool>? hasPendingChanges,
+    Expression<bool>? isTombstone,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (localId != null) 'local_id': localId,
+      if (serverId != null) 'server_id': serverId,
+      if (outingId != null) 'outing_id': outingId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (hasPendingChanges != null) 'has_pending_changes': hasPendingChanges,
+      if (isTombstone != null) 'is_tombstone': isTombstone,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PlannedRoutesCompanion copyWith({
+    Value<String>? localId,
+    Value<String?>? serverId,
+    Value<String>? outingId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<bool>? hasPendingChanges,
+    Value<bool>? isTombstone,
+    Value<int>? rowid,
+  }) {
+    return PlannedRoutesCompanion(
+      localId: localId ?? this.localId,
+      serverId: serverId ?? this.serverId,
+      outingId: outingId ?? this.outingId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      hasPendingChanges: hasPendingChanges ?? this.hasPendingChanges,
+      isTombstone: isTombstone ?? this.isTombstone,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (localId.present) {
+      map['local_id'] = Variable<String>(localId.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<String>(serverId.value);
+    }
+    if (outingId.present) {
+      map['outing_id'] = Variable<String>(outingId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (hasPendingChanges.present) {
+      map['has_pending_changes'] = Variable<bool>(hasPendingChanges.value);
+    }
+    if (isTombstone.present) {
+      map['is_tombstone'] = Variable<bool>(isTombstone.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlannedRoutesCompanion(')
+          ..write('localId: $localId, ')
+          ..write('serverId: $serverId, ')
+          ..write('outingId: $outingId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('hasPendingChanges: $hasPendingChanges, ')
+          ..write('isTombstone: $isTombstone, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RouteWaypointsTable extends RouteWaypoints
+    with TableInfo<$RouteWaypointsTable, RouteWaypoint> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RouteWaypointsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _routeIdMeta = const VerificationMeta(
+    'routeId',
+  );
+  @override
+  late final GeneratedColumn<String> routeId = GeneratedColumn<String>(
+    'route_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES planned_routes (local_id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _ordinalMeta = const VerificationMeta(
+    'ordinal',
+  );
+  @override
+  late final GeneratedColumn<int> ordinal = GeneratedColumn<int>(
+    'ordinal',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('vertex'),
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    routeId,
+    ordinal,
+    latitude,
+    longitude,
+    label,
+    kind,
+    note,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'route_waypoints';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RouteWaypoint> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('route_id')) {
+      context.handle(
+        _routeIdMeta,
+        routeId.isAcceptableOrUnknown(data['route_id']!, _routeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_routeIdMeta);
+    }
+    if (data.containsKey('ordinal')) {
+      context.handle(
+        _ordinalMeta,
+        ordinal.isAcceptableOrUnknown(data['ordinal']!, _ordinalMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ordinalMeta);
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {routeId, ordinal};
+  @override
+  RouteWaypoint map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RouteWaypoint(
+      routeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}route_id'],
+      )!,
+      ordinal: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ordinal'],
+      )!,
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      ),
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+    );
+  }
+
+  @override
+  $RouteWaypointsTable createAlias(String alias) {
+    return $RouteWaypointsTable(attachedDatabase, alias);
+  }
+}
+
+class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
+  /// The route this waypoint belongs to.
+  final String routeId;
+
+  /// Position in the sequence, from zero. Assigned once at creation.
+  final int ordinal;
+
+  /// Latitude of the waypoint.
+  final double latitude;
+
+  /// Longitude of the waypoint.
+  final double longitude;
+
+  /// Optional label for POI waypoints (e.g., "North Gate", "Main Pan").
+  final String? label;
+
+  /// Kind of waypoint: vertex, gate, waterhole, landmark, custom.
+  final String kind;
+
+  /// Optional note for this waypoint.
+  final String? note;
+  const RouteWaypoint({
+    required this.routeId,
+    required this.ordinal,
+    required this.latitude,
+    required this.longitude,
+    this.label,
+    required this.kind,
+    this.note,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['route_id'] = Variable<String>(routeId);
+    map['ordinal'] = Variable<int>(ordinal);
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    if (!nullToAbsent || label != null) {
+      map['label'] = Variable<String>(label);
+    }
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    return map;
+  }
+
+  RouteWaypointsCompanion toCompanion(bool nullToAbsent) {
+    return RouteWaypointsCompanion(
+      routeId: Value(routeId),
+      ordinal: Value(ordinal),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      label: label == null && nullToAbsent
+          ? const Value.absent()
+          : Value(label),
+      kind: Value(kind),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+    );
+  }
+
+  factory RouteWaypoint.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RouteWaypoint(
+      routeId: serializer.fromJson<String>(json['routeId']),
+      ordinal: serializer.fromJson<int>(json['ordinal']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      label: serializer.fromJson<String?>(json['label']),
+      kind: serializer.fromJson<String>(json['kind']),
+      note: serializer.fromJson<String?>(json['note']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'routeId': serializer.toJson<String>(routeId),
+      'ordinal': serializer.toJson<int>(ordinal),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'label': serializer.toJson<String?>(label),
+      'kind': serializer.toJson<String>(kind),
+      'note': serializer.toJson<String?>(note),
+    };
+  }
+
+  RouteWaypoint copyWith({
+    String? routeId,
+    int? ordinal,
+    double? latitude,
+    double? longitude,
+    Value<String?> label = const Value.absent(),
+    String? kind,
+    Value<String?> note = const Value.absent(),
+  }) => RouteWaypoint(
+    routeId: routeId ?? this.routeId,
+    ordinal: ordinal ?? this.ordinal,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    label: label.present ? label.value : this.label,
+    kind: kind ?? this.kind,
+    note: note.present ? note.value : this.note,
+  );
+  RouteWaypoint copyWithCompanion(RouteWaypointsCompanion data) {
+    return RouteWaypoint(
+      routeId: data.routeId.present ? data.routeId.value : this.routeId,
+      ordinal: data.ordinal.present ? data.ordinal.value : this.ordinal,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      label: data.label.present ? data.label.value : this.label,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      note: data.note.present ? data.note.value : this.note,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RouteWaypoint(')
+          ..write('routeId: $routeId, ')
+          ..write('ordinal: $ordinal, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('label: $label, ')
+          ..write('kind: $kind, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(routeId, ordinal, latitude, longitude, label, kind, note);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RouteWaypoint &&
+          other.routeId == this.routeId &&
+          other.ordinal == this.ordinal &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.label == this.label &&
+          other.kind == this.kind &&
+          other.note == this.note);
+}
+
+class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
+  final Value<String> routeId;
+  final Value<int> ordinal;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<String?> label;
+  final Value<String> kind;
+  final Value<String?> note;
+  final Value<int> rowid;
+  const RouteWaypointsCompanion({
+    this.routeId = const Value.absent(),
+    this.ordinal = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.label = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RouteWaypointsCompanion.insert({
+    required String routeId,
+    required int ordinal,
+    required double latitude,
+    required double longitude,
+    this.label = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.note = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : routeId = Value(routeId),
+       ordinal = Value(ordinal),
+       latitude = Value(latitude),
+       longitude = Value(longitude);
+  static Insertable<RouteWaypoint> custom({
+    Expression<String>? routeId,
+    Expression<int>? ordinal,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<String>? label,
+    Expression<String>? kind,
+    Expression<String>? note,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (routeId != null) 'route_id': routeId,
+      if (ordinal != null) 'ordinal': ordinal,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (label != null) 'label': label,
+      if (kind != null) 'kind': kind,
+      if (note != null) 'note': note,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RouteWaypointsCompanion copyWith({
+    Value<String>? routeId,
+    Value<int>? ordinal,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<String?>? label,
+    Value<String>? kind,
+    Value<String?>? note,
+    Value<int>? rowid,
+  }) {
+    return RouteWaypointsCompanion(
+      routeId: routeId ?? this.routeId,
+      ordinal: ordinal ?? this.ordinal,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      label: label ?? this.label,
+      kind: kind ?? this.kind,
+      note: note ?? this.note,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (routeId.present) {
+      map['route_id'] = Variable<String>(routeId.value);
+    }
+    if (ordinal.present) {
+      map['ordinal'] = Variable<int>(ordinal.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RouteWaypointsCompanion(')
+          ..write('routeId: $routeId, ')
+          ..write('ordinal: $ordinal, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('label: $label, ')
+          ..write('kind: $kind, ')
+          ..write('note: $note, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $QueuedOperationsTable extends QueuedOperations
     with TableInfo<$QueuedOperationsTable, QueuedOperationRow> {
   @override
@@ -5927,6 +6895,8 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
   late final $DrivesTable drives = $DrivesTable(this);
   late final $TrailLogsTable trailLogs = $TrailLogsTable(this);
   late final $TrailWaypointsTable trailWaypoints = $TrailWaypointsTable(this);
+  late final $PlannedRoutesTable plannedRoutes = $PlannedRoutesTable(this);
+  late final $RouteWaypointsTable routeWaypoints = $RouteWaypointsTable(this);
   late final $QueuedOperationsTable queuedOperations = $QueuedOperationsTable(
     this,
   );
@@ -5942,6 +6912,8 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
     drives,
     trailLogs,
     trailWaypoints,
+    plannedRoutes,
+    routeWaypoints,
     queuedOperations,
     conflicts,
     syncCursors,
@@ -5955,6 +6927,20 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('trail_waypoints', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'drives',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('planned_routes', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'planned_routes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('route_waypoints', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -6686,6 +7672,31 @@ typedef $$DrivesTableUpdateCompanionBuilder = DrivesCompanion Function({
   Value<int> rowid,
 });
 
+final class $$DrivesTableReferences
+    extends BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow> {
+  $$DrivesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$PlannedRoutesTable, List<PlannedRoute>>
+  _plannedRoutesRefsTable(_$FieldLogDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.plannedRoutes,
+        aliasName: 'drives__local_id__planned_routes__outing_id',
+      );
+
+  $$PlannedRoutesTableProcessedTableManager get plannedRoutesRefs {
+    final manager = $$PlannedRoutesTableTableManager($_db, $_db.plannedRoutes)
+        .filter(
+          (f) =>
+              f.outingId.localId.sqlEquals($_itemColumn<String>('local_id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(_plannedRoutesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
 class $$DrivesTableFilterComposer
     extends Composer<_$FieldLogDatabase, $DrivesTable> {
   $$DrivesTableFilterComposer({
@@ -6744,6 +7755,31 @@ class $$DrivesTableFilterComposer
     column: $table.hasPendingChanges,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> plannedRoutesRefs(
+    Expression<bool> Function($$PlannedRoutesTableFilterComposer f) f,
+  ) {
+    final $$PlannedRoutesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.localId,
+      referencedTable: $db.plannedRoutes,
+      getReferencedColumn: (t) => t.outingId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlannedRoutesTableFilterComposer(
+            $db: $db,
+            $table: $db.plannedRoutes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$DrivesTableOrderingComposer
@@ -6850,6 +7886,31 @@ class $$DrivesTableAnnotationComposer
     column: $table.hasPendingChanges,
     builder: (column) => column,
   );
+
+  Expression<T> plannedRoutesRefs<T extends Object>(
+    Expression<T> Function($$PlannedRoutesTableAnnotationComposer a) f,
+  ) {
+    final $$PlannedRoutesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.localId,
+      referencedTable: $db.plannedRoutes,
+      getReferencedColumn: (t) => t.outingId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlannedRoutesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.plannedRoutes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$DrivesTableTableManager
@@ -6863,12 +7924,9 @@ class $$DrivesTableTableManager
           $$DrivesTableAnnotationComposer,
           $$DrivesTableCreateCompanionBuilder,
           $$DrivesTableUpdateCompanionBuilder,
-          (
-            DriveRow,
-            BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow>,
-          ),
+          (DriveRow, $$DrivesTableReferences),
           DriveRow,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool plannedRoutesRefs})
         > {
   $$DrivesTableTableManager(_$FieldLogDatabase db, $DrivesTable table)
     : super(
@@ -6937,15 +7995,43 @@ class $$DrivesTableTableManager
               .map(
                 (e) => (
                   e.readTable<$DrivesTable, DriveRow>(table),
-                  BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow>(
-                    db,
-                    table,
-                    e,
-                  ),
+                  $$DrivesTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({plannedRoutesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (plannedRoutesRefs) db.plannedRoutes,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (plannedRoutesRefs)
+                    await $_getPrefetchedData<
+                      DriveRow,
+                      $DrivesTable,
+                      PlannedRoute
+                    >(
+                      currentTable: table,
+                      referencedTable: $$DrivesTableReferences
+                          ._plannedRoutesRefsTable(db),
+                      managerFromTypedResult: (p0) => $$DrivesTableReferences(
+                        db,
+                        table,
+                        p0,
+                      ).plannedRoutesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.outingId == item.localId,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -6960,9 +8046,9 @@ typedef $$DrivesTableProcessedTableManager =
       $$DrivesTableAnnotationComposer,
       $$DrivesTableCreateCompanionBuilder,
       $$DrivesTableUpdateCompanionBuilder,
-      (DriveRow, BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow>),
+      (DriveRow, $$DrivesTableReferences),
       DriveRow,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool plannedRoutesRefs})
     >;
 typedef $$TrailLogsTableCreateCompanionBuilder = TrailLogsCompanion Function({
   required String localId,
@@ -7754,6 +8840,829 @@ typedef $$TrailWaypointsTableProcessedTableManager =
       (TrailWaypoint, $$TrailWaypointsTableReferences),
       TrailWaypoint,
       PrefetchHooks Function({bool trailLogId})
+    >;
+typedef $$PlannedRoutesTableCreateCompanionBuilder =
+    PlannedRoutesCompanion Function({
+      required String localId,
+      Value<String?> serverId,
+      required String outingId,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<bool> hasPendingChanges,
+      Value<bool> isTombstone,
+      Value<int> rowid,
+    });
+typedef $$PlannedRoutesTableUpdateCompanionBuilder =
+    PlannedRoutesCompanion Function({
+      Value<String> localId,
+      Value<String?> serverId,
+      Value<String> outingId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<bool> hasPendingChanges,
+      Value<bool> isTombstone,
+      Value<int> rowid,
+    });
+
+final class $$PlannedRoutesTableReferences
+    extends
+        BaseReferences<_$FieldLogDatabase, $PlannedRoutesTable, PlannedRoute> {
+  $$PlannedRoutesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $DrivesTable _outingIdTable(_$FieldLogDatabase db) =>
+      db.drives.createAlias('planned_routes__outing_id__drives__local_id');
+
+  $$DrivesTableProcessedTableManager get outingId {
+    final $_column = $_itemColumn<String>('outing_id')!;
+
+    final manager = $$DrivesTableTableManager(
+      $_db,
+      $_db.drives,
+    ).filter((f) => f.localId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_outingIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$RouteWaypointsTable, List<RouteWaypoint>>
+  _routeWaypointsRefsTable(_$FieldLogDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.routeWaypoints,
+        aliasName: 'planned_routes__local_id__route_waypoints__route_id',
+      );
+
+  $$RouteWaypointsTableProcessedTableManager get routeWaypointsRefs {
+    final manager = $$RouteWaypointsTableTableManager($_db, $_db.routeWaypoints)
+        .filter(
+          (f) => f.routeId.localId.sqlEquals($_itemColumn<String>('local_id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(_routeWaypointsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$PlannedRoutesTableFilterComposer
+    extends Composer<_$FieldLogDatabase, $PlannedRoutesTable> {
+  $$PlannedRoutesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasPendingChanges => $composableBuilder(
+    column: $table.hasPendingChanges,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$DrivesTableFilterComposer get outingId {
+    final $$DrivesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.outingId,
+      referencedTable: $db.drives,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DrivesTableFilterComposer(
+            $db: $db,
+            $table: $db.drives,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> routeWaypointsRefs(
+    Expression<bool> Function($$RouteWaypointsTableFilterComposer f) f,
+  ) {
+    final $$RouteWaypointsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.localId,
+      referencedTable: $db.routeWaypoints,
+      getReferencedColumn: (t) => t.routeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RouteWaypointsTableFilterComposer(
+            $db: $db,
+            $table: $db.routeWaypoints,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PlannedRoutesTableOrderingComposer
+    extends Composer<_$FieldLogDatabase, $PlannedRoutesTable> {
+  $$PlannedRoutesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasPendingChanges => $composableBuilder(
+    column: $table.hasPendingChanges,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$DrivesTableOrderingComposer get outingId {
+    final $$DrivesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.outingId,
+      referencedTable: $db.drives,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DrivesTableOrderingComposer(
+            $db: $db,
+            $table: $db.drives,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PlannedRoutesTableAnnotationComposer
+    extends Composer<_$FieldLogDatabase, $PlannedRoutesTable> {
+  $$PlannedRoutesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get localId =>
+      $composableBuilder(column: $table.localId, builder: (column) => column);
+
+  GeneratedColumn<String> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get hasPendingChanges => $composableBuilder(
+    column: $table.hasPendingChanges,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => column,
+  );
+
+  $$DrivesTableAnnotationComposer get outingId {
+    final $$DrivesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.outingId,
+      referencedTable: $db.drives,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$DrivesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.drives,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> routeWaypointsRefs<T extends Object>(
+    Expression<T> Function($$RouteWaypointsTableAnnotationComposer a) f,
+  ) {
+    final $$RouteWaypointsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.localId,
+      referencedTable: $db.routeWaypoints,
+      getReferencedColumn: (t) => t.routeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RouteWaypointsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.routeWaypoints,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$PlannedRoutesTableTableManager
+    extends
+        RootTableManager<
+          _$FieldLogDatabase,
+          $PlannedRoutesTable,
+          PlannedRoute,
+          $$PlannedRoutesTableFilterComposer,
+          $$PlannedRoutesTableOrderingComposer,
+          $$PlannedRoutesTableAnnotationComposer,
+          $$PlannedRoutesTableCreateCompanionBuilder,
+          $$PlannedRoutesTableUpdateCompanionBuilder,
+          (PlannedRoute, $$PlannedRoutesTableReferences),
+          PlannedRoute,
+          PrefetchHooks Function({bool outingId, bool routeWaypointsRefs})
+        > {
+  $$PlannedRoutesTableTableManager(
+    _$FieldLogDatabase db,
+    $PlannedRoutesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PlannedRoutesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PlannedRoutesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PlannedRoutesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> localId = const Value.absent(),
+                Value<String?> serverId = const Value.absent(),
+                Value<String> outingId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> hasPendingChanges = const Value.absent(),
+                Value<bool> isTombstone = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlannedRoutesCompanion(
+                localId: localId,
+                serverId: serverId,
+                outingId: outingId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                hasPendingChanges: hasPendingChanges,
+                isTombstone: isTombstone,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String localId,
+                Value<String?> serverId = const Value.absent(),
+                required String outingId,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<bool> hasPendingChanges = const Value.absent(),
+                Value<bool> isTombstone = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlannedRoutesCompanion.insert(
+                localId: localId,
+                serverId: serverId,
+                outingId: outingId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                hasPendingChanges: hasPendingChanges,
+                isTombstone: isTombstone,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PlannedRoutesTable, PlannedRoute>(table),
+                  $$PlannedRoutesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({outingId = false, routeWaypointsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (routeWaypointsRefs) db.routeWaypoints,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (outingId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.outingId,
+                            referencedTable: $$PlannedRoutesTableReferences
+                                ._outingIdTable(db),
+                            referencedColumn: $$PlannedRoutesTableReferences
+                                ._outingIdTable(db)
+                                .localId,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (routeWaypointsRefs)
+                        await $_getPrefetchedData<
+                          PlannedRoute,
+                          $PlannedRoutesTable,
+                          RouteWaypoint
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PlannedRoutesTableReferences
+                              ._routeWaypointsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PlannedRoutesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).routeWaypointsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.routeId == item.localId,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$PlannedRoutesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$FieldLogDatabase,
+      $PlannedRoutesTable,
+      PlannedRoute,
+      $$PlannedRoutesTableFilterComposer,
+      $$PlannedRoutesTableOrderingComposer,
+      $$PlannedRoutesTableAnnotationComposer,
+      $$PlannedRoutesTableCreateCompanionBuilder,
+      $$PlannedRoutesTableUpdateCompanionBuilder,
+      (PlannedRoute, $$PlannedRoutesTableReferences),
+      PlannedRoute,
+      PrefetchHooks Function({bool outingId, bool routeWaypointsRefs})
+    >;
+typedef $$RouteWaypointsTableCreateCompanionBuilder =
+    RouteWaypointsCompanion Function({
+      required String routeId,
+      required int ordinal,
+      required double latitude,
+      required double longitude,
+      Value<String?> label,
+      Value<String> kind,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+typedef $$RouteWaypointsTableUpdateCompanionBuilder =
+    RouteWaypointsCompanion Function({
+      Value<String> routeId,
+      Value<int> ordinal,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<String?> label,
+      Value<String> kind,
+      Value<String?> note,
+      Value<int> rowid,
+    });
+
+final class $$RouteWaypointsTableReferences
+    extends
+        BaseReferences<
+          _$FieldLogDatabase,
+          $RouteWaypointsTable,
+          RouteWaypoint
+        > {
+  $$RouteWaypointsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $PlannedRoutesTable _routeIdTable(_$FieldLogDatabase db) => db
+      .plannedRoutes
+      .createAlias('route_waypoints__route_id__planned_routes__local_id');
+
+  $$PlannedRoutesTableProcessedTableManager get routeId {
+    final $_column = $_itemColumn<String>('route_id')!;
+
+    final manager = $$PlannedRoutesTableTableManager(
+      $_db,
+      $_db.plannedRoutes,
+    ).filter((f) => f.localId.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_routeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$RouteWaypointsTableFilterComposer
+    extends Composer<_$FieldLogDatabase, $RouteWaypointsTable> {
+  $$RouteWaypointsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get ordinal => $composableBuilder(
+    column: $table.ordinal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$PlannedRoutesTableFilterComposer get routeId {
+    final $$PlannedRoutesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.routeId,
+      referencedTable: $db.plannedRoutes,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlannedRoutesTableFilterComposer(
+            $db: $db,
+            $table: $db.plannedRoutes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RouteWaypointsTableOrderingComposer
+    extends Composer<_$FieldLogDatabase, $RouteWaypointsTable> {
+  $$RouteWaypointsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get ordinal => $composableBuilder(
+    column: $table.ordinal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$PlannedRoutesTableOrderingComposer get routeId {
+    final $$PlannedRoutesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.routeId,
+      referencedTable: $db.plannedRoutes,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlannedRoutesTableOrderingComposer(
+            $db: $db,
+            $table: $db.plannedRoutes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RouteWaypointsTableAnnotationComposer
+    extends Composer<_$FieldLogDatabase, $RouteWaypointsTable> {
+  $$RouteWaypointsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get ordinal =>
+      $composableBuilder(column: $table.ordinal, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  $$PlannedRoutesTableAnnotationComposer get routeId {
+    final $$PlannedRoutesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.routeId,
+      referencedTable: $db.plannedRoutes,
+      getReferencedColumn: (t) => t.localId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlannedRoutesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.plannedRoutes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RouteWaypointsTableTableManager
+    extends
+        RootTableManager<
+          _$FieldLogDatabase,
+          $RouteWaypointsTable,
+          RouteWaypoint,
+          $$RouteWaypointsTableFilterComposer,
+          $$RouteWaypointsTableOrderingComposer,
+          $$RouteWaypointsTableAnnotationComposer,
+          $$RouteWaypointsTableCreateCompanionBuilder,
+          $$RouteWaypointsTableUpdateCompanionBuilder,
+          (RouteWaypoint, $$RouteWaypointsTableReferences),
+          RouteWaypoint,
+          PrefetchHooks Function({bool routeId})
+        > {
+  $$RouteWaypointsTableTableManager(
+    _$FieldLogDatabase db,
+    $RouteWaypointsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RouteWaypointsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RouteWaypointsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RouteWaypointsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> routeId = const Value.absent(),
+                Value<int> ordinal = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<String?> label = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RouteWaypointsCompanion(
+                routeId: routeId,
+                ordinal: ordinal,
+                latitude: latitude,
+                longitude: longitude,
+                label: label,
+                kind: kind,
+                note: note,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String routeId,
+                required int ordinal,
+                required double latitude,
+                required double longitude,
+                Value<String?> label = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RouteWaypointsCompanion.insert(
+                routeId: routeId,
+                ordinal: ordinal,
+                latitude: latitude,
+                longitude: longitude,
+                label: label,
+                kind: kind,
+                note: note,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$RouteWaypointsTable, RouteWaypoint>(table),
+                  $$RouteWaypointsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({routeId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (routeId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.routeId,
+                        referencedTable: $$RouteWaypointsTableReferences
+                            ._routeIdTable(db),
+                        referencedColumn: $$RouteWaypointsTableReferences
+                            ._routeIdTable(db)
+                            .localId,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RouteWaypointsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$FieldLogDatabase,
+      $RouteWaypointsTable,
+      RouteWaypoint,
+      $$RouteWaypointsTableFilterComposer,
+      $$RouteWaypointsTableOrderingComposer,
+      $$RouteWaypointsTableAnnotationComposer,
+      $$RouteWaypointsTableCreateCompanionBuilder,
+      $$RouteWaypointsTableUpdateCompanionBuilder,
+      (RouteWaypoint, $$RouteWaypointsTableReferences),
+      RouteWaypoint,
+      PrefetchHooks Function({bool routeId})
     >;
 typedef $$QueuedOperationsTableCreateCompanionBuilder =
     QueuedOperationsCompanion Function({
@@ -8981,6 +10890,10 @@ class $FieldLogDatabaseManager {
       $$TrailLogsTableTableManager(_db, _db.trailLogs);
   $$TrailWaypointsTableTableManager get trailWaypoints =>
       $$TrailWaypointsTableTableManager(_db, _db.trailWaypoints);
+  $$PlannedRoutesTableTableManager get plannedRoutes =>
+      $$PlannedRoutesTableTableManager(_db, _db.plannedRoutes);
+  $$RouteWaypointsTableTableManager get routeWaypoints =>
+      $$RouteWaypointsTableTableManager(_db, _db.routeWaypoints);
   $$QueuedOperationsTableTableManager get queuedOperations =>
       $$QueuedOperationsTableTableManager(_db, _db.queuedOperations);
   $$ConflictsTableTableManager get conflicts =>

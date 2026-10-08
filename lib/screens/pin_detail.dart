@@ -1,3 +1,4 @@
+import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/pin_visual.dart';
@@ -147,54 +148,51 @@ class _PinDetailScreenState extends State<PinDetailScreen> {
     final text = Theme.of(context).textTheme;
     final s = widget.sighting;
 
-    return Scaffold(
-      backgroundColor: colours.canopy,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _Header(sighting: s, colours: colours, text: text),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  Insets.lg,
-                  0,
-                  Insets.lg,
-                  Insets.xl,
-                ),
-                children: [
-                  if (_isCorrected(s)) ...[
-                    _Correction(sighting: s, colours: colours, text: text),
-                    const SizedBox(height: Insets.md),
-                  ],
-                  _Headline(sighting: s, colours: colours, text: text),
-                  const SizedBox(height: Insets.lg),
-                  _Disclosure(
-                    label: 'All details',
-                    open: _showAll,
-                    onToggle: () => setState(() => _showAll = !_showAll),
-                    child: _AllDetails(
-                      sighting: s,
-                      added: _added,
-                      colours: colours,
-                      text: text,
-                    ),
-                  ),
-                  const SizedBox(height: Insets.lg),
-                  if (_adding) _Saving(colours: colours),
-                  if (_addFailed)
-                    _AddFailed(colours: colours)
-                  else
-                    _AddedList(added: _added, colours: colours, text: text),
-                ],
-              ),
-            ),
-            _Dock(
+    return FieldScaffold(
+      eyebrow: 'Sight · ${_clock(s.capturedAt)}',
+      title: s.displayName,
+      leading: _Clip(
+        label: s.speciesCode ?? '···',
+        accent: _accentFor(s.visual.state, colours),
+        colours: colours,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          Insets.lg,
+          Insets.sm,
+          Insets.lg,
+          Insets.xl,
+        ),
+        children: [
+          if (_isCorrected(s)) ...[
+            _Correction(sighting: s, colours: colours, text: text),
+            const SizedBox(height: Insets.md),
+          ],
+          _Headline(sighting: s, colours: colours, text: text),
+          const SizedBox(height: Insets.lg),
+          _Disclosure(
+            label: 'All details',
+            open: _showAll,
+            onToggle: () => setState(() => _showAll = !_showAll),
+            child: _AllDetails(
+              sighting: s,
+              added: _added,
               colours: colours,
               text: text,
-              onAdd: () => _openAddSheet(context, colours),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: Insets.lg),
+          if (_adding) _Saving(colours: colours),
+          if (_addFailed)
+            _AddFailed(colours: colours)
+          else
+            _AddedList(added: _added, colours: colours, text: text),
+        ],
+      ),
+      bottom: _Dock(
+        colours: colours,
+        text: text,
+        onAdd: () => _openAddSheet(context, colours),
       ),
     );
   }
@@ -655,6 +653,7 @@ class _StateLine extends StatelessWidget {
       PinState.needsReview => 'Awaiting a decision',
       PinState.queued => 'Waiting to send',
       PinState.unverified => 'Awaiting review',
+      PinState.ghost => 'Provisional',
     };
     return Row(
       children: [
@@ -681,6 +680,7 @@ class _StateLine extends StatelessWidget {
     PinState.needsReview => Icons.hourglass_empty,
     PinState.queued => Icons.schedule,
     PinState.unverified => Icons.radio_button_unchecked,
+    PinState.ghost => Icons.radio_button_unchecked,
   };
 }
 
@@ -1008,72 +1008,6 @@ class _AddedList extends StatelessWidget {
   };
 }
 
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.sighting,
-    required this.colours,
-    required this.text,
-  });
-
-  final SightingSummary sighting;
-  final FieldColours colours;
-  final TextTheme text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Insets.lg,
-        Insets.md,
-        Insets.sm,
-        Insets.md,
-      ),
-      child: Row(
-        children: [
-          _Clip(
-            label: sighting.speciesCode ?? '···',
-            accent: _accentFor(sighting.visual.state, colours),
-            colours: colours,
-          ),
-          const SizedBox(width: Insets.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sight · ${_clock(sighting.capturedAt)}',
-                  style: TextStyle(
-                    fontFamily: Faces.ui.first,
-                    fontSize: Faces.stamp,
-                    color: colours.ash2,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  sighting.displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: Faces.book.first,
-                    fontSize: Faces.cardTitle,
-                    height: 1.2,
-                    color: colours.bone,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: Icon(Icons.close, color: colours.ash1),
-            tooltip: 'Close',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// The four-letter clip, the design's shorthand for a species code.
 class _Clip extends StatelessWidget {
   const _Clip({
@@ -1305,6 +1239,7 @@ Color _accentFor(PinState state, FieldColours c) => switch (state) {
   PinState.corrected => c.dust,
   PinState.deleted => c.ash3,
   PinState.queued || PinState.needsReview || PinState.unverified => c.straw,
+  PinState.ghost => c.dust,
 };
 
 /// The wire values are the contract's, not the interface's. A trainee does not

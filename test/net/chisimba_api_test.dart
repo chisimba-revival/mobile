@@ -105,6 +105,24 @@ class _Adapter implements HttpClientAdapter {
       }, 200);
     }
 
+    if (path.endsWith('/species') && options.method == 'GET') {
+      if (options.headers['Authorization'] != 'Bearer access.jwt.value') {
+        return _json(options, {'error': 'UNAUTHORIZED'}, 401);
+      }
+      // The field service sends this collection bare, not under 'data'
+      // (verified by hand against the running container).
+      return _json(options, {
+        'species': [
+          {
+            'code': 'ELEP',
+            'common_name': 'African Elephant',
+            'scientific_name': 'Loxodonta africana',
+            'description': 'Largest land mammal.',
+          },
+        ],
+      }, 200);
+    }
+
     return _json(options, {'error': 'NOT_FOUND'}, 404);
   }
 
@@ -225,6 +243,33 @@ void main() {
     });
   });
 
+  group('reference lists', () {
+    test('species parses when the service sends the bare collection', () async {
+      final api = build();
+      final list = await api.getSpecies('access.jwt.value');
+
+      expect(list.species, hasLength(1));
+      expect(list.species.single.code, 'ELEP');
+      expect(list.species.single.commonName, 'African Elephant');
+    });
+
+    test(
+      'species still parses when the body carries a data envelope',
+      () async {
+        final api = ChisimbaApi(
+          dio: Dio()..httpClientAdapter = _WrappedSpeciesService(),
+          baseUrl: 'http://localhost:8080',
+          wait: (_) async {},
+        );
+
+        final list = await api.getSpecies('any.token');
+
+        expect(list.species, hasLength(1));
+        expect(list.species.single.code, 'ELEP');
+      },
+    );
+  });
+
   group('failures a person can act on', () {
     test('a rejected password says so without asking twice', () async {
       final api = ChisimbaApi(
@@ -312,6 +357,32 @@ class _UnreachableService implements HttpClientAdapter {
       error: 'connection refused',
       type: DioExceptionType.connectionError,
     );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// The older contract: collections wrapped in a 'data' envelope.
+class _WrappedSpeciesService implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return _ok({
+      'data': {
+        'species': [
+          {
+            'code': 'ELEP',
+            'common_name': 'African Elephant',
+            'scientific_name': 'Loxodonta africana',
+            'description': 'Largest land mammal.',
+          },
+        ],
+      },
+    });
   }
 
   @override

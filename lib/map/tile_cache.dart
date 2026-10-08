@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:pmtiles/pmtiles.dart';
 
 /// A byte cache for map tiles that treats the network as optional.
 ///
@@ -20,8 +21,12 @@ import 'package:path_provider/path_provider.dart';
 /// different styling cannot silently read another host's tiles, and it means
 /// the same tile fetched twice is one file.
 class TileCache {
-  TileCache({required this.directory, http.Client? client, this.maxBytes = 0})
-    : _client = client ?? http.Client();
+  TileCache({
+    required this.directory,
+    http.Client? client,
+    this.maxBytes = 0,
+    this.pmtilesArchive,
+  }) : _client = client ?? http.Client();
 
   /// Where cached tiles live. The caller supplies this so tests can use a
   /// temporary directory and never touch the real one.
@@ -33,6 +38,13 @@ class TileCache {
   /// at several zoom levels will otherwise fill the device.
   final int maxBytes;
 
+  /// Optional PMTiles archive for vector tiles.
+  ///
+  /// If provided, vector tiles are served from this archive instead of the
+  /// network. The archive is a single .pmtiles file that contains all vector
+  /// tiles for the reserve.
+  final PmTilesArchive? pmtilesArchive;
+
   final http.Client _client;
   final _pending = <String, Future<Uint8List?>>{};
 
@@ -43,11 +55,23 @@ class TileCache {
   /// Deliberately not the cache or documents directory: tile bytes are
   /// disposable, and the OS may reclaim them under storage pressure. Losing them
   /// costs a download, never a record.
-  static Future<TileCache> forDevice({int maxBytes = 48 * 1024 * 1024}) async {
+  static Future<TileCache> forDevice({
+    int maxBytes = 48 * 1024 * 1024,
+    String? pmtilesPath,
+  }) async {
     final support = await getApplicationSupportDirectory();
+    PmTilesArchive? archive;
+    if (pmtilesPath != null) {
+      try {
+        archive = await PmTilesArchive.from(pmtilesPath);
+      } catch (e) {
+        debugPrint('Failed to open PMTiles archive: $e');
+      }
+    }
     return TileCache(
       directory: Directory(p.join(support.path, 'tiles')),
       maxBytes: maxBytes,
+      pmtilesArchive: archive,
     );
   }
 
@@ -56,8 +80,13 @@ class TileCache {
     String path, {
     int maxBytes = 0,
     http.Client? client,
-  }) =>
-      TileCache(directory: Directory(path), maxBytes: maxBytes, client: client);
+    PmTilesArchive? pmtilesArchive,
+  }) => TileCache(
+    directory: Directory(path),
+    maxBytes: maxBytes,
+    client: client,
+    pmtilesArchive: pmtilesArchive,
+  );
 
   /// Resolve one tile, or null when it is neither cached nor fetchable.
   ///
@@ -83,6 +112,26 @@ class TileCache {
       return null;
     }
     return _download(key, urlFor(zoom, x, y), timeout);
+  }
+
+  /// Resolve a vector tile from the PMTiles archive.
+  ///
+  /// Returns the raw MVT bytes for the given tile coordinates, or null if the
+  /// archive is not available or the tile doesn't exist. This is used by the
+  /// vector tile layer to render vector features.
+  Future<Uint8List?> vectorTile(int zoom, int x, int y) async {
+    if (pmtilesArchive == null) {
+      return null;
+    }
+    try {
+      final tileId = ZXY(zoom, x, y).toTileId();
+      final tile = await pmtilesArchive!.tile(tileId);
+      final bytes = tile.bytes();
+      return Uint8List.fromList(bytes);
+    } catch (e) {
+      debugPrint('Failed to load vector tile $zoom/$x/$y: $e');
+      return null;
+    }
   }
 
   /// How many bytes are held, for the ledger screen to report.

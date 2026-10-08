@@ -4,7 +4,7 @@ description: >-
   drive, built against the Chisimba field guiding service contract.
 publish_to: 'none'
 
-version: 0.1.0+1
+version: 0.2.0+1
 
 environment:
   sdk: ^3.13.5
@@ -16,6 +16,9 @@ dependencies:
   # State. Riverpod is the declared state container; see the Flutter mapping
   # table in chisimba-info/docs/mobile-design/README.md.
   flutter_riverpod: ^3.4.3
+
+  # Navigation. Added for better routing in merged app.
+  go_router: ^12.0.0
 
   # Local store. Drift is the replica of record: the client is a local-first
   # reader and the service is a replica, not the other way round.
@@ -35,6 +38,7 @@ dependencies:
   # Transport. Dio carries the batched pull and push endpoints, including their
   # partial-success responses.
   dio: ^5.11.1
+  http: ^1.2.2
 
   # Generated immutable models. freezed 4 requires `abstract class X with _$X`;
   # see TOOLCHAIN.md for why this is not a style preference. freezed 4 pairs
@@ -63,8 +67,45 @@ dependencies:
   latlong2: ^0.9.1
   # Reading and writing the tile cache directory as files, since a cached tile
   # is bytes on disk rather than a row anywhere.
-  http: ^1.2.2
   connectivity_plus: ^7.3.2
+
+  # Vector tiles (PMTiles) for reserve map layers: boundaries, roads, waterholes,
+  # acacia stands, contours. Offline-first, generated from QGIS via Tippecanoe.
+  pmtiles: ^2.0.0
+
+  # Positioning. The contract requires accuracy on every observation, and a
+  # placeholder is a field failure waiting to happen. geolocator provides
+  # platform-native location on iOS/Android and a stream for live updates.
+  geolocator: ^14.0.1
+
+  # Compass for the location strip's heading indicator.
+  flutter_compass: ^0.8.0
+
+  # NEW DEPENDENCIES MERGED FROM mobile-app
+  # UI Components for improved app experience
+  flutter_form_builder: ^9.0.0
+  cached_network_image: ^3.3.0
+  fl_chart: ^0.64.0
+  
+  # Security and storage for auth tokens
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.2.0
+  
+  # JWT handling for token management
+  jwt_decode: ^0.3.1
+  
+  # File and image handling for media upload
+  file_picker: ^6.0.0
+  image_picker: ^1.0.0
+  
+  # Permissions for camera/access (required for field work)
+  permission_handler: ^11.0.0
+  
+  # Date/time formatting for log entries
+  intl: ^0.18.0
+  
+  # Logging for debugging and production monitoring
+  logger: ^2.0.1
 
 dev_dependencies:
   flutter_test:
@@ -77,3 +118,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  # Assets for app icons and images
+  assets:
+    - assets/images/
+    - assets/icons/

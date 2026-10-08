@@ -1,3 +1,6 @@
+import 'package:drift/drift.dart' hide Column;
+import 'package:field_log/data/database.dart';
+import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:flutter/material.dart';
@@ -9,64 +12,147 @@ import 'package:flutter/material.dart';
 /// that they are being graded rather than that there is an animal they have not
 /// yet found. What is shown instead is the requirement and how far along it is,
 /// which is the same information without the verdict attached.
-class TallyScreen extends StatelessWidget {
-  const TallyScreen({super.key, required this.progress});
+class TallyScreen extends StatefulWidget {
+  const TallyScreen({super.key, this.database, this.progress});
 
-  final TrailProgress progress;
+  final FieldLogDatabase? database;
+  final TrailProgress? progress;
+
+  @override
+  State<TallyScreen> createState() => _TallyScreenState();
+}
+
+class _TallyScreenState extends State<TallyScreen> {
+  TrailProgress? _progress;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.progress != null) {
+      _progress = widget.progress;
+      _loading = false;
+    } else if (widget.database != null) {
+      _loadProgress();
+    } else {
+      _loading = false;
+    }
+  }
+
+  Future<void> _loadProgress() async {
+    if (widget.database == null) return;
+
+    // Load all trail logs
+    final trailLogs = await widget.database!
+        .select(widget.database!.trailLogs)
+        .get();
+
+    final hoursByRole = <String, double>{};
+
+    for (final log in trailLogs) {
+      // Calculate hours for this trail log
+      final waypoints = widget.database!.select(widget.database!.trailWaypoints)
+        ..where((t) => t.trailLogId.equals(log.localId))
+        ..orderBy([(t) => OrderingTerm.asc(t.ordinal)]);
+
+      final points = await waypoints.get();
+      if (points.length >= 2) {
+        double hours = 0.0;
+        for (int i = 1; i < points.length; i++) {
+          final prev = points[i - 1];
+          final curr = points[i];
+          final diff = curr.recordedAt.difference(prev.recordedAt).inSeconds;
+          hours += diff / 3600.0;
+        }
+        // Add to the appropriate role bucket
+        hoursByRole['none'] = (hoursByRole['none'] ?? 0.0) + hours;
+      }
+    }
+
+    // Build hours list
+    final hoursList = <HoursCount>[
+      if ((hoursByRole['first'] ?? 0) > 0)
+        HoursCount(
+          role: 'first',
+          label: 'First rifle',
+          note: 'Hours with first rifle',
+          value: hoursByRole['first']!,
+        ),
+      if ((hoursByRole['second'] ?? 0) > 0)
+        HoursCount(
+          role: 'second',
+          label: 'Second rifle',
+          note: 'Hours with second rifle',
+          value: hoursByRole['second']!,
+        ),
+      if ((hoursByRole['none'] ?? 0) > 0)
+        HoursCount(
+          role: 'none',
+          label: 'No rifle',
+          note: 'Hours without a rifle',
+          value: hoursByRole['none']!,
+        ),
+    ];
+
+    // Fetch competencies for reference data
+    // TODO: In a full implementation, the TallyScreen would have access to
+    // the ChisimbaApi and SessionStore to fetch live competencies. For now,
+    // we use locally stored reference data or empty requirements.
+    final reqs = <Requirement>[];
+
+    _progress = TrailProgress(hours: hoursList, requirements: reqs);
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colours = context.reserve;
 
-    return Scaffold(
-      backgroundColor: colours.canopy,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            Insets.lg,
-            Insets.lg,
-            Insets.lg,
-            Insets.xxxl,
-          ),
-          children: [
-            Text(
-              'Your trail',
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.stamp,
-                color: colours.ash2,
-              ),
-            ),
-            const SizedBox(height: Insets.xs),
-            Text(
-              'Where you are',
-              style: TextStyle(
-                fontFamily: Faces.book.first,
-                fontSize: Faces.cardTitle,
-                color: colours.bone,
-              ),
-            ),
-            const SizedBox(height: Insets.xl),
-            for (final hours in progress.hours) ...[
-              _HoursBlock(hours: hours),
-              const SizedBox(height: Insets.md),
-            ],
-            const SizedBox(height: Insets.sm),
-            _Requirements(progress: progress),
-            const SizedBox(height: Insets.md),
-            Text(
-              'These are the requirements your mentor will use. Your mentor '
-              'decides whether you are ready — the list is not a verdict, and '
-              'nothing here stops you submitting a walk.',
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.supporting,
-                height: 1.5,
-                color: colours.ash3,
-              ),
-            ),
-          ],
+    if (_loading) {
+      return FieldScaffold(
+        eyebrow: 'Your trail',
+        title: 'Where you are',
+        body: Center(child: CircularProgressIndicator(color: colours.moss)),
+      );
+    }
+
+    final progress = _progress ?? TrailProgress.empty;
+
+    return FieldScaffold(
+      eyebrow: 'Your trail',
+      title: 'Where you are',
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          Insets.lg,
+          Insets.sm,
+          Insets.lg,
+          Insets.xxxl,
         ),
+        children: [
+          const SizedBox(height: Insets.xl),
+          for (final hours in progress.hours) ...[
+            _HoursBlock(hours: hours),
+            const SizedBox(height: Insets.md),
+          ],
+          const SizedBox(height: Insets.sm),
+          _Requirements(progress: progress),
+          const SizedBox(height: Insets.md),
+          Text(
+            'These are the requirements your mentor will use. Your mentor '
+            'decides whether you are ready — the list is not a verdict, and '
+            'nothing here stops you submitting a walk.',
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.supporting,
+              height: 1.5,
+              color: colours.ash3,
+            ),
+          ),
+        ],
       ),
     );
   }
