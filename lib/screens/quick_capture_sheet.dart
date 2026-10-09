@@ -174,33 +174,78 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
               const SizedBox(height: 6),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 160),
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final species in _matches)
-                      ListTile(
-                        dense: true,
-                        title: Text(
-                          species.commonName,
-                          style: TextStyle(
-                            color: colours.bone,
-                            fontFamily: Faces.ui.first,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final species in _matches)
+                        ListTile(
+                          dense: true,
+                          selected: _choice?.code == species.code,
+                          selectedTileColor: colours.dust,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              Corners.control,
+                            ),
                           ),
-                        ),
-                        subtitle: species.scientificName.isEmpty
-                            ? null
-                            : Text(
-                                species.scientificName,
-                                style: TextStyle(
-                                  color: colours.ash3,
-                                  fontFamily: Faces.ui.first,
-                                  fontSize: Faces.stamp,
+                          title: Text(
+                            species.commonName,
+                            style: TextStyle(
+                              color: _choice?.code == species.code
+                                  ? colours.canopy
+                                  : colours.bone,
+                              fontFamily: Faces.ui.first,
+                            ),
+                          ),
+                          subtitle: species.scientificName.isEmpty
+                              ? null
+                              : Text(
+                                  species.scientificName,
+                                  style: TextStyle(
+                                    color: _choice?.code == species.code
+                                        ? colours.canopy
+                                        : colours.ash3,
+                                    fontFamily: Faces.ui.first,
+                                    fontSize: Faces.stamp,
+                                  ),
                                 ),
-                              ),
-                        onTap: () => setState(() => _choice = species),
-                      ),
-                  ],
+                          trailing: _choice?.code == species.code
+                              ? Icon(
+                                  Icons.check,
+                                  size: 18,
+                                  color: colours.canopy,
+                                )
+                              : null,
+                          onTap: () {
+                            FocusScope.of(context).unfocus();
+                            setState(() => _choice = species);
+                          },
+                        ),
+                    ],
+                  ),
                 ),
+              ),
+            ],
+            if (_choice != null) ...[
+              const SizedBox(height: Insets.lg),
+              Row(
+                children: [
+                  Icon(Icons.check_circle, size: 16, color: colours.straw),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Selected: ${_choice!.commonName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: Faces.ui.first,
+                        fontSize: Faces.stamp,
+                        color: colours.bone,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
             const SizedBox(height: Insets.lg),
