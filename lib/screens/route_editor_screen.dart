@@ -6,7 +6,9 @@ import 'package:field_log/design/theme.dart';
 import 'package:field_log/map/osm_tiles.dart';
 import 'package:field_log/map/maptiler_tiles.dart';
 import 'package:field_log/map/pin_painter.dart';
+import 'package:field_log/map/reserve_topology.dart';
 import 'package:field_log/map/tile_cache.dart';
+import 'package:field_log/map/vector_tile_layer.dart';
 import 'package:field_log/net/chisimba_api.dart' as chisimba;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -60,6 +62,7 @@ class _RouteTiles extends StatelessWidget {
         template: maptilerEnabled
             ? maptilerUrlTemplate()
             : OsmTileProvider.defaultUrlTemplate,
+        cacheNamespace: maptilerEnabled ? 'maptiler-$maptilerStyle' : '',
       ),
       keepBuffer: 4,
       panBuffer: 2,
@@ -129,6 +132,11 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
   late List<_EditableWaypoint> _waypoints;
   LatLng? _ghostWaypoint;
   int? _selectedIndex;
+
+  /// Path to the reserve's surveyed topology archive, or null when the build
+  /// shipped one that has not been copied yet (or none at all), leaving the
+  /// painted vector map in place — the same fallback as the field map.
+  String? _topologyPath;
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
@@ -145,6 +153,14 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // The map draws its fallback until the archive copy lands; a map that
+    // flickered through a "loading" state to draw the same lines would be
+    // a worse version of this.
+    prepareReserveTopology().then((path) {
+      if (!mounted || path == null || path == _topologyPath) return;
+      setState(() => _topologyPath = path);
+    });
   }
 
   @override
@@ -289,7 +305,16 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
               // the vector features (and the route being drawn) stand out.
               if (widget.tileCache != null)
                 _RouteTiles(cache: widget.tileCache!),
-              _VectorLayer(colours: colours),
+              // Surveyed topology when the archive is available, the painted
+              // reserve map otherwise — same contract as the field map.
+              if (_topologyPath != null)
+                PmTilesVectorLayer(
+                  archivePath: _topologyPath!,
+                  maxZoom: 14,
+                  layerStyles: defaultVectorLayerStyles,
+                )
+              else
+                _VectorLayer(colours: colours),
               // Route layer
               if (_waypoints.length >= 2)
                 PolylineLayer(

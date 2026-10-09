@@ -6,10 +6,13 @@ import 'package:field_log/data/database.dart' show PlannedRoute, RouteWaypoint;
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/osm_tiles.dart';
 import 'package:field_log/map/maptiler_tiles.dart';
+import 'package:field_log/map/reserve_topology.dart';
 import 'package:field_log/map/route_layer.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/map/vector_tile_layer.dart';
+import 'package:field_log/screens/map_legend_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -188,6 +191,17 @@ class _MapScreenState extends State<MapScreen>
   /// Whether the map legend is on screen.
   bool _showLegend = false;
 
+  /// Path to the reserve's surveyed topology archive, or null when the build
+  /// shipped one that has not been copied yet — or never shipped one at all.
+  /// null is a legitimate steady state: the painted vector map below it is
+  /// the fallback and needs no data file to be correct.
+  String? _topologyPath;
+
+  /// Topology layers the user has switched off. The layers are drawn by
+  /// leaving out styles while the archive is present; the painted map has
+  /// no per-layer switch of its own.
+  final Set<String> _hiddenTopologyLayers = {};
+
   StreamSubscription<CompassEvent>? _compassSub;
 
   @override
@@ -213,6 +227,14 @@ class _MapScreenState extends State<MapScreen>
         setState(() => _heading = heading);
       }, onError: (_) {});
     }
+
+    // The archive copy is one small file, so this is quick; the screen shows
+    // the painted map until it lands, then swaps to the surveyed one without
+    // any visual "loading" step.
+    prepareReserveTopology().then((path) {
+      if (!mounted || path == null || path == _topologyPath) return;
+      setState(() => _topologyPath = path);
+    });
   }
 
   @override
@@ -249,6 +271,47 @@ class _MapScreenState extends State<MapScreen>
     final target = (_zoom + delta).clamp(_minZoom, _maxZoom).toDouble();
     if (target == _zoom) return;
     _mapController.move(_center, target);
+  }
+
+  /// The topology layers the user has left switched on. Passing a shorter map
+  /// than the defaults is how a layer is turned off: the provider skips any
+  /// layer it has no style for.
+  Map<String, VectorLayerStyle> get _visibleTopologyStyles {
+    return {
+      for (final entry in defaultVectorLayerStyles.entries)
+        if (!_hiddenTopologyLayers.contains(entry.key)) entry.key: entry.value,
+    };
+  }
+
+  /// Opens the legend as a sheet with per-layer switches, since that is the
+  /// map shape that understands layers. The painted map below keeps the old
+  /// chip panel: its features have no switches, just colours.
+  void _toggleLegend() {
+    if (_topologyPath != null) {
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (context) => MapLegendSheet(
+          layerStyles: defaultVectorLayerStyles,
+          initialVisibility: {
+            for (final name in defaultVectorLayerStyles.keys)
+              name: !_hiddenTopologyLayers.contains(name),
+          },
+          onVisibilityChanged: (name, visible) {
+            if (!mounted) return;
+            setState(() {
+              if (visible) {
+                _hiddenTopologyLayers.remove(name);
+              } else {
+                _hiddenTopologyLayers.add(name);
+              }
+            });
+          },
+        ),
+      );
+      return;
+    }
+    setState(() => _showLegend = !_showLegend);
   }
 
   void _showGhostPin(LatLng point) {
@@ -307,7 +370,18 @@ class _MapScreenState extends State<MapScreen>
               // it: the legend explains features that are actually on the
               // ground, not ones hidden under a loaded tile.
               _TileLayer(cache: widget.tileCache, online: widget.online),
-              _VectorLayer(colours: widget.colours),
+              // The surveyed topology wins when the archive is present: real
+              // contours and boundary. Without one the painted map is the
+              // truth and there is nothing to fall back to except itself.
+              if (_topologyPath != null)
+                PmTilesVectorLayer(
+                  archivePath: _topologyPath!,
+                  // The archive is built to z14; beyond that its tiles stop.
+                  maxZoom: 14,
+                  layerStyles: _visibleTopologyStyles,
+                )
+              else
+                _VectorLayer(colours: widget.colours),
               // Planned route layer (if available)
               if (widget.route != null &&
                   widget.routeWaypoints != null &&
@@ -365,7 +439,7 @@ class _MapScreenState extends State<MapScreen>
             onTapSignedInAs: widget.onTapSignedInAs,
             onOpenSettings: widget.onOpenSettings,
             legendOpen: _showLegend,
-            onToggleLegend: () => setState(() => _showLegend = !_showLegend),
+            onToggleLegend: _toggleLegend,
           ),
           _GpsBar(
             gps: widget.gps,
@@ -458,6 +532,9 @@ class _TileLayer extends StatelessWidget {
         template: maptilerEnabled
             ? maptilerUrlTemplate()
             : OsmTileProvider.defaultUrlTemplate,
+        // MapTiler and OSM are different pictures; each must live in its own
+        // cache namespace so one style can never serve the other's bytes.
+        cacheNamespace: maptilerEnabled ? 'maptiler-$maptilerStyle' : '',
       ),
       // Buffering tiles beyond the viewport means a small pan does not
       // immediately need tiles that have never been fetched.

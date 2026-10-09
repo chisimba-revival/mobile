@@ -6,6 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:pmtiles/pmtiles.dart';
 
+import 'mvt_decoder.dart';
+import 'mvt_renderer.dart';
+
 /// A vector tile layer that reads MVT tiles from a PMTiles archive.
 ///
 /// This is a simplified implementation that uses flutter_map's TileLayer
@@ -66,13 +69,15 @@ class _PmTilesVectorLayerState extends State<PmTilesVectorLayer> {
       return const SizedBox.shrink();
     }
 
-    // For now, return a placeholder that shows the archive is loaded.
-    // Full MVT rendering would require a vector tile renderer.
-    // This provides the infrastructure for fetching tiles from PMTiles.
+    // Render the archive's MVT tiles. An empty style map means "use the
+    // reserve's default style".
     return TileLayer(
       tileProvider: _PmTilesProvider(
         archive: _archive!,
         maxZoom: widget.maxZoom,
+        layerStyles: widget.layerStyles.isNotEmpty
+            ? widget.layerStyles
+            : defaultVectorLayerStyles,
       ),
     );
   }
@@ -80,20 +85,22 @@ class _PmTilesVectorLayerState extends State<PmTilesVectorLayer> {
 
 /// TileProvider that reads tiles from a PMTiles archive.
 class _PmTilesProvider extends TileProvider {
-  _PmTilesProvider({required this.archive, required this.maxZoom});
+  _PmTilesProvider({
+    required this.archive,
+    required this.maxZoom,
+    required this.layerStyles,
+  });
 
   final PmTilesArchive archive;
   final int maxZoom;
+  final Map<String, VectorLayerStyle> layerStyles;
 
   @override
   ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
-    // This provider returns a placeholder image.
-    // In a full implementation, this would return an ImageProvider
-    // that renders the MVT tile content.
     return _PmTilesImage(
       archive: archive,
       coordinates: coordinates,
-      layerStyles: const {},
+      layerStyles: layerStyles,
     );
   }
 }
@@ -132,31 +139,29 @@ class _PmTilesImage extends ImageProvider<_PmTilesImage> {
       ).toTileId();
 
       final tile = await archive.tile(tileId);
-      final bytes = tile.bytes();
+      final bytes = Uint8List.fromList(tile.bytes());
 
-      if (bytes.isEmpty) {
-        final codec = await ui.instantiateImageCodec(
-          TileProvider.transparentImage,
-        );
-        final frame = await codec.getNextFrame();
-        return ImageInfo(image: frame.image);
-      }
+      if (bytes.isEmpty) return await _transparentTile();
 
-      // For now, return a placeholder. Full MVT rendering would decode
-      // the protobuf and render vector features.
-      final codec = await ui.instantiateImageCodec(
-        TileProvider.transparentImage,
+      final layers = decodeMvtTile(bytes);
+      if (layers.isEmpty) return await _transparentTile();
+
+      final image = await renderMvtTile(
+        layers: layers,
+        styles: layerStyles,
+        zoom: coordinates.z,
       );
-      final frame = await codec.getNextFrame();
-      return ImageInfo(image: frame.image);
+      return ImageInfo(image: image);
     } catch (e) {
-      debugPrint('Failed to load PMTiles tile: $e');
-      final codec = await ui.instantiateImageCodec(
-        TileProvider.transparentImage,
-      );
-      final frame = await codec.getNextFrame();
-      return ImageInfo(image: frame.image);
+      debugPrint('Failed to render PMTiles tile: $e');
+      return await _transparentTile();
     }
+  }
+
+  Future<ImageInfo> _transparentTile() async {
+    final codec = await ui.instantiateImageCodec(TileProvider.transparentImage);
+    final frame = await codec.getNextFrame();
+    return ImageInfo(image: frame.image);
   }
 
   @override

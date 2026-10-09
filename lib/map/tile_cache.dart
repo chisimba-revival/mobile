@@ -16,10 +16,12 @@ import 'package:pmtiles/pmtiles.dart';
 /// neither, so the caller can fall back to the vector layer underneath. There
 /// is no state in which a missing tile blanks the map.
 ///
-/// Cached tiles are addressed by zoom, x and y, so the cache key is derived from
-/// the coordinates rather than from a URL. That means a different tile host with
-/// different styling cannot silently read another host's tiles, and it means
-/// the same tile fetched twice is one file.
+/// Cached tiles are addressed by zoom, x, y and a source namespace, so the
+/// cache key is derived from the coordinates rather than from a URL. The
+/// namespace separates different tile hosts or styles: a MapTiler tile must
+/// never silently read the bytes of an OpenStreetMap tile that happens to
+/// share its coordinates, because the two are different pictures. Within one
+/// source, the same tile fetched twice is one file.
 class TileCache {
   TileCache({
     required this.directory,
@@ -102,8 +104,9 @@ class TileCache {
     required Uri Function(int zoom, int x, int y) urlFor,
     bool Function()? fetch,
     Duration timeout = const Duration(seconds: 8),
+    String source = '',
   }) async {
-    final key = _keyFor(zoom, x, y);
+    final key = _keyFor(zoom, x, y, source);
     final onDisk = await _read(key);
     if (onDisk != null) {
       return onDisk;
@@ -162,7 +165,12 @@ class TileCache {
     }
   }
 
-  String _keyFor(int zoom, int x, int y) => '$zoom/$x/$y.tile';
+  /// The source namespace keeps different tile hosts or styles apart: two
+  /// sources with the same coordinates are different pictures and must not
+  /// share cache files. An empty source keeps the historical layout used by
+  /// the OpenStreetMap tiles that predate the namespace.
+  String _keyFor(int zoom, int x, int y, String source) =>
+      source.isEmpty ? '$zoom/$x/$y.tile' : '$source/$zoom/$x/$y.tile';
 
   File _fileFor(String key) => File(p.join(directory.path, key));
 

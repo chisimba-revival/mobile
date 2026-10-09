@@ -30,6 +30,7 @@ class OsmTileProvider extends TileProvider {
     required this.cache,
     required this.online,
     this.template = defaultUrlTemplate,
+    this.cacheNamespace = '',
     super.headers,
   });
 
@@ -50,6 +51,13 @@ class OsmTileProvider extends TileProvider {
   final bool Function() online;
 
   final String template;
+
+  /// Where this tile source lives in the cache. Two sources with different
+  /// styling must not read each other's bytes, even for the same coordinates,
+  /// so each distinct template does its cache lookups under its own namespace.
+  /// A callers that leaves it empty (the OpenStreetMap default) gets the
+  /// historical coordinate-only layout.
+  final String cacheNamespace;
 
   /// Builds the tile URL from the template.
   ///
@@ -72,6 +80,7 @@ class OsmTileProvider extends TileProvider {
       // Knowing we are offline skips the request outright rather than paying a
       // timeout on every tile the viewport wants.
       fetch: online,
+      source: cacheNamespace,
     );
 
     return _CachedTileImage(bytes);
