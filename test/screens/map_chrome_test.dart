@@ -130,4 +130,26 @@ void main() {
     expect(find.bySemanticsLabel(RegExp(r'^Compass')), findsNothing);
     semantics.dispose();
   });
+
+  testWidgets('the zoom buttons step the map and the scale bar follows', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpMap(tester);
+
+    // The reserve at zoom 14 reads half a kilometre across the bar.
+    expect(find.bySemanticsLabel('Scale bar, 500 m'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Zoom in'));
+    await tester.pumpAndSettle();
+
+    // One step in halves the ground each bar width covers.
+    expect(find.bySemanticsLabel('Scale bar, 200 m'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Zoom out'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('Scale bar, 500 m'), findsOneWidget);
+    semantics.dispose();
+  });
 }

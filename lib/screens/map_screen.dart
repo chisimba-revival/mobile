@@ -22,6 +22,11 @@ import 'package:latlong2/latlong.dart';
 /// opens somewhere arbitrary is worse than one that opens somewhere named.
 final reserveCentre = LatLng(-1.2921, 36.8219);
 
+/// The map's zoom bounds, in one place so the controls and the options cannot
+/// disagree about how far the map can go.
+const double _minZoom = 8;
+const double _maxZoom = 18;
+
 /// How accurate the position fix is, and when it was taken.
 ///
 /// Accuracy is part of the record, so it is never hidden: a trainee who
@@ -236,6 +241,15 @@ class _MapScreenState extends State<MapScreen>
     _mapController.rotate(0);
   }
 
+  /// Steps the map zoom towards where the user wants it. The move reports
+  /// back through [onPositionChanged], so the scale bar follows without this
+  /// method touching the state directly.
+  void _zoomBy(double delta) {
+    final target = (_zoom + delta).clamp(_minZoom, _maxZoom).toDouble();
+    if (target == _zoom) return;
+    _mapController.move(_center, target);
+  }
+
   void _showGhostPin(LatLng point) {
     setState(() {
       _ghostPin = point;
@@ -275,8 +289,8 @@ class _MapScreenState extends State<MapScreen>
               backgroundColor: widget.colours.inset,
               initialCenter: reserveCentre,
               initialZoom: 14,
-              minZoom: 8,
-              maxZoom: 18,
+              minZoom: _minZoom,
+              maxZoom: _maxZoom,
               onPositionChanged: (camera, hasGesture) =>
                   _onCameraChanged(camera),
               onTap: widget.onMapTap == null
@@ -368,6 +382,11 @@ class _MapScreenState extends State<MapScreen>
             colours: widget.colours,
             zoom: _zoom,
             latitude: _center.latitude,
+          ),
+          _ZoomButtons(
+            colours: widget.colours,
+            onZoomIn: () => _zoomBy(1),
+            onZoomOut: () => _zoomBy(-1),
           ),
           _Dock(
             colours: widget.colours,
@@ -1142,6 +1161,58 @@ class _ScaleBar extends StatelessWidget {
                   bottom: BorderSide(color: colours.bone, width: 2),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The [+]/[-] pair that steps the map's zoom.
+///
+/// Pinch and scroll zoom the map already; these exist so a one-handed thumb
+/// can do it too, which is how a field logger is usually holding the phone.
+class _ZoomButtons extends StatelessWidget {
+  const _ZoomButtons({
+    required this.colours,
+    required this.onZoomIn,
+    required this.onZoomOut,
+  });
+
+  final FieldColours colours;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      right: Insets.md,
+      // Level with the scale bar, clear of the dock.
+      bottom: 200,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colours.canopyRaised.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(Corners.sheet),
+          border: Border.all(color: colours.ruleStrong),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: onZoomOut,
+              icon: Icon(Icons.remove, color: colours.bone),
+              tooltip: 'Zoom out',
+              padding: const EdgeInsets.all(Insets.xs),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            ),
+            Container(height: 1, color: colours.rule),
+            IconButton(
+              onPressed: onZoomIn,
+              icon: Icon(Icons.add, color: colours.bone),
+              tooltip: 'Zoom in',
+              padding: const EdgeInsets.all(Insets.xs),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             ),
           ],
         ),
