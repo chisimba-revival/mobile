@@ -19,6 +19,7 @@ import 'package:field_log/design/tokens.dart';
 import 'package:field_log/field/card_state.dart';
 import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/map/maptiler_tiles.dart';
 import 'package:field_log/models/sync_operation.dart' as model;
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/models/geo_point.dart';
@@ -605,7 +606,13 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   Future<void> _openTally() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const TallyScreen(progress: TrailProgress.empty),
+        builder: (_) => TallyScreen(
+          // Load from the database so the screen tells the truth about what
+          // has actually been walked. An empty progress object would paint
+          // the tab as if nothing had ever been recorded, even when trail
+          // logs exist.
+          database: widget.database,
+        ),
       ),
     );
   }
@@ -1026,7 +1033,14 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     final map = MapScreen(
       pins: _pins,
       queuedCount: _queued,
-      colours: FieldColours.dark,
+      // The basemap decides the palette, not the other way round. A loaded
+      // MapTiler basemap is a light, real-world map, so the chrome and the
+      // reserve's symbols take the sunlight palette to stay readable on it.
+      // Offline — or on the OSM fallback — the ground is the dark reserve
+      // painting, so the chrome goes dark again.
+      colours: maptilerEnabled && _status.hasTransport
+          ? FieldColours.sunlight
+          : FieldColours.dark,
       online: _status.hasTransport,
       signedInAs: _user?.shortName,
       onTapSignedInAs: _user == null ? _openSignIn : null,

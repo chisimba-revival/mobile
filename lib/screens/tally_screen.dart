@@ -64,8 +64,10 @@ class _TallyScreenState extends State<TallyScreen> {
           final diff = curr.recordedAt.difference(prev.recordedAt).inSeconds;
           hours += diff / 3600.0;
         }
-        // Add to the appropriate role bucket
-        hoursByRole['none'] = (hoursByRole['none'] ?? 0.0) + hours;
+        // The trail carries its rifle role (first, second, none); hours
+        // walked under each role count towards that role's sign-off.
+        final role = log.rifleRole ?? 'none';
+        hoursByRole[role] = (hoursByRole[role] ?? 0.0) + hours;
       }
     }
 
@@ -134,6 +136,27 @@ class _TallyScreenState extends State<TallyScreen> {
         ),
         children: [
           const SizedBox(height: Insets.xl),
+          if (progress.hours.isEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(Insets.lg),
+              decoration: BoxDecoration(
+                color: colours.canopyRaised,
+                borderRadius: BorderRadius.circular(Corners.sheet),
+                border: Border.all(color: colours.rule),
+              ),
+              child: Text(
+                'No trail hours yet. Walk a trail and the hours that count '
+                'towards your sign-off will appear here.',
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.label,
+                  height: 1.4,
+                  color: colours.ash2,
+                ),
+              ),
+            ),
+            const SizedBox(height: Insets.md),
+          ],
           for (final hours in progress.hours) ...[
             _HoursBlock(hours: hours),
             const SizedBox(height: Insets.md),
