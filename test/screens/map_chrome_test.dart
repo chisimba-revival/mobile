@@ -84,4 +84,50 @@ void main() {
 
     expect(opened, isTrue);
   });
+
+  testWidgets('the legend opens, explains the map, and closes', (tester) async {
+    await pumpMap(tester);
+
+    // A legend nobody asked for is noise, so it starts hidden.
+    expect(find.text('Legend'), findsNothing);
+
+    await tester.tap(find.byTooltip('Legend'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Legend'), findsOneWidget);
+    for (final entry in ['Sighting', 'Water', 'Drainage', 'Scrub', 'Contour']) {
+      expect(find.text(entry), findsOneWidget, reason: '$entry in legend');
+    }
+
+    await tester.tap(find.byTooltip('Legend'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Legend'), findsNothing);
+  });
+
+  testWidgets('the scale bar is on the map and reads a distance', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpMap(tester);
+
+    // "Scale bar, N m" — the bar must carry its meaning, not just its line.
+    expect(
+      find.bySemanticsLabel(RegExp(r'^Scale bar, \d+ m$')),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('no compass is drawn when the device reports no heading', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpMap(tester);
+
+    // Widget tests have no magnetometer, so the compass must stay hidden: a
+    // rose that pretends to point north is worse than none.
+    expect(find.bySemanticsLabel(RegExp(r'^Compass')), findsNothing);
+    semantics.dispose();
+  });
 }

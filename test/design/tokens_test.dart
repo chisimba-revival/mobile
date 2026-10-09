@@ -25,6 +25,11 @@ void main() {
       expect(FieldColours.dark.blood, const Color(0xFFA8452F));
     });
 
+    test('map topology colours', () {
+      expect(FieldColours.dark.water, const Color(0xFF2A4A56));
+      expect(FieldColours.dark.drainage, const Color(0xFF2C4A55));
+    });
+
     test('rule is bone at nine, sixteen and thirty per cent', () {
       // Recomputed rather than hardcoded, so the test states the rule and not
       // just the number it happened to produce. Colour channels are doubles in
@@ -106,6 +111,8 @@ void main() {
       expect(FieldColours.sunlight.straw, FieldColours.dark.straw);
       expect(FieldColours.sunlight.moss, FieldColours.dark.moss);
       expect(FieldColours.sunlight.blood, FieldColours.dark.blood);
+      expect(FieldColours.sunlight.water, FieldColours.dark.water);
+      expect(FieldColours.sunlight.drainage, FieldColours.dark.drainage);
     });
 
     test('inkOn picks the measurably better of the two inks', () {
@@ -188,7 +195,10 @@ void main() {
         FieldColours.dark,
         FieldColours.sunlight,
       ]) {
-        final onDust = FieldColours.contrastWith(colours.inkOn(colours.dust), colours.dust);
+        final onDust = FieldColours.contrastWith(
+          colours.inkOn(colours.dust),
+          colours.dust,
+        );
         expect(onDust, greaterThanOrEqualTo(3.0));
         expect(onDust, lessThan(4.5));
       }

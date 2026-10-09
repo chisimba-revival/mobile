@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:field_log/data/database.dart' show PlannedRoute, RouteWaypoint;
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/osm_tiles.dart';
@@ -6,6 +10,7 @@ import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/pin_visual.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_map/flutter_map.dart';
 // flutter_map's barrel does not re-export this, though its own source uses it.
 import 'package:latlong2/latlong.dart';
@@ -159,9 +164,25 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
+  final MapController _mapController = MapController();
+
   LatLng? _ghostPin;
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
+
+  /// Device heading in degrees clockwise from north, or null when the device
+  /// has no magnetometer or has not reported yet.
+  double? _heading;
+
+  /// The map camera, mirrored into state so the scale bar can redraw. The map
+  /// owns these values; this is only a read-only copy for the chrome.
+  double _zoom = 14;
+  LatLng _center = reserveCentre;
+
+  /// Whether the map legend is on screen.
+  bool _showLegend = false;
+
+  StreamSubscription<CompassEvent>? _compassSub;
 
   @override
   void initState() {
@@ -173,12 +194,46 @@ class _MapScreenState extends State<MapScreen>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // A device with no compass reports a null stream; a device that has one and
+    // then errors must not take the map down, so the errors are swallowed and
+    // the compass simply stays hidden.
+    final compass = FlutterCompass.events;
+    if (compass != null) {
+      _compassSub = compass.listen((event) {
+        if (!mounted) return;
+        final heading = event.heading;
+        if (heading == null) return;
+        setState(() => _heading = heading);
+      }, onError: (_) {});
+    }
   }
 
   @override
   void dispose() {
+    _compassSub?.cancel();
+    _mapController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  /// Mirrors the camera into state, but only after the frame, so a position
+  /// change arriving mid-build cannot trigger a build during build.
+  void _onCameraChanged(MapCamera camera) {
+    final zoom = camera.zoom;
+    final center = camera.center;
+    if (_zoom == zoom && _center == center) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _zoom = zoom;
+        _center = center;
+      });
+    });
+  }
+
+  void _resetNorth() {
+    _mapController.rotate(0);
   }
 
   void _showGhostPin(LatLng point) {
@@ -211,6 +266,7 @@ class _MapScreenState extends State<MapScreen>
       body: Stack(
         children: [
           FlutterMap(
+            mapController: _mapController,
             options: MapOptions(
               // The default is a light grey, which would flash through every
               // tile the cache cannot supply. The inset colour is what the
@@ -221,6 +277,8 @@ class _MapScreenState extends State<MapScreen>
               initialZoom: 14,
               minZoom: 8,
               maxZoom: 18,
+              onPositionChanged: (camera, hasGesture) =>
+                  _onCameraChanged(camera),
               onTap: widget.onMapTap == null
                   ? null
                   : (tapPosition, point) => widget.onMapTap!(point),
@@ -288,11 +346,28 @@ class _MapScreenState extends State<MapScreen>
             signedInAs: widget.signedInAs,
             onTapSignedInAs: widget.onTapSignedInAs,
             onOpenSettings: widget.onOpenSettings,
+            legendOpen: _showLegend,
+            onToggleLegend: () => setState(() => _showLegend = !_showLegend),
           ),
           _GpsBar(
             gps: widget.gps,
             colours: widget.colours,
             online: widget.online,
+          ),
+          // The compass is only shown when the device has reported a heading:
+          // a compass rose that always points north is a decoration, not a
+          // bearing.
+          if (_showLegend) _Legend(colours: widget.colours),
+          if (_heading != null)
+            _Compass(
+              colours: widget.colours,
+              heading: _heading!,
+              onTap: _resetNorth,
+            ),
+          _ScaleBar(
+            colours: widget.colours,
+            zoom: _zoom,
+            latitude: _center.latitude,
           ),
           _Dock(
             colours: widget.colours,
@@ -454,11 +529,15 @@ class _AppBar extends StatelessWidget {
     required this.signedInAs,
     required this.onTapSignedInAs,
     required this.onOpenSettings,
+    required this.legendOpen,
+    required this.onToggleLegend,
   });
 
   final String? signedInAs;
   final VoidCallback? onTapSignedInAs;
   final VoidCallback? onOpenSettings;
+  final bool legendOpen;
+  final VoidCallback onToggleLegend;
 
   final FieldColours colours;
   final TextTheme text;
@@ -504,6 +583,16 @@ class _AppBar extends StatelessWidget {
                 onTap: onTapSignedInAs,
               ),
             _NetworkChip(online: online, colours: colours),
+            IconButton(
+              onPressed: onToggleLegend,
+              icon: Icon(
+                legendOpen ? Icons.layers_clear : Icons.layers,
+                color: legendOpen ? colours.straw : colours.ash1,
+              ),
+              tooltip: 'Legend',
+              padding: const EdgeInsets.all(Insets.xs),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            ),
             if (onOpenSettings != null)
               IconButton(
                 onPressed: onOpenSettings,
@@ -906,3 +995,269 @@ class _GhostButton extends StatelessWidget {
 
 /// Latitude and longitude for a sighting, used when placing a pin.
 ///
+
+/// A small compass rose that shows which way the device is pointing.
+///
+/// The needle rotates against the device heading so that the straw north half
+/// always points to true north on screen. Tapping it puts the map back to
+/// north-up, which is the one thing a turned map makes hard to do by eye.
+class _Compass extends StatelessWidget {
+  const _Compass({
+    required this.colours,
+    required this.heading,
+    required this.onTap,
+  });
+
+  final FieldColours colours;
+
+  /// Degrees clockwise from north.
+  final double heading;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 44.0;
+    return Positioned(
+      top: Insets.huge + Insets.xl + size,
+      right: Insets.md,
+      child: Semantics(
+        button: true,
+        label:
+            'Compass, bearing ${heading.round()} degrees. Tap to reset north.',
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: colours.canopyRaised.withValues(alpha: 0.92),
+              shape: BoxShape.circle,
+              border: Border.all(color: colours.ruleStrong),
+            ),
+            child: Transform.rotate(
+              angle: -heading * math.pi / 180,
+              child: CustomPaint(
+                painter: _CompassNeedlePainter(colours: colours),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompassNeedlePainter extends CustomPainter {
+  const _CompassNeedlePainter({required this.colours});
+
+  final FieldColours colours;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centre = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2 - 10;
+    final north = ui.Path()
+      ..moveTo(centre.dx, centre.dy - radius)
+      ..lineTo(centre.dx - 5, centre.dy)
+      ..lineTo(centre.dx + 5, centre.dy)
+      ..close();
+    final south = ui.Path()
+      ..moveTo(centre.dx, centre.dy + radius)
+      ..lineTo(centre.dx - 5, centre.dy)
+      ..lineTo(centre.dx + 5, centre.dy)
+      ..close();
+    canvas.drawPath(north, Paint()..color = colours.straw);
+    canvas.drawPath(south, Paint()..color = colours.ash1);
+  }
+
+  @override
+  bool shouldRepaint(_CompassNeedlePainter oldDelegate) =>
+      oldDelegate.colours != colours;
+}
+
+/// A scale bar, so distance on the map can be read without guessing.
+///
+/// The metres-per-pixel comes from the Web Mercator zoom, adjusted for
+/// latitude. The bar is a round distance (1, 2 or 5 times a power of ten) so
+/// the label is a number a person can hold in their head.
+class _ScaleBar extends StatelessWidget {
+  const _ScaleBar({
+    required this.colours,
+    required this.zoom,
+    required this.latitude,
+  });
+
+  final FieldColours colours;
+  final double zoom;
+  final double latitude;
+
+  /// The largest round distance no bigger than [raw].
+  static double _niceMetres(double raw) {
+    if (raw <= 0) return 1;
+    final exponent = (math.log(raw) / math.ln10).floor();
+    final magnitude = math.pow(10, exponent).toDouble();
+    for (final step in const [5.0, 2.0, 1.0]) {
+      final candidate = step * magnitude;
+      if (candidate <= raw) return candidate;
+    }
+    return magnitude;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final metresPerPixel =
+        156543.03392 * math.cos(latitude * math.pi / 180) / math.pow(2, zoom);
+    final metres = _niceMetres(metresPerPixel * 90);
+    final width = (metres / metresPerPixel).clamp(24.0, 160.0).toDouble();
+    final label = metres >= 1000
+        ? '${(metres / 1000).toStringAsFixed(metres % 1000 == 0 ? 0 : 1)} km'
+        : '${metres.round()} m';
+    return Positioned(
+      left: Insets.md,
+      bottom: 200,
+      child: Semantics(
+        label: 'Scale bar, $label',
+        excludeSemantics: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.stamp,
+                color: colours.bone,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Container(
+              width: width,
+              height: 6,
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: colours.bone, width: 2),
+                  right: BorderSide(color: colours.bone, width: 2),
+                  bottom: BorderSide(color: colours.bone, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// What the symbols on the map mean.
+///
+/// Every swatch is drawn from the same token the map itself paints with, so
+/// the legend cannot drift from the ground it explains.
+class _Legend extends StatelessWidget {
+  const _Legend({required this.colours});
+
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: Insets.huge + Insets.xl + Insets.lg,
+      left: Insets.md,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 220),
+        padding: const EdgeInsets.all(Insets.md),
+        decoration: BoxDecoration(
+          color: colours.canopyRaised.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(Corners.sheet),
+          border: Border.all(color: colours.rule),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Legend',
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.cardTitle,
+                color: colours.bone,
+              ),
+            ),
+            const SizedBox(height: Insets.sm),
+            _LegendRow(
+              colours: colours,
+              label: 'Sighting',
+              swatch: _swatch(colours.dust, colours.ruleStrong),
+            ),
+            _LegendRow(
+              colours: colours,
+              label: 'Water',
+              swatch: _swatch(colours.water, colours.ruleStrong),
+            ),
+            _LegendRow(
+              colours: colours,
+              label: 'Drainage',
+              swatch: _swatch(colours.drainage, colours.ruleStrong),
+            ),
+            _LegendRow(
+              colours: colours,
+              label: 'Scrub',
+              swatch: _swatch(colours.moss, colours.ruleStrong),
+            ),
+            _LegendRow(
+              colours: colours,
+              label: 'Contour',
+              swatch: _swatch(colours.rule, colours.ruleStrong, filled: false),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _swatch(Color fill, Color border, {bool filled = true}) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: filled ? fill : null,
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(Corners.chip),
+      ),
+    );
+  }
+}
+
+class _LegendRow extends StatelessWidget {
+  const _LegendRow({
+    required this.colours,
+    required this.label,
+    required this.swatch,
+  });
+
+  final FieldColours colours;
+  final String label;
+  final Widget swatch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          swatch,
+          const SizedBox(width: Insets.sm),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.stamp,
+              color: colours.ash1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

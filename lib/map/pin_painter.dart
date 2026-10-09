@@ -308,6 +308,21 @@ class ReserveVectorPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final centre = Offset(size.width / 2, size.height / 2);
 
+    // Scrub: soft patches under everything else, distinct from the acacia
+    // green so the ground reads as cover rather than a flat field.
+    for (var i = 0; i < 4; i++) {
+      final sign = i.isEven ? 1.0 : -1.0;
+      canvas.drawCircle(
+        Offset(
+          centre.dx + sign * size.width * (0.10 + 0.05 * i),
+          centre.dy - size.height * (0.05 + 0.05 * i),
+        ),
+        size.shortestSide * 0.035,
+        Paint()..color = colours.moss.withValues(alpha: 0.14),
+      );
+    }
+
+    // Contours, drawn as nested offsets from the centre.
     for (var i = _contours; i >= 1; i--) {
       final radius = size.shortestSide * 0.07 * i;
       final major = i.isEven;
@@ -320,19 +335,58 @@ class ReserveVectorPainter extends CustomPainter {
       );
     }
 
-    // The waterhole. A map without water is not a map of a reserve.
+    // The waterhole. A map without water is not a map of a reserve. The
+    // drainage runs into it, so the water is where the ground points.
+    final waterhole = Offset(
+      centre.dx - size.width * 0.12,
+      centre.dy + size.height * 0.08,
+    );
+    _drawDrainage(canvas, waterhole, size);
     canvas.drawCircle(
-      Offset(centre.dx - size.width * 0.12, centre.dy + size.height * 0.08),
+      waterhole,
       size.shortestSide * 0.055,
-      Paint()..color = colours.canopyOverlay,
+      Paint()..color = colours.water,
     );
     canvas.drawCircle(
-      Offset(centre.dx - size.width * 0.12, centre.dy + size.height * 0.08),
+      waterhole,
       size.shortestSide * 0.055,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
         ..color = colours.ruleStrong,
+    );
+  }
+
+  /// A stream reaching the waterhole, wobbled deterministically so it does not
+  /// shimmer as the map pans.
+  void _drawDrainage(Canvas canvas, Offset mouth, Size size) {
+    final start = Offset(
+      mouth.dx + size.width * 0.22,
+      mouth.dy - size.height * 0.26,
+    );
+    final path = Path();
+    const steps = 24;
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final wobble =
+          _sin(t * 2 * 3.141592653589793 * 1.5) * size.shortestSide * 0.012;
+      final point = Offset(
+        start.dx + (mouth.dx - start.dx) * t + wobble,
+        start.dy + (mouth.dy - start.dy) * t,
+      );
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = colours.drainage,
     );
   }
 

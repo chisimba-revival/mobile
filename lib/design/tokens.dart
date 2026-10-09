@@ -55,6 +55,8 @@ class FieldColours extends ThemeExtension<FieldColours> {
     required this.straw,
     required this.moss,
     required this.blood,
+    required this.water,
+    required this.drainage,
     required this.ruleFaint,
     required this.rule,
     required this.ruleStrong,
@@ -103,6 +105,12 @@ class FieldColours extends ThemeExtension<FieldColours> {
 
   /// Rejected.
   final Color blood;
+
+  /// Water features on the map.
+  final Color water;
+
+  /// Drainage lines on the map.
+  final Color drainage;
 
   /// Border progression, three steps: faint, default, strong.
   final Color ruleFaint;
@@ -176,6 +184,8 @@ class FieldColours extends ThemeExtension<FieldColours> {
     straw: Color(0xFFC9A227),
     moss: Color(0xFF6E9B72),
     blood: Color(0xFFA8452F),
+    water: Color(0xFF2A4A56),
+    drainage: Color(0xFF2C4A55),
     // rule is bone at 9, 16 and 30 per cent over the base surface.
     ruleFaint: Color(0xFF24302A),
     rule: Color(0xFF343E37),
@@ -203,6 +213,8 @@ class FieldColours extends ThemeExtension<FieldColours> {
     straw: Color(0xFFC9A227),
     moss: Color(0xFF6E9B72),
     blood: Color(0xFFA8452F),
+    water: Color(0xFF2A4A56),
+    drainage: Color(0xFF2C4A55),
     // canopy over bone at 12, 20 and 30 per cent.
     ruleFaint: Color(0xFFCFCBC0),
     rule: Color(0xFFBEBCB1),
@@ -225,6 +237,8 @@ class FieldColours extends ThemeExtension<FieldColours> {
     Color? straw,
     Color? moss,
     Color? blood,
+    Color? water,
+    Color? drainage,
     Color? ruleFaint,
     Color? rule,
     Color? ruleStrong,
@@ -245,6 +259,8 @@ class FieldColours extends ThemeExtension<FieldColours> {
       straw: straw ?? this.straw,
       moss: moss ?? this.moss,
       blood: blood ?? this.blood,
+      water: water ?? this.water,
+      drainage: drainage ?? this.drainage,
       ruleFaint: ruleFaint ?? this.ruleFaint,
       rule: rule ?? this.rule,
       ruleStrong: ruleStrong ?? this.ruleStrong,
@@ -272,6 +288,8 @@ class FieldColours extends ThemeExtension<FieldColours> {
       straw: Color.lerp(straw, other.straw, t)!,
       moss: Color.lerp(moss, other.moss, t)!,
       blood: Color.lerp(blood, other.blood, t)!,
+      water: Color.lerp(water, other.water, t)!,
+      drainage: Color.lerp(drainage, other.drainage, t)!,
       ruleFaint: Color.lerp(ruleFaint, other.ruleFaint, t)!,
       rule: Color.lerp(rule, other.rule, t)!,
       ruleStrong: Color.lerp(ruleStrong, other.ruleStrong, t)!,
