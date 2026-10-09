@@ -27,7 +27,7 @@ void main() {
 
     test('map topology colours', () {
       expect(FieldColours.dark.water, const Color(0xFF2A4A56));
-      expect(FieldColours.dark.drainage, const Color(0xFF2C4A55));
+      expect(FieldColours.dark.drainage, const Color(0xFF4E94A8));
     });
 
     test('rule is bone at nine, sixteen and thirty per cent', () {

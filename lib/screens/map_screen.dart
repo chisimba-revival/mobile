@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:field_log/data/database.dart' show PlannedRoute, RouteWaypoint;
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/osm_tiles.dart';
+import 'package:field_log/map/maptiler_tiles.dart';
 import 'package:field_log/map/route_layer.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_painter.dart';
@@ -301,9 +302,12 @@ class _MapScreenState extends State<MapScreen>
                   : (tapPosition, point) => _showGhostPin(point),
             ),
             children: [
-              // Mobile layers, so they move and rotate with the map.
-              _VectorLayer(colours: widget.colours),
+              // Mobile layers, so they move and rotate with the map. The tile
+              // basemap paints first and the reserve's own features on top of
+              // it: the legend explains features that are actually on the
+              // ground, not ones hidden under a loaded tile.
               _TileLayer(cache: widget.tileCache, online: widget.online),
+              _VectorLayer(colours: widget.colours),
               // Planned route layer (if available)
               if (widget.route != null &&
                   widget.routeWaypoints != null &&
@@ -388,6 +392,12 @@ class _MapScreenState extends State<MapScreen>
             onZoomIn: () => _zoomBy(1),
             onZoomOut: () => _zoomBy(-1),
           ),
+          _Attribution(
+            text: maptilerEnabled
+                ? maptilerAttribution
+                : OsmTileProvider.attribution,
+            colours: widget.colours,
+          ),
           _Dock(
             colours: widget.colours,
             text: text,
@@ -436,18 +446,68 @@ class _TileLayer extends StatelessWidget {
       // rather than a degraded one: the vector layer alone is still a map.
       return const SizedBox.shrink();
     }
-    return TileLayer(
-      tileProvider: OsmTileProvider(cache: cache, online: () => online),
+    // The basemap is remote raster imagery. MapTiler's light, clean tiles are
+    // the deliberate "proper map" look and go on un-muted; the OSM fallback is
+    // dimmed (see _mute below) so the reserve's own symbols still read over a
+    // busy light basemap. The filter wraps the layer itself, so it applies only
+    // to tiles, never to the vector features that paint above them.
+    final tiles = TileLayer(
+      tileProvider: OsmTileProvider(
+        cache: cache,
+        online: () => online,
+        template: maptilerEnabled
+            ? maptilerUrlTemplate()
+            : OsmTileProvider.defaultUrlTemplate,
+      ),
       // Buffering tiles beyond the viewport means a small pan does not
       // immediately need tiles that have never been fetched.
       keepBuffer: 4,
       panBuffer: 2,
       // No errorTileCallback is needed: a tile that cannot be fetched resolves
-      // to a transparent image, so the reserve's own contours show through.
-      // That is what "degrade to vectors" means in practice, and it is why the
-      // vector layer sits underneath rather than being swapped in.
+      // to a transparent image, so the map stays usable with nothing more than
+      // the reserve's own features. That is what "degrade to vectors" means in
+      // practice, and it is why the vector layer needs no handling when the
+      // tile source goes away.
     );
+    return maptilerEnabled
+        ? tiles
+        : ColorFiltered(colorFilter: _mute, child: tiles);
   }
+
+  /// The tile basemap is remote raster imagery rendered by OSM, so no local
+  /// token can ever restyle it. This filter mutates the view instead: each
+  /// channel is pulled 70% toward its luminance (desaturation) and the result
+  /// is darkened to 62%, which puts the comparatively bright reserve symbols
+  /// on a quiet, dark ground instead of a busy light one. The on-disk cache
+  /// is untouched; a cache hit always returns the original tiles.
+  ///
+  /// Matrix math: luminance is Rec.709 (0.2126R + 0.7152G + 0.0722B).
+  ///   C' = 0.62 * (0.30 * C + 0.70 * L)
+  /// R row: 0.62*(0.30 + 0.70*0.2126) = 0.2783 (R coefficient)
+  ///         0.62*0.70*0.7152        = 0.3104 (G coefficient)
+  ///         0.62*0.70*0.0722        = 0.0313 (B coefficient)
+  static const ColorFilter _mute = ColorFilter.matrix(<double>[
+    0.2783,
+    0.3104,
+    0.0313,
+    0,
+    0,
+    0.2783,
+    0.3104,
+    0.0313,
+    0,
+    0,
+    0.2783,
+    0.3104,
+    0.0313,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
 }
 
 class _Pin extends StatelessWidget {
@@ -1221,9 +1281,49 @@ class _ZoomButtons extends StatelessWidget {
   }
 }
 
+/// The tile licence, shown because both OpenStreetMap and MapTiler make it a
+/// condition of using their imagery rather than a courtesy. It sits just above
+/// the dock, clear of the scale bar (left) and the zoom control (right).
+class _Attribution extends StatelessWidget {
+  const _Attribution({required this.text, required this.colours});
+
+  final String text;
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 192,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: colours.canopyRaised.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(Corners.chip),
+            ),
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colours.ash1,
+                fontSize: 10,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// What the symbols on the map mean.
 ///
-/// Every swatch is drawn from the same token the map itself paints with, so
+/// Every glyph is drawn from the same token the map itself paints with, so
 /// the legend cannot drift from the ground it explains.
 class _Legend extends StatelessWidget {
   const _Legend({required this.colours});
@@ -1243,7 +1343,14 @@ class _Legend extends StatelessWidget {
         decoration: BoxDecoration(
           color: colours.canopyRaised.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(Corners.sheet),
-          border: Border.all(color: colours.rule),
+          border: Border.all(color: colours.ruleStrong),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1261,57 +1368,224 @@ class _Legend extends StatelessWidget {
             _LegendRow(
               colours: colours,
               label: 'Sighting',
-              swatch: _swatch(colours.dust, colours.ruleStrong),
+              glyph: _LegendGlyph(
+                kind: _LegendGlyphKind.sighting,
+                colours: colours,
+              ),
             ),
             _LegendRow(
               colours: colours,
               label: 'Water',
-              swatch: _swatch(colours.water, colours.ruleStrong),
+              glyph: _LegendGlyph(
+                kind: _LegendGlyphKind.water,
+                colours: colours,
+              ),
             ),
             _LegendRow(
               colours: colours,
               label: 'Drainage',
-              swatch: _swatch(colours.drainage, colours.ruleStrong),
+              glyph: _LegendGlyph(
+                kind: _LegendGlyphKind.drainage,
+                colours: colours,
+              ),
             ),
             _LegendRow(
               colours: colours,
               label: 'Scrub',
-              swatch: _swatch(colours.moss, colours.ruleStrong),
+              glyph: _LegendGlyph(
+                kind: _LegendGlyphKind.scrub,
+                colours: colours,
+              ),
             ),
             _LegendRow(
               colours: colours,
               label: 'Contour',
-              swatch: _swatch(colours.rule, colours.ruleStrong, filled: false),
+              glyph: _LegendGlyph(
+                kind: _LegendGlyphKind.contour,
+                colours: colours,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  static Widget _swatch(Color fill, Color border, {bool filled = true}) {
+/// The symbols on the map, drawn as small glyphs with the same tokens the map
+/// paints with, so the legend cannot drift from the ground it explains. Each
+/// sits on a light chip so it reads against the dark panel and the tiles
+/// beyond it.
+enum _LegendGlyphKind { sighting, water, drainage, scrub, contour }
+
+class _LegendGlyph extends StatelessWidget {
+  const _LegendGlyph({required this.kind, required this.colours});
+
+  final _LegendGlyphKind kind;
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: 16,
-      height: 16,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
-        color: filled ? fill : null,
-        border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(Corners.chip),
+        color: colours.bone,
+        borderRadius: BorderRadius.circular(Corners.control),
+        border: Border.all(color: colours.ruleStrong),
+      ),
+      child: SizedBox(
+        width: 26,
+        height: 26,
+        child: CustomPaint(
+          painter: _LegendGlyphPainter(kind: kind, colours: colours),
+        ),
       ),
     );
   }
+}
+
+class _LegendGlyphPainter extends CustomPainter {
+  const _LegendGlyphPainter({required this.kind, required this.colours});
+
+  final _LegendGlyphKind kind;
+  final FieldColours colours;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centre = size.center(Offset.zero);
+    final s = size.shortestSide;
+    switch (kind) {
+      case _LegendGlyphKind.sighting:
+        canvas.drawCircle(
+          centre,
+          s * 0.30,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = colours.ruleStrong,
+        );
+        canvas.drawCircle(centre, s * 0.18, Paint()..color = colours.dust);
+      case _LegendGlyphKind.water:
+        canvas.drawCircle(
+          centre,
+          s * 0.32,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.4
+            ..color = colours.ruleStrong,
+        );
+        canvas.drawCircle(
+          centre.translate(0, s * 0.03),
+          s * 0.18,
+          Paint()..color = colours.water,
+        );
+      case _LegendGlyphKind.drainage:
+        canvas.drawPath(
+          _wavyLine(Rect.fromLTWH(2, 9, 22, 10), amplitude: 3, cycles: 1.5),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0
+            ..strokeCap = StrokeCap.round
+            ..color = colours.drainage,
+        );
+      case _LegendGlyphKind.scrub:
+        const spots = [
+          Offset(0.26, 0.28),
+          Offset(0.68, 0.16),
+          Offset(0.52, 0.48),
+          Offset(0.22, 0.66),
+          Offset(0.72, 0.72),
+        ];
+        for (final spot in spots) {
+          canvas.drawCircle(
+            Offset(
+              centre.dx + (spot.dx - 0.5) * s,
+              centre.dy + (spot.dy - 0.5) * s,
+            ),
+            s * 0.085,
+            Paint()..color = colours.moss.withValues(alpha: 0.40),
+          );
+        }
+      case _LegendGlyphKind.contour:
+        canvas.drawPath(
+          _wavyRing(centre, s * 0.34, wobble: s * 0.06, steps: 24),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = colours.ruleStrong,
+        );
+        canvas.drawPath(
+          _wavyRing(centre, s * 0.20, wobble: s * 0.05, steps: 20),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0
+            ..color = colours.rule,
+        );
+    }
+  }
+
+  /// A gentle wave across a horizontal strip, mirroring the drainage stream
+  /// on the map.
+  ui.Path _wavyLine(
+    Rect bounds, {
+    required double amplitude,
+    required double cycles,
+  }) {
+    final path = ui.Path();
+    const steps = 20;
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final point = Offset(
+        bounds.left + bounds.width * t,
+        bounds.center.dy + math.sin(t * 2 * math.pi * cycles) * amplitude,
+      );
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    return path;
+  }
+
+  /// A closed wobbly loop, mirroring one contour band on the map.
+  ui.Path _wavyRing(
+    Offset centre,
+    double radius, {
+    required double wobble,
+    required int steps,
+  }) {
+    final path = ui.Path();
+    for (var i = 0; i < steps; i++) {
+      final angle = (i / steps) * 2 * math.pi;
+      final r = radius + math.sin(angle * 2) * wobble;
+      final point = centre + Offset(math.cos(angle) * r, math.sin(angle) * r);
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(_LegendGlyphPainter oldDelegate) =>
+      oldDelegate.kind != kind || oldDelegate.colours != colours;
 }
 
 class _LegendRow extends StatelessWidget {
   const _LegendRow({
     required this.colours,
     required this.label,
-    required this.swatch,
+    required this.glyph,
   });
 
   final FieldColours colours;
   final String label;
-  final Widget swatch;
+  final Widget glyph;
 
   @override
   Widget build(BuildContext context) {
@@ -1319,7 +1593,7 @@ class _LegendRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          swatch,
+          glyph,
           const SizedBox(width: Insets.sm),
           Text(
             label,

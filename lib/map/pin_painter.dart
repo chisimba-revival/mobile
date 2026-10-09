@@ -318,7 +318,7 @@ class ReserveVectorPainter extends CustomPainter {
           centre.dy - size.height * (0.05 + 0.05 * i),
         ),
         size.shortestSide * 0.035,
-        Paint()..color = colours.moss.withValues(alpha: 0.14),
+        Paint()..color = colours.moss.withValues(alpha: 0.40),
       );
     }
 
@@ -384,7 +384,7 @@ class ReserveVectorPainter extends CustomPainter {
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
+        ..strokeWidth = 2.0
         ..strokeCap = StrokeCap.round
         ..color = colours.drainage,
     );

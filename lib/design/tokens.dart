@@ -185,7 +185,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
     moss: Color(0xFF6E9B72),
     blood: Color(0xFFA8452F),
     water: Color(0xFF2A4A56),
-    drainage: Color(0xFF2C4A55),
+    drainage: Color(0xFF4E94A8),
     // rule is bone at 9, 16 and 30 per cent over the base surface.
     ruleFaint: Color(0xFF24302A),
     rule: Color(0xFF343E37),
@@ -214,7 +214,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
     moss: Color(0xFF6E9B72),
     blood: Color(0xFFA8452F),
     water: Color(0xFF2A4A56),
-    drainage: Color(0xFF2C4A55),
+    drainage: Color(0xFF4E94A8),
     // canopy over bone at 12, 20 and 30 per cent.
     ruleFaint: Color(0xFFCFCBC0),
     rule: Color(0xFFBEBCB1),

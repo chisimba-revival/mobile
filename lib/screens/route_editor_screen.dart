@@ -4,6 +4,7 @@ import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/map/osm_tiles.dart';
+import 'package:field_log/map/maptiler_tiles.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/net/chisimba_api.dart' as chisimba;
@@ -14,6 +15,60 @@ import 'package:uuid/uuid.dart';
 
 /// The reserve centre constant from map_screen.dart.
 const reserveCentre = LatLng(-1.2921, 36.8219);
+
+/// Mutes a remote raster basemap so the reserve's own features read over it.
+/// Same filter and rationale as `_TileLayer._mute` in map_screen.dart: each
+/// channel is pulled 70% toward its luminance (Rec.709) then darkened to 62%.
+/// Caches are untouched; only the view is changed.
+const ColorFilter _tileMute = ColorFilter.matrix(<double>[
+  0.2783,
+  0.3104,
+  0.0313,
+  0,
+  0,
+  0.2783,
+  0.3104,
+  0.0313,
+  0,
+  0,
+  0.2783,
+  0.3104,
+  0.0313,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+]);
+
+/// The route editor's tile layer, kept in step with the field map's: MapTiler
+/// light tiles when a key is compiled in, OpenStreetMap otherwise (dimmed so
+/// the route and the reserve's features read over it).
+class _RouteTiles extends StatelessWidget {
+  const _RouteTiles({required this.cache});
+
+  final TileCache cache;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiles = TileLayer(
+      tileProvider: OsmTileProvider(
+        cache: cache,
+        online: () => true,
+        template: maptilerEnabled
+            ? maptilerUrlTemplate()
+            : OsmTileProvider.defaultUrlTemplate,
+      ),
+      keepBuffer: 4,
+      panBuffer: 2,
+    );
+    return maptilerEnabled
+        ? tiles
+        : ColorFiltered(colorFilter: _tileMute, child: tiles);
+  }
+}
 
 /// Vector layer for the route editor (copied from map_screen.dart).
 class _VectorLayer extends StatelessWidget {
@@ -227,16 +282,14 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
               onLongPress: (tapPosition, point) => _addWaypoint(point),
             ),
             children: [
-              _VectorLayer(colours: colours),
+              // The tile basemap first, the reserve's own features on top of
+              // it, so this map reads the same as the field map. MapTiler's
+              // light tiles are the deliberate "proper map" look and go
+              // un-muted; the OSM fallback is dimmed (see _tileMute below) so
+              // the vector features (and the route being drawn) stand out.
               if (widget.tileCache != null)
-                TileLayer(
-                  tileProvider: OsmTileProvider(
-                    cache: widget.tileCache!,
-                    online: () => true,
-                  ),
-                  keepBuffer: 4,
-                  panBuffer: 2,
-                ),
+                _RouteTiles(cache: widget.tileCache!),
+              _VectorLayer(colours: colours),
               // Route layer
               if (_waypoints.length >= 2)
                 PolylineLayer(
@@ -309,6 +362,38 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
                 ],
               ),
             ],
+          ),
+          // Tile licence, as required by the tile sources.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 24,
+            child: IgnorePointer(
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colours.canopyRaised.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(Corners.chip),
+                  ),
+                  child: Text(
+                    maptilerEnabled
+                        ? maptilerAttribution
+                        : OsmTileProvider.attribution,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colours.ash1,
+                      fontSize: 10,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
           // Selected waypoint bottom sheet
           if (_selectedIndex != null)

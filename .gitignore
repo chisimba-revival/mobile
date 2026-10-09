@@ -50,3 +50,6 @@ app.*.map.json
 # Local field database
 field_log.sqlite
 *.sqlite
+
+# Developer-local MapTiler key (see lib/config/maptiler_key.example.dart)
+lib/config/maptiler_key.dart
