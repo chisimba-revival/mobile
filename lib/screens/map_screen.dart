@@ -1162,7 +1162,9 @@ class _Legend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: Insets.huge + Insets.xl + Insets.lg,
+      // One giant step below the app bar, level with the compass: the bar is
+      // not part of the map, and chrome must not sit on top of it.
+      top: Insets.huge + Insets.xl + Insets.giant,
       left: Insets.md,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 220),
