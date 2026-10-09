@@ -60,6 +60,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
     required this.ruleFaint,
     required this.rule,
     required this.ruleStrong,
+    required this.contour,
     required this.name,
     required this.brightness,
   });
@@ -116,6 +117,13 @@ class FieldColours extends ThemeExtension<FieldColours> {
   final Color ruleFaint;
   final Color rule;
   final Color ruleStrong;
+
+  /// Contour lines on the map.
+  ///
+  /// Stronger than any border: a contour must hold its own against a busy
+  /// basemap. In the dark palette it is ruleStrong re-stated; under sunlight
+  /// it is a pronounced warm grey-brown that beats the light tiles.
+  final Color contour;
 
   /// Which brightness this set describes. Carried so that a widget can choose
   /// an appropriate ink on an accent without a second lookup table.
@@ -190,6 +198,9 @@ class FieldColours extends ThemeExtension<FieldColours> {
     ruleFaint: Color(0xFF24302A),
     rule: Color(0xFF343E37),
     ruleStrong: Color(0xFF525952),
+    // A contour is ruleStrong re-stated: the same pale line that reads on this
+    // dark ground. The sunlight palette re-derives it for its own ground.
+    contour: Color(0xFF525952),
     brightness: Brightness.dark,
   );
 
@@ -219,6 +230,11 @@ class FieldColours extends ThemeExtension<FieldColours> {
     ruleFaint: Color(0xFFCFCBC0),
     rule: Color(0xFFBEBCB1),
     ruleStrong: Color(0xFFA8A89E),
+    // Under sunlight the ground is a light basemap, so the contour line must
+    // beat the tile rather than the painted ground: a warm grey-brown, clearly
+    // darker than the beige of a loaded basemap and distinct from the map's
+    // cyan and blue symbols.
+    contour: Color(0xFF6E6758),
     brightness: Brightness.light,
   );
 
@@ -242,6 +258,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
     Color? ruleFaint,
     Color? rule,
     Color? ruleStrong,
+    Color? contour,
     Brightness? brightness,
   }) {
     return FieldColours(
@@ -264,6 +281,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
       ruleFaint: ruleFaint ?? this.ruleFaint,
       rule: rule ?? this.rule,
       ruleStrong: ruleStrong ?? this.ruleStrong,
+      contour: contour ?? this.contour,
       brightness: brightness ?? this.brightness,
     );
   }
@@ -293,6 +311,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
       ruleFaint: Color.lerp(ruleFaint, other.ruleFaint, t)!,
       rule: Color.lerp(rule, other.rule, t)!,
       ruleStrong: Color.lerp(ruleStrong, other.ruleStrong, t)!,
+      contour: Color.lerp(contour, other.contour, t)!,
       brightness: t < 0.5 ? brightness : other.brightness,
     );
   }

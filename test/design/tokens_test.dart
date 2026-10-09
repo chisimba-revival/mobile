@@ -28,6 +28,11 @@ void main() {
     test('map topology colours', () {
       expect(FieldColours.dark.water, const Color(0xFF2A4A56));
       expect(FieldColours.dark.drainage, const Color(0xFF4E94A8));
+      // Contour was added in-session, not transcribed from the token table:
+      // dark re-states ruleStrong so the dark map is unchanged, sunlight
+      // re-derives a warm taupe that visibly beats a light basemap.
+      expect(FieldColours.dark.contour, const Color(0xFF525952));
+      expect(FieldColours.sunlight.contour, const Color(0xFF6E6758));
     });
 
     test('rule is bone at nine, sixteen and thirty per cent', () {

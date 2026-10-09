@@ -330,8 +330,12 @@ class ReserveVectorPainter extends CustomPainter {
         _contour(centre, radius, i),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = major ? 1.2 : 0.8
-          ..color = major ? colours.ruleStrong : colours.rule,
+          // Heavier than the design's default rules: a contour has to hold up
+          // against a busy basemap, not just against the painted ground.
+          ..strokeWidth = major ? 2.0 : 1.4
+          ..color = major
+              ? colours.contour
+              : colours.contour.withValues(alpha: 0.55),
       );
     }
 
@@ -352,8 +356,10 @@ class ReserveVectorPainter extends CustomPainter {
       size.shortestSide * 0.055,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = colours.ruleStrong,
+        // The same line family as the contours, so the waterhole ring holds
+        // up on a light basemap too.
+        ..strokeWidth = 1.6
+        ..color = colours.contour,
     );
   }
 
