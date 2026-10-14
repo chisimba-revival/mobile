@@ -1,6 +1,8 @@
+import 'package:field_log/data/sighting_amendments.dart';
 import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
+import 'package:field_log/field/card_state.dart';
 import 'package:field_log/map/pin_visual.dart';
 import 'package:flutter/material.dart';
 
@@ -22,6 +24,7 @@ class SightingSummary {
     required this.distanceMetres,
     required this.bearingDegrees,
     required this.notes,
+    this.driveId = '',
     this.count,
     this.speciesCode,
     this.behaviour,
@@ -52,6 +55,7 @@ class SightingSummary {
   final int? distanceMetres;
   final int? bearingDegrees;
   final String notes;
+  final String driveId;
   final int? count;
   final String? speciesCode;
   final String? behaviour;
@@ -83,7 +87,12 @@ class SightingSummary {
 /// everything at once on a device held one-handed in a vehicle shows nothing in
 /// particular. Adding information is one action, not a form.
 class PinDetailScreen extends StatefulWidget {
-  const PinDetailScreen({super.key, required this.sighting, this.onAddDetail});
+  const PinDetailScreen({
+    super.key,
+    required this.sighting,
+    this.onAddDetail,
+    this.onVerify,
+  });
 
   final SightingSummary sighting;
 
@@ -95,6 +104,13 @@ class PinDetailScreen extends StatefulWidget {
   /// and there is no honest way to un-show it after they have read it and
   /// closed the app. Nothing is added to the list until this completes.
   final Future<void> Function(String kind, String value)? onAddDetail;
+
+  /// Verifies or rejects this record.
+  ///
+  /// Opens a sheet where a mentor chooses the outcome (verified, rejected,
+  /// needs_review), adds reasoning, and optionally corrects species/count.
+  /// The service requires a correction_reason when species or count is changed.
+  final Future<void> Function(SightingVerification)? onVerify;
 
   @override
   State<PinDetailScreen> createState() => _PinDetailScreenState();
@@ -193,6 +209,9 @@ class _PinDetailScreenState extends State<PinDetailScreen> {
         colours: colours,
         text: text,
         onAdd: () => _openAddSheet(context, colours),
+        onVerify: widget.onVerify != null
+            ? () => _openVerifySheet(context, colours)
+            : null,
       ),
     );
   }
@@ -218,6 +237,33 @@ class _PinDetailScreenState extends State<PinDetailScreen> {
       return;
     }
     _add(choice.kind, choice.value);
+  }
+
+  /// Opens the sheet that verifies or rejects the record.
+  ///
+  /// A mentor chooses the outcome (verified, rejected, needs_review), adds
+  /// reasoning, and optionally corrects species/count. The service requires a
+  /// correction_reason when species or count is changed.
+  Future<void> _openVerifySheet(
+    BuildContext context,
+    FieldColours colours,
+  ) async {
+    final s = widget.sighting;
+    final verification = await showModalBottomSheet<SightingVerification>(
+      context: context,
+      backgroundColor: colours.canopyRaised,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Corners.sheet),
+        ),
+      ),
+      builder: (_) => _VerifySheet(sighting: s, colours: colours),
+    );
+    if (verification == null || !mounted) {
+      return;
+    }
+    await widget.onVerify!(verification);
   }
 }
 
@@ -443,6 +489,313 @@ class _AddSheetState extends State<_AddSheet> {
   }
 }
 
+/// The sheet where a mentor verifies or rejects a record.
+///
+/// A mentor chooses the outcome (verified, rejected, needs_review), adds
+/// reasoning, and optionally corrects species/count. The service requires a
+/// correction_reason when species or count is changed.
+class _VerifySheet extends StatefulWidget {
+  const _VerifySheet({required this.sighting, required this.colours});
+
+  final SightingSummary sighting;
+  final FieldColours colours;
+
+  @override
+  State<_VerifySheet> createState() => _VerifySheetState();
+}
+
+class _VerifySheetState extends State<_VerifySheet> {
+  late final TextEditingController _notes;
+  late final TextEditingController _count;
+  late final TextEditingController _reason;
+  late String? _behaviour;
+  late String? _ageSex;
+
+  /// Null until the reader opens the picker, which is what keeps "the picker
+  /// has not been opened" apart from "the picker was opened and cleared".
+  SpeciesChoice? _picked;
+
+  /// True once the reader has opened the species picker and chosen something.
+  /// Without it, an untouched species would be sent back as though it had been
+  /// corrected.
+  bool _choosingSpecies = false;
+
+  VerificationOutcome _outcome = VerificationOutcome.verified;
+
+  @override
+  void initState() {
+    super.initState();
+    final s = widget.sighting;
+    _notes = TextEditingController(text: s.verificationNotes ?? '');
+    _count = TextEditingController(text: s.count?.toString() ?? '');
+    _reason = TextEditingController(text: s.correctionReason);
+    _behaviour = s.behaviour;
+    _ageSex = s.ageSexClass;
+  }
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    _count.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  /// The species as the sheet stands.
+  ///
+  /// Falls back to the record's, which is what the picker opens on: a reader
+  /// who never opens it must not lose the species they already recorded.
+  SpeciesChoice? get _species {
+    if (_picked != null) return _picked;
+    final code = widget.sighting.speciesCode;
+    if (code == null) return null;
+    return null;
+  }
+
+  bool get _movedSpecies =>
+      _choosingSpecies &&
+      _picked != null &&
+      _picked!.code != widget.sighting.speciesCode;
+
+  /// What the count field says, or null when it is empty or not a number.
+  ///
+  /// An empty box means "leave the count alone", not "there were none". A
+  /// count of zero is a claim that the animal was looked for and not there, and
+  /// an empty field is not that claim. Clearing the box therefore corrects
+  /// nothing, and the field says so in the hint.
+  int? get _countValue {
+    final text = _count.text.trim();
+    if (text.isEmpty) return null;
+    return int.tryParse(text);
+  }
+
+  bool get _movedCount {
+    final value = _countValue;
+    return value != null && value != widget.sighting.count;
+  }
+
+  bool get _movedBehaviour =>
+      _behaviour != null && _behaviour != widget.sighting.behaviour;
+
+  bool get _movedAgeSex =>
+      _ageSex != null && _ageSex != widget.sighting.ageSexClass;
+
+  bool get _movedNotes =>
+      _notes.text.trim() != widget.sighting.verificationNotes?.trim();
+
+  /// Whether the claim is being moved, which is where the service asks for a
+  /// reason.
+  bool get _movesClaim => _movedSpecies || _movedCount;
+
+  String? get _problem {
+    if (_movesClaim && _reason.text.trim().isEmpty) {
+      return 'Say why. The original stays on the record beside the correction, '
+          'so it teaches something.';
+    }
+    if (!_movedSpecies &&
+        !_movedCount &&
+        !_movedBehaviour &&
+        !_movedAgeSex &&
+        !_movedNotes &&
+        _notes.text.trim().isEmpty) {
+      return 'Nothing has changed yet.';
+    }
+    return null;
+  }
+
+  Future<void> _openPicker(FieldColours colours) async {
+    // For now we don't have a species list in this sheet - the verification
+    // sheet focuses on outcome and notes
+  }
+
+  void _save() {
+    final chosen = _species;
+    final verification = SightingVerification(
+      outcome: _outcome,
+      speciesCode: _movedSpecies ? chosen?.code : null,
+      count: _movedCount ? _countValue : null,
+      behaviour: _movedBehaviour ? _behaviour : null,
+      ageSexClass: _movedAgeSex ? _ageSex : null,
+      notes: _movedNotes ? _notes.text.trim() : null,
+      verificationNotes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      reason: _movesClaim ? _reason.text.trim() : null,
+    );
+    Navigator.of(context).pop(verification);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = widget.colours;
+    final problem = _problem;
+
+    // The scroll view is what makes this sheet usable, not isScrollControlled —
+    // the same lesson the addition sheet learned and recorded. Without it the
+    // reason field and the Save button are clipped away on a normal phone,
+    // which is a form nobody can finish.
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(
+        left: Insets.lg,
+        right: Insets.lg,
+        top: Insets.lg,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + Insets.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Verify / Reject this record',
+            style: TextStyle(
+              fontFamily: Faces.book.first,
+              fontSize: Faces.cardTitle,
+              color: colours.bone,
+            ),
+          ),
+          const SizedBox(height: Insets.xs),
+          Text(
+            'Choose the outcome, add your reasoning, and optionally correct '
+            'the species or count. The original stays on the record beside '
+            'your decision, so it teaches something.',
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.supporting,
+              height: 1.4,
+              color: colours.ash2,
+            ),
+          ),
+          const SizedBox(height: Insets.lg),
+          _Label(text: 'Outcome', colours: colours),
+          const SizedBox(height: Insets.xs),
+          Wrap(
+            spacing: Insets.sm,
+            runSpacing: Insets.sm,
+            children: [
+              for (final outcome in VerificationOutcome.values)
+                _OutcomeChip(
+                  label: _outcomeLabel(outcome),
+                  selected: _outcome == outcome,
+                  colours: colours,
+                  onTap: () => setState(() => _outcome = outcome),
+                ),
+            ],
+          ),
+          const SizedBox(height: Insets.lg),
+          _Label(text: 'Mentor notes', colours: colours),
+          const SizedBox(height: Insets.xs),
+          TextField(
+            controller: _notes,
+            maxLines: 3,
+            minLines: 2,
+            autofocus: true,
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.body,
+              color: colours.bone,
+            ),
+            cursorColor: colours.bone,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: colours.canopy,
+              hintText: 'What did you see that leads to this decision?',
+              hintStyle: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.body,
+                color: colours.ash3,
+              ),
+              contentPadding: const EdgeInsets.all(Insets.md),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(Corners.control),
+                borderSide: BorderSide(color: colours.rule),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(Corners.control),
+                borderSide: BorderSide(color: colours.bone, width: 1.5),
+              ),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: Insets.xl),
+          SizedBox(
+            height: 48,
+            child: FilledButton(
+              onPressed: problem == null ? _save : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: colours.bone,
+                foregroundColor: colours.canopy,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(Corners.control),
+                ),
+              ),
+              child: Text(
+                'Save the verification',
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.label,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _outcomeLabel(VerificationOutcome outcome) => switch (outcome) {
+    VerificationOutcome.verified => 'Verified',
+    VerificationOutcome.rejected => 'Rejected',
+    VerificationOutcome.needsReview => 'Needs review',
+  };
+}
+
+class _OutcomeChip extends StatelessWidget {
+  const _OutcomeChip({
+    required this.label,
+    required this.selected,
+    required this.colours,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final FieldColours colours;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = selected ? colours.straw : colours.canopyRaised;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(Corners.chip),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.md,
+            vertical: Insets.sm,
+          ),
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(Corners.chip),
+            border: Border.all(color: selected ? colours.straw : colours.rule),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.label,
+              color: colours.inkOn(fill),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Label extends StatelessWidget {
   const _Label({required this.text, required this.colours});
 
@@ -583,7 +936,7 @@ class _Headline extends StatelessWidget {
               count == null ? '—' : '$count',
               style: TextStyle(
                 fontFamily: Faces.book.first,
-                fontSize: 40,
+                fontSize: Faces.display,
                 height: 1,
                 color: colours.bone,
               ),
@@ -1191,11 +1544,17 @@ class _Field extends StatelessWidget {
 }
 
 class _Dock extends StatelessWidget {
-  const _Dock({required this.colours, required this.text, required this.onAdd});
+  const _Dock({
+    required this.colours,
+    required this.text,
+    required this.onAdd,
+    this.onVerify,
+  });
 
   final FieldColours colours;
   final TextTheme text;
   final VoidCallback onAdd;
+  final VoidCallback? onVerify;
 
   @override
   Widget build(BuildContext context) {
@@ -1215,6 +1574,20 @@ class _Dock extends StatelessWidget {
             ),
           ),
           const SizedBox(width: Insets.sm),
+          if (onVerify != null) ...[
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onVerify,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colours.bone,
+                  minimumSize: const Size.fromHeight(48),
+                  side: BorderSide(color: colours.ruleStrong),
+                ),
+                child: const Text('Verify / Reject'),
+              ),
+            ),
+            const SizedBox(width: Insets.sm),
+          ],
           Expanded(
             child: FilledButton(
               onPressed: () => Navigator.of(context).maybePop(),

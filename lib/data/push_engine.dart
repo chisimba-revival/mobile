@@ -31,7 +31,9 @@ Map<String, dynamic> operationToWire(PendingOperation operation) {
     if (operation.baseRevision > 0) 'base_revision': operation.baseRevision,
     'captured_at': operation.capturedAt.toUtc().toIso8601String(),
     'recorded_at': operation.recordedAt.toUtc().toIso8601String(),
-    if (operation.dependsOn != null) 'depends_on': operation.dependsOn,
+    // The service expects depends_on as a list of operation ids. The local queue
+    // stores at most one prerequisite per operation, so we wrap it.
+    if (operation.dependsOn != null) 'depends_on': [operation.dependsOn],
     'payload': operation.payload,
   };
 }
@@ -145,7 +147,23 @@ class PushEngine {
     final sentIds = batch.map((operation) => operation.operationId).toList();
     await _queue.markInflight(sentIds);
 
-    final results = await send(batch);
+    // A send that throws has said nothing about any operation in the batch, so
+    // none of them can be settled or refused. They go back to pending here
+    // rather than being left inflight until a cold start, which is what kept a
+    // queue both stranded and invisible: the badge counted the rows because
+    // `pending()` reads anything unsettled, while the ledger and every later
+    // batch read only rows this method had left marked inflight.
+    //
+    // The caller still sees the failure — this rethrows — because a caller that
+    // knows the push failed may want to say so. The difference is that the
+    // queue is afterwards in a state it can act on.
+    final List<PushResult> results;
+    try {
+      results = await send(batch);
+    } catch (_) {
+      await _queue.returnToPending(sentIds);
+      rethrow;
+    }
     final byId = {for (final result in results) result.operationId: result};
 
     var applied = 0;
@@ -273,6 +291,25 @@ class PushEngine {
       // The row already carries this uuid in its serverId column — it was
       // minted there, and the service adopted it. Nothing local changes when
       // the service confirms what it already says.
+      case EntityKind.plannedRoute:
+        await (_db.update(
+          _db.plannedRoutes,
+        )..where((t) => t.localId.equals(operation.entityId))).write(
+          PlannedRoutesCompanion(
+            serverId: serverId,
+            revision: revisionValue,
+            hasPendingChanges: const Value(false),
+          ),
+        );
+      case EntityKind.routeWaypoint:
+        await (_db.update(_db.routeWaypoints)..where(
+              (t) =>
+                  t.routeId.equals(operation.entityId.split(':')[0]) &
+                  t.ordinal.equals(
+                    int.tryParse(operation.entityId.split(':')[1]) ?? 0,
+                  ),
+            ))
+            .write(RouteWaypointsCompanion(revision: revisionValue));
       case EntityKind.signOff:
       case EntityKind.media:
       case EntityKind.unknown:

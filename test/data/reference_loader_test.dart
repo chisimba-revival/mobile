@@ -24,16 +24,29 @@ class FakeApi extends ChisimbaApi {
     this.outings = const [],
     this.competencies = const [],
     this.fail = false,
+    this.failWith,
   }) : super(baseUrl: 'http://localhost');
 
   List<Species> species;
   List<Outing> outings;
   List<Competency> competencies;
   bool fail;
+
+  /// Asked before each call, so a test can refuse the first attempt and let
+  /// the retry through. That is the whole shape of the bug being tested.
+  Object? Function()? failWith;
   int calls = 0;
+
+  /// The token each call was made with, in order. A renewal that changes the
+  /// token mid-test has to be visible here.
+  final tokens = <String>[];
 
   void _hit() {
     calls++;
+    final thrown = failWith?.call();
+    if (thrown != null) {
+      throw thrown;
+    }
     if (fail) {
       throw const SocketException('network is down');
     }
@@ -41,6 +54,7 @@ class FakeApi extends ChisimbaApi {
 
   @override
   Future<SpeciesList> getSpecies(String accessToken) async {
+    tokens.add(accessToken);
     _hit();
     return SpeciesList(species: species);
   }
@@ -254,6 +268,181 @@ void main() {
       final snapshot = await loader.load();
       expect(snapshot.reference.behaviours, contains('grazing'));
       expect(snapshot.reference.ageSexClasses, contains('female'));
+    });
+  });
+
+  group('a stored access token that has lived its hour', () {
+    /// An access token minted two hours ago with the service's one-hour
+    /// lifetime, which is what a phone left open or asleep produces.
+    StoredTokens stale(String token) => StoredTokens(
+      accessToken: token,
+      refreshToken: 'refresh',
+      expiresInSeconds: 3600,
+      issuedAt: DateTime.now().subtract(const Duration(hours: 2)),
+    );
+
+    StoredTokens fresh(String token) => StoredTokens(
+      accessToken: token,
+      refreshToken: 'refresh',
+      expiresInSeconds: 3600,
+      issuedAt: DateTime.now(),
+    );
+
+    /// The refusal an expired access token earns, in the words the generic
+    /// fallback gives it — which is exactly what made this hard to read.
+    const refused = AuthFailure(
+      'Sign-in failed. Check the name and password and try again.',
+      statusCode: 401,
+    );
+
+    test('is renewed before the fetch rather than sent as it was', () async {
+      final api = FakeApi(species: [aSpecies('LION', 'Lion')]);
+      final sessions = SessionStore(file: File('${temp.path}/session.json'));
+      await sessions.write(stale('dead.token'));
+
+      var renewedWith = '';
+      final loader = ReferenceLoader(
+        database: db,
+        api: api,
+        sessions: sessions,
+        renewSession: (stored) async {
+          renewedWith = stored.accessToken;
+          return fresh('live.token');
+        },
+      );
+
+      final snapshot = await loader.load(forceRefresh: true);
+
+      expect(renewedWith, 'dead.token', reason: 'the dead one is exchanged');
+      expect(api.tokens, ['live.token'], reason: 'and never sent');
+      expect(snapshot.fromCache, isFalse);
+      expect(snapshot.refreshError, isNull);
+      expect(snapshot.species.single.code, 'LION');
+    });
+
+    test('a live token is not renewed for nothing', () async {
+      final api = FakeApi(species: [aSpecies('LION', 'Lion')]);
+      final sessions = SessionStore(file: File('${temp.path}/session.json'));
+      await sessions.write(fresh('live.token'));
+
+      var called = 0;
+      final loader = ReferenceLoader(
+        database: db,
+        api: api,
+        sessions: sessions,
+        renewSession: (stored) async {
+          called++;
+          return fresh('other.token');
+        },
+      );
+
+      await loader.load(forceRefresh: true);
+
+      expect(called, 0, reason: 'a token inside its hour is not stale');
+      expect(api.tokens, ['live.token']);
+    });
+
+    test(
+      'a refusal mid-flight is retried on a renewed token and succeeds',
+      () async {
+        final api = FakeApi(species: [aSpecies('LION', 'Lion')]);
+        final sessions = SessionStore(file: File('${temp.path}/session.json'));
+        await sessions.write(fresh('claimed.token'));
+
+        // The token claims to be inside its hour, but the service knows better:
+        // that is the hour running out between the check and the ask.
+        var attempts = 0;
+        api.failWith = () {
+          attempts++;
+          return attempts == 1 ? refused : null;
+        };
+
+        final loader = ReferenceLoader(
+          database: db,
+          api: api,
+          sessions: sessions,
+          renewSession: (stored) async => fresh('renewed.token'),
+        );
+
+        final snapshot = await loader.load(forceRefresh: true);
+
+        expect(api.tokens, [
+          'claimed.token',
+          'renewed.token',
+        ], reason: 'one refusal, then the same ask on a live credential');
+        expect(
+          snapshot.fromCache,
+          isFalse,
+          reason: 'the renewal is what makes the fetch work at all',
+        );
+        expect(snapshot.refreshError, isNull);
+        expect(snapshot.species.single.code, 'LION');
+      },
+    );
+
+    test('a token refused even after renewal still serves the cache', () async {
+      final api = FakeApi(species: [aSpecies('LION', 'Lion')]);
+      final sessions = SessionStore(file: File('${temp.path}/session.json'));
+      await sessions.write(stale('dead.token'));
+
+      final loader = ReferenceLoader(
+        database: db,
+        api: api,
+        sessions: sessions,
+        renewSession: (stored) async => fresh('renewed.token'),
+      );
+      await loader.load(); // seed the cache while the credential still works
+      api.failWith = () => refused;
+
+      final snapshot = await loader.load(forceRefresh: true);
+
+      expect(snapshot.fromCache, isTrue);
+      expect(snapshot.species.single.code, 'LION');
+      expect(
+        snapshot.refreshError,
+        'Your session expired — sign in again.',
+        reason: 'never a password the trainee never typed',
+      );
+    });
+
+    test('a refusal with no renewal offered still serves the cache', () async {
+      final api = FakeApi(species: [aSpecies('LION', 'Lion')]);
+      final sessions = SessionStore(file: File('${temp.path}/session.json'));
+      await sessions.write(stale('dead.token'));
+
+      final loader = ReferenceLoader(
+        database: db,
+        api: api,
+        sessions: sessions,
+      );
+      api.failWith = () => refused;
+
+      final snapshot = await loader.load(forceRefresh: true);
+
+      expect(api.tokens, ['dead.token'], reason: 'nobody renewed it');
+      expect(snapshot.fromCache, isTrue);
+      expect(snapshot.refreshError, 'Your session expired — sign in again.');
+    });
+
+    test('a plain network failure is reported as it came', () async {
+      final api = FakeApi(species: [aSpecies('LION', 'Lion')]);
+      final sessions = SessionStore(file: File('${temp.path}/session.json'));
+      await sessions.write(fresh('live.token'));
+
+      final loader = ReferenceLoader(
+        database: db,
+        api: api,
+        sessions: sessions,
+        renewSession: (stored) async => fresh('renewed.token'),
+      );
+      api.fail = true;
+
+      final snapshot = await loader.load(forceRefresh: true);
+
+      expect(api.tokens, [
+        'live.token',
+      ], reason: 'a dead link is not a credential problem, so nothing retries');
+      expect(snapshot.refreshError, contains('network is down'));
     });
   });
 }

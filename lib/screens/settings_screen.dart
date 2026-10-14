@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:field_log/data/database.dart' show PlannedRoute, RouteWaypoint;
+import 'package:field_log/design/components.dart';
 import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
@@ -8,6 +9,7 @@ import 'package:field_log/net/connectivity_watcher.dart';
 import 'package:field_log/net/server_address.dart';
 import 'package:field_log/net/chisimba_api.dart' as chisimba;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 
 /// What a reference load found: how many species are on the phone, and
@@ -43,8 +45,15 @@ class SettingsScreen extends StatefulWidget {
     this.onForceConnectivity,
     this.currentThemeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.currentThemeVariant = ThemeVariant.standard,
+    this.onThemeVariantChanged,
+    this.currentDensity = Density.comfortable,
+    this.onDensityChanged,
+    this.currentMapStylePreset = MapStylePreset.field,
+    this.onMapStylePresetChanged,
     this.onOpenRouteEditor,
     this.onLoadRoute,
+    this.routeOuting,
   });
 
   /// The server the client is currently pointed at, shown in the address
@@ -81,6 +90,24 @@ class SettingsScreen extends StatefulWidget {
   /// Called when the user selects a new theme mode.
   final void Function(ThemeMode)? onThemeModeChanged;
 
+  /// Current theme variant (Standard, High Contrast, Sepia).
+  final ThemeVariant currentThemeVariant;
+
+  /// Called when the user selects a new theme variant.
+  final void Function(ThemeVariant)? onThemeVariantChanged;
+
+  /// Current density setting.
+  final Density currentDensity;
+
+  /// Called when the user selects a new density.
+  final void Function(Density)? onDensityChanged;
+
+  /// Current map style preset.
+  final MapStylePreset currentMapStylePreset;
+
+  /// Called when the user selects a new map style preset.
+  final void Function(MapStylePreset)? onMapStylePresetChanged;
+
   /// Opens the route editor for the given outing.
   final Future<void> Function(
     chisimba.Outing outing,
@@ -90,9 +117,15 @@ class SettingsScreen extends StatefulWidget {
   onOpenRouteEditor;
 
   /// Loads the route and waypoints for the given outing.
-  final Future<({PlannedRoute? route, List<RouteWaypoint> waypoints})>
-  Function()?
+  final Future<({PlannedRoute? route, List<RouteWaypoint> waypoints})> Function(
+    String outingId,
+  )?
   onLoadRoute;
+
+  /// The outing whose route the editor would plan. Null when no walk or drive
+  /// has been started yet: a route belongs to an outing, so there is nothing
+  /// to attach one to until the operator begins one.
+  final chisimba.Outing? routeOuting;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -243,38 +276,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    // For now, we'll open the route editor for the first available outing.
-    // A full implementation would show a list of outings to choose from.
-    // This is a simplified version that uses a placeholder outing.
-    // In a full implementation, we'd fetch the list of outings from the API
-    // and let the user choose which one to plan a route for.
-    final placeholderOuting = chisimba.Outing(
-      id: 'placeholder',
-      kind: 'Trail walk',
-      contextCode: 'field:write',
-      guideId: '',
-      traineeIds: const [],
-      status: 'planned',
-      plannedStart: DateTime.now().toUtc().toIso8601String(),
-      endedAt: null,
-      sealedAt: null,
-      notes: null,
-      revision: 0,
-    );
+    // A route belongs to an outing, so there has to be one to plan for. Rather
+    // than invent a placeholder outing — which would file the route against an
+    // id nothing else knows — say plainly that a walk or drive comes first.
+    final outing = widget.routeOuting;
+    if (outing == null) {
+      if (!mounted) return;
+      showFieldSnackBar(
+        context: context,
+        message: 'Start a drive or walk first, then plan its route.',
+        type: FieldSnackBarType.warning,
+      );
+      return;
+    }
 
-    final result = await widget.onLoadRoute!();
+    final result = await widget.onLoadRoute!(outing.id);
     if (!mounted) return;
 
-    await widget.onOpenRouteEditor!(
-      placeholderOuting,
-      result.route,
-      result.waypoints,
-    );
+    await widget.onOpenRouteEditor!(outing, result.route, result.waypoints);
   }
 
   @override
   Widget build(BuildContext context) {
-    final colours = context.reserve;
+    final colours = context.colours;
 
     return FieldScaffold(
       eyebrow: 'Settings',
@@ -287,16 +311,254 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Insets.giant,
         ),
         children: [
-          _Section(
+          FieldSection(
             label: 'Appearance',
-            child: _ThemeSelector(
-              currentMode: widget.currentThemeMode,
-              onChanged: widget.onThemeModeChanged,
-              colours: colours,
-            ),
+            child: widget.onThemeModeChanged == null
+                ? Text(
+                    'Theme control unavailable.',
+                    style: TextStyle(
+                      fontFamily: Faces.ui.first,
+                      fontSize: Faces.supporting,
+                      color: colours.ash3,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Theme mode selector (Canopy/Sunlight/Auto)
+                      Wrap(
+                        spacing: Insets.sm,
+                        runSpacing: Insets.sm,
+                        children: [
+                          FieldChoiceChip(
+                            label: 'Canopy',
+                            subtitle: 'Dark',
+                            icon: const Icon(Icons.dark_mode),
+                            isSelected:
+                                widget.currentThemeMode == ThemeMode.dark,
+                            onSelected: (_) {},
+                            onTap: () {
+                              if (widget.currentThemeMode != ThemeMode.dark) {
+                                widget.onThemeModeChanged!(ThemeMode.dark);
+                              }
+                            },
+                          ),
+                          FieldChoiceChip(
+                            label: 'Sunlight',
+                            subtitle: 'Light',
+                            icon: const Icon(Icons.light_mode),
+                            isSelected:
+                                widget.currentThemeMode == ThemeMode.light,
+                            onSelected: (_) {},
+                            onTap: () {
+                              if (widget.currentThemeMode != ThemeMode.light) {
+                                widget.onThemeModeChanged!(ThemeMode.light);
+                              }
+                            },
+                          ),
+                          FieldChoiceChip(
+                            label: 'Auto',
+                            subtitle: 'System',
+                            icon: const Icon(Icons.settings_brightness),
+                            isSelected:
+                                widget.currentThemeMode == ThemeMode.system,
+                            onSelected: (_) {},
+                            onTap: () {
+                              if (widget.currentThemeMode != ThemeMode.system) {
+                                widget.onThemeModeChanged!(ThemeMode.system);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: Insets.lg),
+                      // Theme variant selector (Standard/High Contrast/Sepia)
+                      Text(
+                        'Theme variant',
+                        style: TextStyle(
+                          fontFamily: Faces.ui.first,
+                          fontSize: Faces.label,
+                          color: colours.ash2,
+                        ),
+                      ),
+                      const SizedBox(height: Insets.sm),
+                      Wrap(
+                        spacing: Insets.sm,
+                        runSpacing: Insets.sm,
+                        children: [
+                          FieldChoiceChip(
+                            label: 'Standard',
+                            subtitle: 'Default',
+                            icon: const Icon(Icons.palette_outlined),
+                            isSelected:
+                                widget.currentThemeVariant ==
+                                ThemeVariant.standard,
+                            onSelected: (_) {},
+                            onTap: () => widget.onThemeVariantChanged?.call(
+                              ThemeVariant.standard,
+                            ),
+                          ),
+                          FieldChoiceChip(
+                            label: 'High Contrast',
+                            subtitle: 'WCAG AAA',
+                            icon: const Icon(Icons.contrast_outlined),
+                            isSelected:
+                                widget.currentThemeVariant ==
+                                ThemeVariant.highContrast,
+                            onSelected: (_) {},
+                            onTap: () => widget.onThemeVariantChanged?.call(
+                              ThemeVariant.highContrast,
+                            ),
+                          ),
+                          FieldChoiceChip(
+                            label: 'Sepia',
+                            subtitle: 'Warm paper',
+                            icon: const Icon(Icons.wb_sunny_outlined),
+                            isSelected:
+                                widget.currentThemeVariant ==
+                                ThemeVariant.sepia,
+                            onSelected: (_) {},
+                            onTap: () => widget.onThemeVariantChanged?.call(
+                              ThemeVariant.sepia,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
           ),
-          const SizedBox(height: Insets.xl),
-          _Section(
+          FieldSection(
+            label: 'Density',
+            child: widget.onDensityChanged == null
+                ? Text(
+                    'Density control unavailable.',
+                    style: TextStyle(
+                      fontFamily: Faces.ui.first,
+                      fontSize: Faces.supporting,
+                      color: colours.ash3,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Adjust spacing and touch target size.',
+                        style: TextStyle(
+                          fontFamily: Faces.ui.first,
+                          fontSize: Faces.supporting,
+                          color: colours.ash2,
+                        ),
+                      ),
+                      const SizedBox(height: Insets.md),
+                      Wrap(
+                        spacing: Insets.sm,
+                        runSpacing: Insets.sm,
+                        children: [
+                          FieldChoiceChip(
+                            label: 'Compact',
+                            subtitle: 'More content',
+                            icon: const Icon(Icons.view_compact),
+                            isSelected:
+                                widget.currentDensity == Density.compact,
+                            onSelected: (_) {},
+                            onTap: () =>
+                                widget.onDensityChanged?.call(Density.compact),
+                          ),
+                          FieldChoiceChip(
+                            label: 'Comfortable',
+                            subtitle: 'Default',
+                            icon: const Icon(Icons.view_comfy),
+                            isSelected:
+                                widget.currentDensity == Density.comfortable,
+                            onSelected: (_) {},
+                            onTap: () => widget.onDensityChanged?.call(
+                              Density.comfortable,
+                            ),
+                          ),
+                          FieldChoiceChip(
+                            label: 'Spacious',
+                            subtitle: 'More breathing room',
+                            icon: const Icon(Icons.view_agenda),
+                            isSelected:
+                                widget.currentDensity == Density.spacious,
+                            onSelected: (_) {},
+                            onTap: () =>
+                                widget.onDensityChanged?.call(Density.spacious),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+          FieldSection(
+            label: 'Map style',
+            child: widget.onMapStylePresetChanged == null
+                ? Text(
+                    'Map style control unavailable.',
+                    style: TextStyle(
+                      fontFamily: Faces.ui.first,
+                      fontSize: Faces.supporting,
+                      color: colours.ash3,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Choose a preset for your field task.',
+                        style: TextStyle(
+                          fontFamily: Faces.ui.first,
+                          fontSize: Faces.supporting,
+                          color: colours.ash2,
+                        ),
+                      ),
+                      const SizedBox(height: Insets.md),
+                      Wrap(
+                        spacing: Insets.sm,
+                        runSpacing: Insets.sm,
+                        children: [
+                          FieldChoiceChip(
+                            label: 'Field',
+                            subtitle: 'Observations, species, accuracy',
+                            icon: const Icon(Icons.pets_outlined),
+                            isSelected:
+                                widget.currentMapStylePreset ==
+                                MapStylePreset.field,
+                            onSelected: (_) {},
+                            onTap: () => widget.onMapStylePresetChanged?.call(
+                              MapStylePreset.field,
+                            ),
+                          ),
+                          FieldChoiceChip(
+                            label: 'Navigation',
+                            subtitle: 'Routes, waypoints, bearing',
+                            icon: const Icon(Icons.navigation_outlined),
+                            isSelected:
+                                widget.currentMapStylePreset ==
+                                MapStylePreset.navigation,
+                            onSelected: (_) {},
+                            onTap: () => widget.onMapStylePresetChanged?.call(
+                              MapStylePreset.navigation,
+                            ),
+                          ),
+                          FieldChoiceChip(
+                            label: 'Survey',
+                            subtitle: 'Boundaries, transects, grid',
+                            icon: const Icon(Icons.grid_on_outlined),
+                            isSelected:
+                                widget.currentMapStylePreset ==
+                                MapStylePreset.survey,
+                            onSelected: (_) {},
+                            onTap: () => widget.onMapStylePresetChanged?.call(
+                              MapStylePreset.survey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+          FieldSection(
             label: 'Account',
             child: _signedInAs == null
                 ? Column(
@@ -307,9 +569,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: _body(colours),
                       ),
                       const SizedBox(height: Insets.md),
-                      _PrimaryButton(
+                      FieldPrimaryButton(
                         label: 'Sign in',
-                        colours: colours,
                         onPressed: widget.onSignIn == null
                             ? null
                             : () => unawaited(_signIn()),
@@ -321,9 +582,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       Text('Signed in as $_signedInAs.', style: _body(colours)),
                       const SizedBox(height: Insets.md),
-                      _OutlinedButton(
+                      FieldSecondaryButton(
                         label: 'Sign out',
-                        colours: colours,
                         onPressed: widget.onSignOut == null
                             ? null
                             : () => unawaited(_signOut()),
@@ -331,67 +591,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
           ),
-          const SizedBox(height: Insets.xl),
-          _Section(
+          FieldSection(
             label: 'Reserve office address',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
+                FieldFormField(
                   controller: _server,
-                  autocorrect: false,
+                  label: 'Reserve office address',
+                  hint: 'http://reserve.example:8080',
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: colours.inset,
-                    hintText: 'http://reserve.example:8080',
-                    hintStyle: TextStyle(
-                      fontFamily: Faces.ui.first,
-                      fontSize: Faces.body,
-                      color: colours.ash3,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(Corners.control),
-                      borderSide: BorderSide(color: colours.rule),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(Corners.control),
-                      borderSide: BorderSide(color: colours.rule),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(Corners.control),
-                      borderSide: BorderSide(color: colours.ruleStrong),
-                    ),
-                  ),
+                  autocorrect: false,
+                  errorText: _addressProblem,
+                  helperText: _addressSaved,
                 ),
-                if (_addressProblem != null) ...[
-                  const SizedBox(height: Insets.sm),
-                  Text(
-                    _addressProblem!,
-                    style: TextStyle(
-                      fontFamily: Faces.ui.first,
-                      fontSize: Faces.supporting,
-                      color: colours.straw,
-                    ),
-                  ),
-                ],
-                if (_addressSaved != null) ...[
-                  const SizedBox(height: Insets.sm),
-                  Text(
-                    _addressSaved!,
-                    style: TextStyle(
-                      fontFamily: Faces.ui.first,
-                      fontSize: Faces.supporting,
-                      color: colours.moss,
-                    ),
-                  ),
-                ],
                 const SizedBox(height: Insets.md),
-                _OutlinedButton(
+                FieldSecondaryButton(
                   label: 'Save address',
-                  colours: colours,
                   onPressed: widget.onSaveServer == null
                       ? null
                       : () => unawaited(_saveAddress()),
@@ -399,8 +616,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: Insets.xl),
-          _Section(
+          FieldSection(
             label: 'Outings',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,9 +627,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: _body(colours),
                 ),
                 const SizedBox(height: Insets.md),
-                _OutlinedButton(
+                FieldSecondaryButton(
                   label: 'Manage outings & routes',
-                  colours: colours,
                   onPressed: widget.onOpenRouteEditor == null
                       ? null
                       : () => unawaited(_openRouteEditor()),
@@ -421,8 +636,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: Insets.xl),
-          _Section(
+          FieldSection(
             label: 'Reference data',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,9 +664,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
                 const SizedBox(height: Insets.md),
-                _OutlinedButton(
+                FieldSecondaryButton(
                   label: _referenceBusy ? 'Refreshing…' : 'Refresh',
-                  colours: colours,
                   onPressed: widget.onLoadReference == null || _referenceBusy
                       ? null
                       : () => unawaited(_loadReference(forceRefresh: true)),
@@ -460,9 +673,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: Insets.xl),
           if (kDebugMode) ...[
-            _Section(
+            FieldSection(
               label: 'Dev tools',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,74 +686,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: _body(colours),
                   ),
                   const SizedBox(height: Insets.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _OutlinedButton(
-                          label: _forcedStatus == null
-                              ? 'Auto (real)'
-                              : (_forcedStatus!.hasTransport
-                                    ? 'Forced: Online'
-                                    : 'Forced: Offline'),
-                          colours: colours,
-                          onPressed: () async {
-                            setState(() {
-                              _forcedStatus = null;
-                            });
-                            await widget.onForceConnectivity?.call(null);
-                          },
-                        ),
+                  FieldSegmentedControl<ConnectivityStatus?>(
+                    segments: {
+                      null: const Text('Auto (real)'),
+                      ConnectivityStatus(
+                        hasTransport: true,
+                        transports: ['wifi (forced)'],
+                      ): const Text(
+                        'Force Online',
                       ),
-                      const SizedBox(width: Insets.md),
-                      Expanded(
-                        child: _OutlinedButton(
-                          label: 'Force Online',
-                          colours: colours,
-                          onPressed: () async {
-                            setState(() {
-                              _forcedStatus = ConnectivityStatus(
-                                hasTransport: true,
-                                transports: ['wifi (forced)'],
-                              );
-                            });
-                            await widget.onForceConnectivity?.call(
-                              ConnectivityStatus(
-                                hasTransport: true,
-                                transports: ['wifi (forced)'],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: Insets.md),
-                      Expanded(
-                        child: _OutlinedButton(
-                          label: 'Force Offline',
-                          colours: colours,
-                          onPressed: () async {
-                            setState(() {
-                              _forcedStatus = ConnectivityStatus(
-                                hasTransport: false,
-                                transports: [],
-                              );
-                            });
-                            await widget.onForceConnectivity?.call(
-                              ConnectivityStatus(
-                                hasTransport: false,
-                                transports: [],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+                      ConnectivityStatus(hasTransport: false, transports: []):
+                          const Text('Force Offline'),
+                    },
+                    selectedValue: _forcedStatus,
+                    onChanged: (status) async {
+                      setState(() => _forcedStatus = status);
+                      await widget.onForceConnectivity?.call(status);
+                    },
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: Insets.xl),
           ],
-          _Section(
+          FieldSection(
             label: 'About',
             child: Text(
               'Field LogBook. Records are stored on this phone and sent to '
@@ -560,256 +727,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     height: 1.4,
     color: colours.ash1,
   );
-}
-
-/// A labelled card: the label says what the group is, the card holds it, so
-/// three unrelated settings do not read as one long form.
-class _Section extends StatelessWidget {
-  const _Section({required this.label, required this.child});
-
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colours = context.reserve;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontFamily: Faces.ui.first,
-            fontSize: Faces.stamp,
-            letterSpacing: 0.8,
-            color: colours.ash3,
-          ),
-        ),
-        const SizedBox(height: Insets.sm),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(Insets.lg),
-          decoration: BoxDecoration(
-            color: colours.canopyRaised,
-            borderRadius: BorderRadius.circular(Corners.control),
-            border: Border.all(color: colours.rule),
-          ),
-          child: child,
-        ),
-      ],
-    );
-  }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.colours,
-    required this.onPressed,
-  });
-
-  final String label;
-  final FieldColours colours;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: colours.bone,
-        foregroundColor: colours.canopy,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Corners.control),
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: Faces.ui.first,
-          fontSize: Faces.label,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _OutlinedButton extends StatelessWidget {
-  const _OutlinedButton({
-    required this.label,
-    required this.colours,
-    required this.onPressed,
-  });
-
-  final String label;
-  final FieldColours colours;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: colours.ash1,
-        side: BorderSide(color: colours.rule),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Corners.control),
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: Faces.ui.first,
-          fontSize: Faces.label,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-/// A row of three chips for selecting the app's theme mode.
-///
-/// The chips are mutually exclusive and show the current selection with a
-/// filled background. The labels match the reserve vocabulary: Canopy (dark),
-/// Sunlight (light), and Auto (system).
-class _ThemeSelector extends StatelessWidget {
-  const _ThemeSelector({
-    required this.currentMode,
-    required this.onChanged,
-    required this.colours,
-  });
-
-  final ThemeMode currentMode;
-  final void Function(ThemeMode)? onChanged;
-  final FieldColours colours;
-
-  @override
-  Widget build(BuildContext context) {
-    if (onChanged == null) {
-      return Text(
-        'Theme control unavailable.',
-        style: TextStyle(
-          fontFamily: Faces.ui.first,
-          fontSize: Faces.supporting,
-          color: colours.ash3,
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: _ThemeChip(
-            label: 'Canopy',
-            subtitle: 'Dark',
-            icon: Icons.dark_mode,
-            selected: currentMode == ThemeMode.dark,
-            colours: colours,
-            onTap: () => onChanged!(ThemeMode.dark),
-          ),
-        ),
-        const SizedBox(width: Insets.sm),
-        Expanded(
-          child: _ThemeChip(
-            label: 'Sunlight',
-            subtitle: 'Light',
-            icon: Icons.light_mode,
-            selected: currentMode == ThemeMode.light,
-            colours: colours,
-            onTap: () => onChanged!(ThemeMode.light),
-          ),
-        ),
-        const SizedBox(width: Insets.sm),
-        Expanded(
-          child: _ThemeChip(
-            label: 'Auto',
-            subtitle: 'System',
-            icon: Icons.settings_brightness,
-            selected: currentMode == ThemeMode.system,
-            colours: colours,
-            onTap: () => onChanged!(ThemeMode.system),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A single theme choice chip.
-class _ThemeChip extends StatelessWidget {
-  const _ThemeChip({
-    required this.label,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.colours,
-    required this.onTap,
-  });
-
-  final String label;
-  final String subtitle;
-  final IconData icon;
-  final bool selected;
-  final FieldColours colours;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      selected: selected,
-      inMutuallyExclusiveGroup: true,
-      button: true,
-      label: '$label theme',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(Corners.control),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Insets.md,
-            vertical: Insets.lg,
-          ),
-          decoration: BoxDecoration(
-            color: selected ? colours.dust : colours.canopyRaised,
-            borderRadius: BorderRadius.circular(Corners.control),
-            border: Border.all(
-              color: selected ? colours.dust : colours.rule,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 24,
-                color: selected ? colours.bone : colours.ash2,
-              ),
-              const SizedBox(height: Insets.xs),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: Faces.ui.first,
-                  fontSize: Faces.label,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? colours.bone : colours.bone,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontFamily: Faces.ui.first,
-                  fontSize: Faces.stamp,
-                  color: selected
-                      ? colours.bone.withValues(alpha: 0.8)
-                      : colours.ash2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

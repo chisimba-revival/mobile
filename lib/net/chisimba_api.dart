@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../data/mappers.dart';
 import '../models/sync_operation.dart';
@@ -117,10 +118,19 @@ class FieldSession {
 
 /// What went wrong, in words a person can act on.
 class AuthFailure implements Exception {
-  const AuthFailure(this.message, {this.code});
+  const AuthFailure(this.message, {this.code, this.statusCode});
 
   final String message;
   final String? code;
+
+  /// The HTTP status the service answered with, when there was one.
+  ///
+  /// A 401 on an authenticated call means the token went stale, not that
+  /// anybody mistyped a password, and the sync path branches on exactly that
+  /// so it can renew instead of asking for the password again.
+  final int? statusCode;
+
+  bool get isUnauthorized => statusCode == 401;
 
   /// The message shown on a sign-in failure.
   ///
@@ -134,12 +144,21 @@ class AuthFailure implements Exception {
 
   factory AuthFailure.fromResponse(Response<dynamic> response) {
     final body = response.data;
-    final code = body is Map ? body['error'] : null;
-    final details = body is Map ? body['details'] : null;
+    // The envelope is {error: {code, message, details}, meta: {...}}, so the
+    // code, sentence and field details all live one level in under `error`.
+    final error = body is Map ? body['error'] : null;
+    final code = error is Map ? error['code'] : null;
+    final details = error is Map ? error['details'] : null;
+    final serverMessage = error is Map && error['message'] is String
+        ? (error['message'] as String).trim()
+        : '';
 
     final parts = <String>[];
     if (details is Map && details['retryAfter'] != null) {
       parts.add('Try again in ${details['retryAfter']} seconds.');
+    }
+    if (details is Map && details['session_expired'] != null) {
+      parts.add('The security token expired. Start again.');
     }
     if (details is Map && details['abuse_evidence'] != null) {
       parts.add('The security token expired. Start again.');
@@ -149,11 +168,21 @@ class AuthFailure implements Exception {
     }
     if (parts.isEmpty) {
       // Not the code. A raw 'UNAUTHORIZED' on a phone in a vehicle is not a
-      // message, it is a shrug. The code is kept in `code` for the caller that
-      // wants to branch on it; the sentence is for the person holding the phone.
-      parts.add('Sign-in failed. Check the name and password and try again.');
+      // message, it is a shrug. Use the service's own sentence when it gives
+      // one, otherwise a plain failed-sign-in line. The code is kept in `code`
+      // for the caller that wants to branch on it; the sentence is for the
+      // person holding the phone.
+      parts.add(
+        serverMessage.isNotEmpty
+            ? serverMessage
+            : 'Sign-in failed. Check the name and password and try again.',
+      );
     }
-    return AuthFailure(parts.join(' '), code: code is String ? code : null);
+    return AuthFailure(
+      parts.join(' '),
+      code: code is String ? code : null,
+      statusCode: response.statusCode,
+    );
   }
 
   factory AuthFailure.network(Object error) => AuthFailure(
@@ -276,10 +305,14 @@ class ChisimbaApi {
   /// Ask for the evidence a password will be accepted against.
   Future<LoginEvidence> fetchLoginEvidence() async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        _path('/api/v1/auth/login'),
-      );
-      final data = response.data?['data'];
+      final response = await _dio.get<dynamic>(_path('/api/v1/auth/token'));
+      final raw = response.data;
+      if (raw is String) {
+        throw const AuthFailure(
+          'Sign-in is unavailable: the service sent back something unreadable.',
+        );
+      }
+      final data = (raw is Map<String, dynamic>) ? raw['data'] : null;
       if (data is! Map<String, dynamic>) {
         throw const AuthFailure(
           'Sign-in is unavailable: the service sent back something unreadable.',
@@ -299,45 +332,99 @@ class ChisimbaApi {
     required String username,
     required String password,
     LoginEvidence? evidence,
+    String? deviceId,
   }) async {
-    final proof = evidence ?? await fetchLoginEvidence();
-    if (!proof.isComplete) {
-      throw const AuthFailure(
-        'Sign-in is unavailable: the service did not send the security token '
-        'a password has to be checked against.',
-      );
-    }
-    if (proof.minimumSeconds > 0) {
-      await _wait(Duration(seconds: proof.minimumSeconds));
-    }
+    var proof = evidence ?? await fetchLoginEvidence();
 
-    try {
-      // Flat, deliberately. The service does not nest these.
-      final response = await _dio.post<Map<String, dynamic>>(
-        _path('/api/v1/auth/login'),
-        data: <String, dynamic>{
-          'username': username,
-          'password': password,
-          'csrf_token': proof.csrfToken,
-          'abuse_issued_at': proof.issuedAt,
-          'abuse_nonce': proof.nonce,
-          'abuse_signature': proof.signature,
-        },
-      );
-      final data = response.data?['data'];
-      if (data is! Map<String, dynamic>) {
+    // The service binds the evidence token to the session it was issued in, so
+    // a lost session cookie makes the password check unreachable and the reply
+    // names the stale token rather than the password. Fetching fresh evidence
+    // and posting once more recovers a correct password without the trainee
+    // retyping it. A wrong password is answered 401, never this 422, so it is
+    // never masked by the retry.
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (!proof.isComplete) {
         throw const AuthFailure(
-          'Sign-in failed: the service sent back something unreadable.',
+          'Sign-in is unavailable: the service did not send the security token '
+          'a password has to be checked against.',
         );
       }
-      final session = FieldSession.fromLoginResponse(data);
-      if (!session.isUsable) {
-        throw const AuthFailure('Sign-in failed: no usable token came back.');
+      if (proof.minimumSeconds > 0) {
+        await _wait(Duration(seconds: proof.minimumSeconds));
       }
-      return session;
-    } on DioException catch (error) {
-      throw _asFailure(error);
+      try {
+        return await _postSignIn(proof, username, password, deviceId);
+      } on DioException catch (error) {
+        if (attempt == 0 && _isStaleEvidence(error.response)) {
+          proof = await fetchLoginEvidence();
+          continue;
+        }
+        throw _asFailure(error);
+      }
     }
+    // Only reachable if the retry also reported stale evidence.
+    throw const AuthFailure(
+      'Sign-in failed. Check the name and password and try again.',
+    );
+  }
+
+  /// Post the credential proof. Lets the [DioException] escape so [signIn] can
+  /// decide whether a stale-evidence reply is worth one retry.
+  Future<FieldSession> _postSignIn(
+    LoginEvidence proof,
+    String username,
+    String password,
+    String? deviceId,
+  ) async {
+    // Flat, deliberately. The service does not nest these.
+    final response = await _dio.post<dynamic>(
+      _path('/api/v1/auth/token'),
+      data: <String, dynamic>{
+        'username': username,
+        'password': password,
+        'csrf_token': proof.csrfToken,
+        'abuse_issued_at': proof.issuedAt,
+        'abuse_nonce': proof.nonce,
+        'abuse_signature': proof.signature,
+        // The service binds the refresh token to this device. The same value
+        // has to come back at refresh time or the token cannot be rotated,
+        // and the session dies at the access token's one-hour expiry.
+        if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
+      },
+    );
+    final raw = response.data;
+    if (raw is String) {
+      throw const AuthFailure(
+        'Sign-in failed: the service sent back something unreadable.',
+      );
+    }
+    final data = (raw is Map<String, dynamic>) ? raw['data'] : null;
+    if (data is! Map<String, dynamic>) {
+      throw const AuthFailure(
+        'Sign-in failed: the service sent back something unreadable.',
+      );
+    }
+    final session = FieldSession.fromLoginResponse(data);
+    if (!session.isUsable) {
+      throw const AuthFailure('Sign-in failed: no usable token came back.');
+    }
+    return session;
+  }
+
+  /// A 422 naming stale evidence or a session mismatch, which a fresh fetch can
+  /// fix — as opposed to a rejected password, which is a 401 and is final.
+  bool _isStaleEvidence(Response<dynamic>? response) {
+    if (response == null || response.statusCode != 422) {
+      return false;
+    }
+    final body = response.data;
+    final error = body is Map ? body['error'] : null;
+    final details = error is Map ? error['details'] : null;
+    if (details is! Map) {
+      return false;
+    }
+    return details['session_expired'] != null ||
+        details['abuse_evidence'] != null;
   }
 
   /// Who a stored token belongs to.
@@ -348,7 +435,7 @@ class ChisimbaApi {
   /// different thing from being offline.
   Future<FieldUser> whoAmI(String accessToken) async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
+      final response = await _dio.get<dynamic>(
         _path('/api/v1/auth/me'),
         options: Options(
           headers: <String, dynamic>{
@@ -359,7 +446,11 @@ class ChisimbaApi {
           },
         ),
       );
-      final data = response.data?['data'];
+      final raw = response.data;
+      if (raw is String) {
+        throw const AuthFailure('Could not read who is signed in.');
+      }
+      final data = (raw is Map<String, dynamic>) ? raw['data'] : null;
       if (data is! Map<String, dynamic>) {
         throw const AuthFailure('Could not read who is signed in.');
       }
@@ -384,31 +475,61 @@ class ChisimbaApi {
 
   /// Refresh the access token using the refresh token.
   ///
-  /// Returns a new FieldSession with fresh tokens, or throws AuthFailure
-  /// if the refresh token is expired or invalid.
-  Future<FieldSession> refreshSession(String refreshToken) async {
+  /// The service answers flat under `data` — not nested under `tokens` the way
+  /// sign-in does — and it rotates the refresh token, so both come back and
+  /// both have to be kept. The device id must match the one sent at sign-in:
+  /// the service binds the token to it and treats a mismatch as a stolen
+  /// token, revoking the family rather than merely refusing.
+  ///
+  /// Throws [AuthFailure] when the refresh token is expired, revoked or for
+  /// another device.
+  Future<({String accessToken, String refreshToken, int? expiresInSeconds})>
+  refreshSession({
+    required String refreshToken,
+    required String deviceId,
+  }) async {
     try {
-      final response = await _dio.post<Map<String, dynamic>>(
+      final response = await _dio.post<dynamic>(
         _path('/api/v1/auth/refresh'),
-        data: <String, dynamic>{'refresh_token': refreshToken},
+        data: <String, dynamic>{
+          'refresh_token': refreshToken,
+          'device_id': deviceId,
+        },
       );
-      final data = response.data?['data'];
+      final raw = response.data;
+      if (raw is String) {
+        throw const AuthFailure('Token refresh failed: unreadable response.');
+      }
+      final data = (raw is Map<String, dynamic>) ? raw['data'] : null;
       if (data is! Map<String, dynamic>) {
         throw const AuthFailure('Token refresh failed: unreadable response.');
       }
-      final session = FieldSession.fromLoginResponse(data);
-      if (!session.isUsable) {
+      final access = '${data['access_token'] ?? ''}';
+      if (access.isEmpty) {
         throw const AuthFailure(
           'Token refresh failed: no usable token returned.',
         );
       }
-      return session;
+      // The refresh token rotates. Fall back to the one we sent only when the
+      // service did not send a replacement, so a token is never lost.
+      final rotated = '${data['refresh_token'] ?? ''}';
+      return (
+        accessToken: access,
+        refreshToken: rotated.isEmpty ? refreshToken : rotated,
+        expiresInSeconds: switch (data['expires_in']) {
+          final num value => value.toInt(),
+          _ => null,
+        },
+      );
     } on DioException catch (error) {
       throw _asFailure(error);
     }
   }
 
   AuthFailure _asFailure(DioException error) {
+    debugPrint(
+      'DIO ERROR: type=${error.type} message=${error.message} error=${error.error} response=${error.response}',
+    );
     final response = error.response;
     if (response == null) {
       return AuthFailure.network(error);
@@ -477,13 +598,29 @@ class ChisimbaApi {
         data: request.toJson(),
         options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
       );
-      final data = response.data?['data'] ?? response.data;
+      // Check for error response (non-2xx or error field in body)
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        throw _asFailure(
+          DioException(
+            requestOptions: response.requestOptions,
+            response: response,
+            type: DioExceptionType.badResponse,
+          ),
+        );
+      }
+      final body = response.data;
+      if (body is Map<String, dynamic> && body.containsKey('error')) {
+        throw AuthFailure.fromResponse(response);
+      }
+      final data = body?['data'] ?? body;
       if (data is! Map<String, dynamic>) {
         throw const AuthFailure('Could not read push response.');
       }
       return PushResponse.fromJson(data);
     } on DioException catch (error) {
       throw _asFailure(error);
+    } on AuthFailure {
+      rethrow;
     }
   }
 
@@ -495,13 +632,29 @@ class ChisimbaApi {
         data: request.toJson(),
         options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
       );
-      final data = response.data?['data'] ?? response.data;
+      // Check for error response (non-2xx or error field in body)
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        throw _asFailure(
+          DioException(
+            requestOptions: response.requestOptions,
+            response: response,
+            type: DioExceptionType.badResponse,
+          ),
+        );
+      }
+      final body = response.data;
+      if (body is Map<String, dynamic> && body.containsKey('error')) {
+        throw AuthFailure.fromResponse(response);
+      }
+      final data = body?['data'] ?? body;
       if (data is! Map<String, dynamic>) {
         throw const AuthFailure('Could not read pull response.');
       }
       return PullResponse.fromJson(data);
     } on DioException catch (error) {
       throw _asFailure(error);
+    } on AuthFailure {
+      rethrow;
     }
   }
 }
@@ -720,14 +873,37 @@ class PushOperation {
   };
 }
 
+/// A field the contract says is a list, defended against a server that sent
+/// something else.
+///
+/// A raw cast turns a wrong-shaped field into a TypeError that aborts the
+/// whole sync. Reading a non-list as empty keeps the sync alive: push results
+/// are then "unknown outcome" (the designed deferral for a result the device
+/// cannot read), and a pull without changes simply applies nothing. The
+/// anomaly is logged so it can be traced to whichever server version sent it.
+List<dynamic> _listField(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value is List) {
+    return value;
+  }
+  if (value != null) {
+    debugPrint(
+      'field-log: "$key" came back as ${value.runtimeType}, '
+      'not a list; reading it as empty',
+    );
+  }
+  return const [];
+}
+
 /// Push response from the service.
 class PushResponse {
   const PushResponse({required this.results});
 
   factory PushResponse.fromJson(Map<String, dynamic> json) => PushResponse(
-    results: (json['results'] as List<dynamic>? ?? const [])
-        .map((e) => PushResult.fromJson(e as Map<String, dynamic>))
-        .toList(),
+    results: _listField(
+      json,
+      'results',
+    ).map((e) => PushResult.fromJson(e as Map<String, dynamic>)).toList(),
   );
 
   final List<PushResult> results;
@@ -791,9 +967,10 @@ class PullResponse {
 
   factory PullResponse.fromJson(Map<String, dynamic> json) => PullResponse(
     status: '${json['status'] ?? ''}',
-    changes: (json['changes'] as List<dynamic>? ?? const [])
-        .map((e) => ApiPullChange.fromJson(e as Map<String, dynamic>))
-        .toList(),
+    changes: _listField(
+      json,
+      'changes',
+    ).map((e) => ApiPullChange.fromJson(e as Map<String, dynamic>)).toList(),
     nextCursor: json['next_cursor'] as String?,
     hasMore: switch (json['has_more']) {
       final bool v => v,

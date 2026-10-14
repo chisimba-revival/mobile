@@ -98,7 +98,9 @@ PinVisual pinVisualFor(
       );
     }
     return PinVisual(
-      state: row.hasPendingChanges ? PinState.queued : PinState.unverified,
+      state: row.hasPendingChanges && row.driveId.isNotEmpty
+          ? PinState.queued
+          : PinState.unverified,
       glyph: '?',
       isSign: false,
       isNote: true,
@@ -144,7 +146,9 @@ PinVisual pinVisualFor(
   }
 
   return PinVisual(
-    state: row.hasPendingChanges ? PinState.queued : PinState.unverified,
+    state: row.hasPendingChanges && row.driveId.isNotEmpty
+        ? PinState.queued
+        : PinState.unverified,
     glyph: _glyphFor(count, code, isSign),
     isSign: isSign,
     isNote: false,

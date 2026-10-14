@@ -97,4 +97,9 @@ TextTheme _textTheme(FieldColours colours) {
 extension FieldThemeAccess on BuildContext {
   FieldColours get reserve =>
       Theme.of(this).extension<FieldColours>() ?? FieldColours.dark;
+
+  Density get density =>
+      Theme.of(this).extension<Density>() ?? Density.comfortable;
+
+  MapStylePreset get mapStylePreset => MapStylePreset.field;
 }

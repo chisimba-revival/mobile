@@ -9,6 +9,7 @@ import 'package:field_log/design/tokens.dart';
 import 'package:field_log/field/drive_track.dart';
 import 'package:field_log/screens/logbook_form.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 /// The drive logbook: start a drive, watch it run, and close it with what the
@@ -30,6 +31,7 @@ class DriveLogbookScreen extends StatefulWidget {
     this.guideId,
     this.onDriveStarted,
     this.onDriveEnded,
+    this.editDrive,
   });
 
   final FieldLogDatabase database;
@@ -50,6 +52,14 @@ class DriveLogbookScreen extends StatefulWidget {
   /// Called after the drive is saved and queued, so the caller can refresh
   /// the queue badge and offer a sync.
   final VoidCallback? onDriveEnded;
+
+  /// An existing drive to correct, rather than the open one to run.
+  ///
+  /// A number nobody can correct is a number nobody trusts, so the Progress
+  /// list can reopen a drive's closing form with its own values already in
+  /// place. The screen then opens on that form instead of the live panel, and
+  /// the clock does not run: the drive has already happened.
+  final DriveRow? editDrive;
 
   @override
   State<DriveLogbookScreen> createState() => _DriveLogbookScreenState();
@@ -114,13 +124,43 @@ class _DriveLogbookScreenState extends State<DriveLogbookScreen> {
     super.dispose();
   }
 
-  /// Find the drive that is still open, if this device has one.
+  /// Open the drive this screen is about.
   ///
-  /// Route-planner placeholders carry no status, so they are not open drives
-  /// and the status filter leaves them out. The most recent open drive wins:
-  /// two open drives is a state the app never writes, and picking one beats
-  /// refusing to open the screen at all.
+  /// Two ways in, and they are genuinely different. [widget.editDrive] is a
+  /// correction: the row is handed over, its facts are put into the closing
+  /// form, and the clock stays stopped because that drive has already been
+  /// driven. Otherwise this finds the drive that is still open, if this device
+  /// has one. Route-planner placeholders carry no status, so they are not open
+  /// drives and the status filter leaves them out. The most recent open drive
+  /// wins: two open drives is a state the app never writes, and picking one
+  /// beats refusing to open the screen at all.
   Future<void> _load() async {
+    final correcting = widget.editDrive;
+    if (correcting != null) {
+      _drive = correcting;
+      _ending = true;
+      // A drive corrected from the Progress list may never have been closed,
+      // and a drive with no end cannot be saved. Saving this correction closes
+      // it, which is what the record means.
+      _endedAt = correcting.endedAt ?? DateTime.now().toUtc();
+      _guestCount = correcting.guestCount;
+      _oilOk = correcting.inspectionOilOk;
+      _waterOk = correcting.inspectionWaterOk;
+      _tyresOk = correcting.inspectionTyresOk;
+      _offTrackUsed = correcting.offTrackUsed;
+      _vehicle.text = correcting.vehicleId ?? '';
+      _duration.text = _plainHours(correcting.durationHours);
+      _daylight.text = _plainHours(correcting.daylightHours);
+      _night.text = _plainHours(correcting.nightHours);
+      _offRoadMinutes.text = correcting.offRoadSeconds == null
+          ? ''
+          : '${(correcting.offRoadSeconds! / 60).round()}';
+      _weather.text = correcting.weather ?? '';
+      _notes.text = correcting.notes ?? '';
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+
     final rows =
         await (widget.database.select(widget.database.drives)
               ..where((t) => t.isTombstone.equals(false))
@@ -140,6 +180,10 @@ class _DriveLogbookScreenState extends State<DriveLogbookScreen> {
     }
     setState(() => _loading = false);
   }
+
+  /// Hours without the unit, for a field the reader is about to type into.
+  static String _plainHours(double? value) =>
+      value == null ? '' : _hoursText(value);
 
   /// Follow fixes while a drive is open. Distance is a nicety, not a
   /// requirement: no permission and no fix means the drive still runs on its
@@ -295,6 +339,17 @@ class _DriveLogbookScreenState extends State<DriveLogbookScreen> {
     return FieldScaffold(
       eyebrow: 'Drive logbook',
       title: 'Start a drive',
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          Navigator.of(context).maybePop();
+        },
+        tooltip: 'Return to map',
+        backgroundColor: colours.dust,
+        foregroundColor: colours.bone,
+        child: const Icon(Icons.map),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           Insets.lg,
@@ -374,6 +429,17 @@ class _DriveLogbookScreenState extends State<DriveLogbookScreen> {
     return FieldScaffold(
       eyebrow: 'Drive logbook',
       title: 'On the drive',
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          Navigator.of(context).maybePop();
+        },
+        tooltip: 'Return to map',
+        backgroundColor: colours.dust,
+        foregroundColor: colours.bone,
+        child: const Icon(Icons.map),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           Insets.lg,
@@ -643,7 +709,7 @@ class _DriveLogbookScreenState extends State<DriveLogbookScreen> {
           ),
           if (reason != null) ...[
             const SizedBox(height: Insets.lg),
-            LogSupporting(reason, colours),
+            LogErrorBanner(reason, colours),
           ],
         ],
       ),

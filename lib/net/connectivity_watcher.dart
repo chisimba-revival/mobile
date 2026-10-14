@@ -69,36 +69,64 @@ class _PluginProbe implements TransportProbe {
       _plugin.onConnectivityChanged;
 }
 
-/// A probe that forces a specific connectivity status, for dev/debug use.
+/// A probe that can force a specific connectivity status, for dev/debug use.
+///
+/// Unforced — a null [update] — it is a pass-through: the real probe answers,
+/// and that is the state a debug build starts in. Forcing exists so the
+/// offline and online paths can be exercised on demand, never as a default:
+/// a debug boot that reports no signal it never measured is the bug that left
+/// the desktop map permanently without a basemap.
 class _ForcedProbe implements TransportProbe {
-  _ForcedProbe(this._status);
+  _ForcedProbe(this._probe) {
+    // Real changes keep flowing through while the override is cleared.
+    _forward = _probe.onConnectivityChanged.listen((results) {
+      if (_forced == null) _controller.add(results);
+    });
+  }
 
-  ConnectivityStatus _status;
-  final _controller = StreamController<ConnectivityStatus>.broadcast();
+  final TransportProbe _probe;
+  ConnectivityStatus? _forced;
+  final _controller = StreamController<List<ConnectivityResult>>.broadcast();
+  late final StreamSubscription<List<ConnectivityResult>> _forward;
 
-  void update(ConnectivityStatus status) {
-    _status = status;
-    _controller.add(status);
+  /// The override in force, or null when the real probe is being followed.
+  ConnectivityStatus? get forcedStatus => _forced;
+
+  void update(ConnectivityStatus? status) {
+    _forced = status;
+    if (status != null) {
+      _controller.add(_toResults(status));
+      return;
+    }
+    // Clearing the override asks the real probe once more, so the switch back
+    // is immediate rather than waiting for the next genuine change.
+    _probe
+        .checkConnectivity()
+        .then(_controller.add)
+        .onError<List<ConnectivityResult>>((_, _) => const []);
   }
 
   @override
-  Future<List<ConnectivityResult>> checkConnectivity() async =>
-      _toResults(_status);
+  Future<List<ConnectivityResult>> checkConnectivity() async {
+    final status = _forced;
+    if (status != null) return _toResults(status);
+    return _probe.checkConnectivity();
+  }
 
   @override
   Stream<List<ConnectivityResult>> get onConnectivityChanged =>
-      _controller.stream.map(_toResults);
+      _controller.stream;
 
   List<ConnectivityResult> _toResults(ConnectivityStatus status) {
     if (!status.hasTransport) {
-      return [ConnectivityResult.none];
+      return const [ConnectivityResult.none];
     }
-    // Default to wifi for forced online; the UI only cares about hasTransport.
-    return [ConnectivityResult.wifi];
+    return const [ConnectivityResult.wifi];
   }
 
-  void dispose() {
-    _controller.close();
+  Future<void> dispose() async {
+    await _forward.cancel();
+    await _controller.close();
   }
 }
 
@@ -108,12 +136,21 @@ class _ForcedProbe implements TransportProbe {
 /// and tested with a known status and no platform channel behind it.
 class ConnectivityWatcher {
   ConnectivityWatcher({TransportProbe? probe})
-    : _probe = probe ?? _PluginProbe(),
-      _forced = (probe == null && kDebugMode) ? _ForcedProbe(_noSignal) : null;
+    : this._(
+        probe ?? _PluginProbe(),
+        // The override exists for debug builds so the offline and online
+        // paths can be exercised on demand — never as a default answer:
+        // forcing no-signal up front is what used to leave the desktop map
+        // permanently without a basemap.
+        allowForcing: kDebugMode,
+      );
+
+  ConnectivityWatcher._(this._probe, {required bool allowForcing}) {
+    _forced = allowForcing ? _ForcedProbe(_probe) : null;
+  }
 
   final TransportProbe _probe;
-  final _ForcedProbe? _forced;
-  StreamSubscription<List<ConnectivityResult>>? _subscription;
+  _ForcedProbe? _forced;
 
   /// The current status, and every change to it.
   ///
@@ -121,38 +158,78 @@ class ConnectivityWatcher {
   /// never has to ask separately and race against the first change.
   Stream<ConnectivityStatus> watch() async* {
     yield await current();
-    if (_forced != null) {
-      yield* _forced._controller.stream.map(_describeStatus);
-      return;
-    }
-    yield* _probe.onConnectivityChanged
-        .map(_describe)
-        .handleError((Object _) => _noSignal);
+    final source =
+        _forced?.onConnectivityChanged ?? _probe.onConnectivityChanged;
+    yield* source
+        .map(_resolveResults)
+        .handleError((Object _) => _unknownTransport);
   }
 
   /// The status now.
   Future<ConnectivityStatus> current() async {
-    if (_forced != null) {
-      return _forced._status;
+    final forced = _forced?.forcedStatus;
+    if (forced != null) {
+      return forced;
     }
     try {
-      return _describe(await _probe.checkConnectivity());
+      final results = await (_forced ?? _probe).checkConnectivity();
+      return _resolveResults(results);
     } catch (_) {
-      // The platform check itself failed (desktop Linux without
-      // NetworkManager, a dead plugin channel, a sandboxed device). There is
-      // nothing we can honestly call a transport, so report no signal rather
-      // than crashing the field app over a radio we cannot see. The push
-      // engine already treats every failed request as a deferral, not a loss.
-      return _noSignal;
+      // The platform check itself failed (a dead plugin channel, a sandboxed
+      // device). Nothing here can honestly call a transport: on a phone that
+      // means no signal, on a desktop it means the plugin cannot see the
+      // network it is in fact attached to (see [_unknownTransport]).
+      return _unknownTransport;
     }
   }
 
-  /// Forces the connectivity status (debug builds only).
+  /// Forces the connectivity status, or clears the override with null.
   ///
-  /// In release builds this is a no-op.
-  void forceStatus(ConnectivityStatus status) {
+  /// Debug builds only; in release builds this is a no-op.
+  void forceStatus(ConnectivityStatus? status) {
     _forced?.update(status);
   }
+
+  /// The status a measured result means.
+  ConnectivityStatus _resolveResults(List<ConnectivityResult> results) {
+    final forced = _forced?.forcedStatus;
+    if (forced != null) {
+      return forced;
+    }
+    final status = _describe(results);
+    if (status.hasTransport) {
+      return status;
+    }
+    // No transport was observed. That is evidence on a phone and a lie on a
+    // desktop: connectivity_plus on Linux needs a NetworkManager DBus, and
+    // without one it reports no transport on a machine whose network works
+    // — the same lie `reference_loader.dart` documents. Transport on a
+    // desktop is proven per request (a fetch succeeds or fails), and every
+    // caller here already treats a failed request as a deferral, so assume a
+    // transport rather than withholding the network from the map and sync.
+    if (_isDesktop) {
+      return _desktopTransport;
+    }
+    return status;
+  }
+
+  /// What to report when the platform cannot answer at all.
+  ConnectivityStatus get _unknownTransport =>
+      _isDesktop ? _desktopTransport : _noSignal;
+
+  /// Desktop connectivity plugins answer for a radio that does not exist, so
+  /// their silence is not the absence of a network.
+  static bool get _isDesktop => switch (defaultTargetPlatform) {
+    TargetPlatform.linux ||
+    TargetPlatform.windows ||
+    TargetPlatform.macOS => true,
+    _ => false,
+  };
+
+  static const ConnectivityStatus _desktopTransport = ConnectivityStatus(
+    hasTransport: true,
+    transports: ['desktop (assumed)'],
+  );
 
   static const ConnectivityStatus _noSignal = ConnectivityStatus(
     hasTransport: false,
@@ -180,11 +257,7 @@ class ConnectivityWatcher {
     return ConnectivityStatus(hasTransport: hasTransport, transports: names);
   }
 
-  ConnectivityStatus _describeStatus(ConnectivityStatus status) => status;
-
   Future<void> dispose() async {
-    await _subscription?.cancel();
-    _subscription = null;
-    _forced?.dispose();
+    await _forced?.dispose();
   }
 }

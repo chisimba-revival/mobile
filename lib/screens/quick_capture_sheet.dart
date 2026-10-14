@@ -1,3 +1,4 @@
+import 'package:field_log/design/components.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/field/card_state.dart';
@@ -75,7 +76,7 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final colours = context.reserve;
+    final colours = context.colours;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
@@ -87,11 +88,11 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
           ),
           border: Border.all(color: colours.rule),
         ),
-        padding: EdgeInsets.fromLTRB(
+        padding: const EdgeInsets.fromLTRB(
           Insets.lg,
           Insets.lg,
           Insets.lg,
-          Insets.lg + 8,
+          Insets.xxl,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -109,10 +110,11 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
                     ),
                   ),
                 ),
-                IconButton(
+                FieldIconButton(
+                  icon: const Icon(Icons.close, size: 18),
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: Icon(Icons.close, size: 18, color: colours.ash3),
                   tooltip: 'Close',
+                  color: colours.ash3,
                 ),
               ],
             ),
@@ -134,44 +136,33 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
                   color: colours.ash2,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: Insets.sm),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: Insets.sm,
+                runSpacing: Insets.sm,
                 children: [
                   for (final species in widget.recentSpecies)
-                    _Chip(
+                    FieldChoiceChip(
                       label: species.commonName,
-                      selected: _choice?.code == species.code,
+                      isSelected: _choice?.code == species.code,
+                      onSelected: (selected) {
+                        if (selected) setState(() => _choice = species);
+                      },
                       onTap: () => setState(() => _choice = species),
                     ),
                 ],
               ),
               const SizedBox(height: Insets.lg),
             ],
-            TextField(
+            FieldFormField(
               controller: _query,
-              style: TextStyle(color: colours.bone, fontFamily: Faces.ui.first),
-              decoration: InputDecoration(
-                hintText: 'Search species',
-                hintStyle: TextStyle(color: colours.ash3),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Corners.control),
-                  borderSide: BorderSide(color: colours.rule),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Corners.control),
-                  borderSide: BorderSide(color: colours.rule),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Corners.control),
-                  borderSide: BorderSide(color: colours.ruleStrong),
-                ),
-              ),
+              label: 'Search species',
+              hint: 'Search species',
+              prefix: const Icon(Icons.search),
               onChanged: (_) => setState(() {}),
             ),
             if (_query.text.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: Insets.sm),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 160),
                 child: Material(
@@ -180,36 +171,11 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
                     shrinkWrap: true,
                     children: [
                       for (final species in _matches)
-                        ListTile(
-                          dense: true,
-                          selected: _choice?.code == species.code,
-                          selectedTileColor: colours.dust,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              Corners.control,
-                            ),
-                          ),
-                          title: Text(
-                            species.commonName,
-                            style: TextStyle(
-                              color: _choice?.code == species.code
-                                  ? colours.canopy
-                                  : colours.bone,
-                              fontFamily: Faces.ui.first,
-                            ),
-                          ),
+                        FieldListTile(
+                          title: species.commonName,
                           subtitle: species.scientificName.isEmpty
                               ? null
-                              : Text(
-                                  species.scientificName,
-                                  style: TextStyle(
-                                    color: _choice?.code == species.code
-                                        ? colours.canopy
-                                        : colours.ash3,
-                                    fontFamily: Faces.ui.first,
-                                    fontSize: Faces.stamp,
-                                  ),
-                                ),
+                              : species.scientificName,
                           trailing: _choice?.code == species.code
                               ? Icon(
                                   Icons.check,
@@ -217,6 +183,7 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
                                   color: colours.canopy,
                                 )
                               : null,
+                          selected: _choice?.code == species.code,
                           onTap: () {
                             FocusScope.of(context).unfocus();
                             setState(() => _choice = species);
@@ -260,9 +227,13 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
                   ),
                 ),
                 const Spacer(),
-                _StepButton(
-                  icon: Icons.remove,
-                  onTap: _count > 1 ? () => setState(() => _count -= 1) : null,
+                FieldIconButton(
+                  icon: const Icon(Icons.remove),
+                  onPressed: _count > 1
+                      ? () => setState(() => _count -= 1)
+                      : null,
+                  color: colours.bone,
+                  size: 44,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: Insets.md),
@@ -275,96 +246,25 @@ class _QuickCaptureSheetState extends State<_QuickCaptureSheet> {
                     ),
                   ),
                 ),
-                _StepButton(
-                  icon: Icons.add,
-                  onTap: _count < 99 ? () => setState(() => _count += 1) : null,
+                FieldIconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: _count < 99
+                      ? () => setState(() => _count += 1)
+                      : null,
+                  color: colours.bone,
+                  size: 44,
                 ),
               ],
             ),
             const SizedBox(height: Insets.lg),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: colours.dust,
-                  foregroundColor: colours.canopy,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () => Navigator.of(context)
-                    .pop(QuickCaptureResult(choice: _choice, count: _count)),
-                child: Text(
-                  'Record',
-                  style: TextStyle(
-                    fontFamily: Faces.ui.first,
-                    fontSize: Faces.label,
-                  ),
-                ),
-              ),
+            FieldPrimaryButton(
+              label: 'Record',
+              onPressed: () =>
+                  Navigator.of(context)
+                      .pop(QuickCaptureResult(choice: _choice, count: _count)),
+              fullWidth: true,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colours = context.reserve;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? colours.dust : colours.canopyOverlay,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: selected ? colours.dust : colours.rule),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: Faces.ui.first,
-            fontSize: Faces.stamp,
-            color: selected ? colours.canopy : colours.bone,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StepButton extends StatelessWidget {
-  const _StepButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colours = context.reserve;
-    return IconButton(
-      onPressed: onTap,
-      icon: Icon(
-        icon,
-        size: 18,
-        color: onTap == null ? colours.ash3 : colours.bone,
-      ),
-      style: IconButton.styleFrom(
-        side: BorderSide(color: colours.rule),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Corners.control),
         ),
       ),
     );

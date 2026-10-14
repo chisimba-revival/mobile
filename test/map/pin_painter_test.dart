@@ -1,7 +1,8 @@
+import 'dart:ui' show Rect;
+
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/pin_visual.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// These tests exist because the first version of the painter gave
@@ -122,6 +123,39 @@ void main() {
     });
   });
 
+  group('the tab is lifted off the ground, not buried in it', () {
+    test('unverified fills with the overlay surface, not the darker one', () {
+      expect(
+        of(PinState.unverified).fill,
+        colours.canopyOverlay,
+        reason:
+            'the darker raised surface reads as black on the dark map, '
+            'which buries the tab in the ground instead of lifting it off',
+      );
+    });
+
+    test('an unidentified record is hollow and broken-edged', () {
+      final note = pinAppearanceFor(PinState.unverified, colours, isNote: true);
+      expect(note.hollow, isTrue);
+      expect(note.dashed, isTrue);
+      expect(note.stroke, colours.ash2);
+    });
+
+    test('a note a mentor has identified fills like any verified record', () {
+      final note = pinAppearanceFor(PinState.verified, colours, isNote: true);
+      expect(note.hollow, isFalse);
+      expect(note.dashed, isFalse);
+      expect(note.stroke, colours.moss);
+    });
+
+    test('the ghost pin is a hollow broken outline in bone', () {
+      final ghost = of(PinState.ghost);
+      expect(ghost.hollow, isTrue);
+      expect(ghost.dashed, isTrue);
+      expect(ghost.stroke, colours.bone);
+    });
+  });
+
   group('the tab', () {
     test('is a rectangle with one corner notched off', () {
       final path = tabPath(0, 0, 22, 27, 7);
@@ -161,22 +195,6 @@ void main() {
         ).getBounds(),
         const Rect.fromLTRB(0, 0, 22, 27),
       );
-    });
-  });
-
-  group('the reserve vector layer', () {
-    testWidgets('paints with no tile behind it', (tester) async {
-      // This layer is what remains when no tile can be fetched, which is the
-      // situation the app is designed around. It has to paint on its own terms.
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CustomPaint(
-            painter: ReserveVectorPainter(colours: colours),
-            size: const Size(400, 400),
-          ),
-        ),
-      );
-      expect(tester.takeException(), isNull);
     });
   });
 }

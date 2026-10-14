@@ -61,6 +61,15 @@ class PinPainter extends CustomPainter {
     final hollow = appearance.hollow;
     final dashed = appearance.dashed;
 
+    // Subtle shadow for presence — lifts the tab off the map.
+    // Only for non-hollow states so deleted/ghost don't cast a shadow.
+    if (!hollow) {
+      final shadowPaint = Paint()
+        ..color = Colors.black.withValues(alpha: 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+      canvas.drawPath(tab.shift(Offset(0, 1)), shadowPaint);
+    }
+
     if (dashed) {
       // Flutter's Paint has no dash support, so the dashes have to be cut out
       // of the path itself. A dashed edge is the only cue that distinguishes a
@@ -70,7 +79,7 @@ class PinPainter extends CustomPainter {
         _dashed(tab, dash: 2, gap: 2),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
+          ..strokeWidth = 1.5
           ..color = stroke,
       );
     } else {
@@ -81,21 +90,26 @@ class PinPainter extends CustomPainter {
         tab,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
+          ..strokeWidth = hollow ? 1.5 : 1
           ..color = stroke,
       );
     }
 
     // The glyph sits in the body of the tab, above the notch, so the notch
     // corner stays clear.
+    // A note is set in the book serif, as the design sets it: the words are the
+    // record and the glyph stands in for them. An identified record is set in
+    // the UI grotesque, because its glyph is a label rather than a placeholder.
+    final note = visual.isNote;
     final glyphPainter = TextPainter(
       text: TextSpan(
         text: visual.glyph,
         style: TextStyle(
-          fontFamily: Faces.book.first,
-          fontSize: visual.glyph.length > 1 ? 11 : 14,
+          fontFamily: note ? Faces.book.first : Faces.ui.first,
+          fontSize: note ? 13 : (visual.glyph.length > 1 ? 10 : 12),
+          fontWeight: note ? FontWeight.w400 : FontWeight.w600,
           height: 1,
-          color: _glyphColour(visual.state, colours),
+          color: _glyphColour(visual.state, colours, isNote: note),
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -109,7 +123,8 @@ class PinPainter extends CustomPainter {
     );
   }
 
-  PinAppearance _appearance() => pinAppearanceFor(visual.state, colours);
+  PinAppearance _appearance() =>
+      pinAppearanceFor(visual.state, colours, isNote: visual.isNote);
 
   @override
   bool shouldRepaint(PinPainter old) =>
@@ -117,15 +132,28 @@ class PinPainter extends CustomPainter {
       old.colours != colours ||
       old.selected != selected;
 
-  Color _glyphColour(PinState state, FieldColours c) => switch (state) {
-    PinState.unverified => c.inkOn(c.straw),
-    PinState.needsReview => c.inkOn(c.straw),
-    PinState.queued => c.inkOn(c.straw),
-    PinState.verified => c.inkOn(c.moss),
-    PinState.corrected => c.inkOn(c.dust),
-    PinState.deleted => c.ash2,
-    PinState.ghost => c.inkOn(c.dust),
-  };
+  /// The glyph carries the state's accent, as the design draws it, rather than
+  /// an ink chosen for contrast against the tab. The earlier colour was the
+  /// palette's own near-black canopy, which is all but invisible on the dark
+  /// tab and is exactly what made the pins read as black.
+  Color _glyphColour(PinState state, FieldColours c, {required bool isNote}) {
+    if (isNote) {
+      return switch (state) {
+        PinState.verified => c.moss,
+        PinState.corrected => c.dust,
+        _ => c.ash2,
+      };
+    }
+    return switch (state) {
+      PinState.unverified => c.straw,
+      PinState.needsReview => c.straw,
+      PinState.queued => c.straw,
+      PinState.verified => c.moss,
+      PinState.corrected => c.dust,
+      PinState.deleted => c.ash2,
+      PinState.ghost => c.bone,
+    };
+  }
 }
 
 /// How one state is drawn: which paint, and which shape cue carries the state
@@ -166,60 +194,116 @@ class PinAppearance {
 
 PinAppearance pinAppearanceFor(
   PinState state,
-  FieldColours c,
-) => switch (state) {
-  // Filled and solid: nobody has looked at this yet.
-  PinState.unverified => PinAppearance(
-    fill: c.canopyRaised,
-    stroke: c.straw,
-    hollow: false,
-    dashed: false,
-  ),
-  // Filled but broken-edged. Same colour as unverified deliberately: what
-  // differs is not the animal but whether the record has left the phone, and
-  // a dashed edge says that where a second hue could not.
-  PinState.queued => PinAppearance(
-    fill: c.canopyRaised,
-    stroke: c.straw,
-    hollow: false,
-    dashed: true,
-  ),
-  // Open and solid: looked at, undecided.
-  PinState.needsReview => PinAppearance(
-    fill: c.canopyRaised,
-    stroke: c.straw,
-    hollow: true,
-    dashed: false,
-  ),
-  PinState.verified => PinAppearance(
-    fill: c.moss.withValues(alpha: 0.18),
-    stroke: c.moss,
-    hollow: false,
-    dashed: false,
-  ),
-  PinState.corrected => PinAppearance(
-    fill: c.dust.withValues(alpha: 0.18),
-    stroke: c.dust,
-    hollow: false,
-    dashed: false,
-  ),
-  PinState.deleted => PinAppearance(
-    fill: Colors.transparent,
-    stroke: c.ash3,
-    hollow: true,
-    dashed: false,
-  ),
-  // Ghost pin: provisional, open (hollow) with dust stroke. The hollow shape
-  // distinguishes it from corrected (filled) and queued (dashed). The dust
-  // colour ties it to the accent, and the pulse animation in the widget
-  // provides the temporal cue.
-  PinState.ghost => PinAppearance(
-    fill: Colors.transparent,
-    stroke: c.dust,
-    hollow: true,
-    dashed: false,
-  ),
-};
+  FieldColours c, {
+  bool isNote = false,
+}) {
+  // Deleted and ghost are structural: a tombstone is a tombstone whether or
+  // not it ever had a name, and the ghost pin is a place, not a record. Both
+  // override identification, so they are answered before the note rule.
+  if (state == PinState.deleted) {
+    return PinAppearance(
+      fill: Colors.transparent,
+      stroke: c.ash3,
+      hollow: true,
+      dashed: false,
+    );
+  }
+  if (state == PinState.ghost) {
+    // The design's ghost is the hollowest thing on the map: no fill, a bone
+    // outline broken into dashes, so it reads as a place held open rather than
+    // a record. The pulse animation in the widget carries the rest.
+    return PinAppearance(
+      fill: Colors.transparent,
+      stroke: c.bone,
+      hollow: true,
+      dashed: true,
+    );
+  }
+
+  // An unidentified record — a note — is drawn the way the design draws one:
+  // a hollow tab with a broken edge in ash while it has no name, so it reads as
+  // a question still open rather than a record of an animal. Once a mentor has
+  // put a name to it, it fills with the moss wash like any verified record.
+  if (isNote) {
+    if (state == PinState.verified) {
+      return PinAppearance(
+        fill: c.moss.withValues(alpha: 0.28),
+        stroke: c.moss,
+        hollow: false,
+        dashed: false,
+      );
+    }
+    if (state == PinState.corrected) {
+      return PinAppearance(
+        fill: c.dust.withValues(alpha: 0.28),
+        stroke: c.dust,
+        hollow: false,
+        dashed: false,
+      );
+    }
+    return PinAppearance(
+      fill: Colors.transparent,
+      stroke: c.ash2,
+      hollow: true,
+      dashed: true,
+    );
+  }
+
+  return switch (state) {
+    // Filled and solid: nobody has looked at this yet. The fill is the raised
+    // overlay surface the design uses, not the darker raised surface: on the
+    // dark map the darker one reads as black, which buries the tab in the
+    // ground instead of lifting it off.
+    PinState.unverified => PinAppearance(
+      fill: c.canopyOverlay,
+      stroke: c.straw,
+      hollow: false,
+      dashed: false,
+    ),
+    // Filled but broken-edged. Same colour as unverified deliberately: what
+    // differs is not the animal but whether the record has left the phone, and
+    // a dashed edge says that where a second hue could not.
+    PinState.queued => PinAppearance(
+      fill: c.canopyOverlay,
+      stroke: c.straw,
+      hollow: false,
+      dashed: true,
+    ),
+    // Open and solid: looked at, undecided.
+    PinState.needsReview => PinAppearance(
+      fill: c.canopyOverlay,
+      stroke: c.straw,
+      hollow: true,
+      dashed: false,
+    ),
+    PinState.verified => PinAppearance(
+      fill: c.moss.withValues(alpha: 0.28),
+      stroke: c.moss,
+      hollow: false,
+      dashed: false,
+    ),
+    PinState.corrected => PinAppearance(
+      fill: c.dust.withValues(alpha: 0.28),
+      stroke: c.dust,
+      hollow: false,
+      dashed: false,
+    ),
+    // Unreachable: deleted and ghost are answered above, before this switch.
+    // They are listed so the switch stays exhaustive without a default.
+    PinState.deleted => PinAppearance(
+      fill: Colors.transparent,
+      stroke: c.ash3,
+      hollow: true,
+      dashed: false,
+    ),
+    PinState.ghost => PinAppearance(
+      fill: Colors.transparent,
+      stroke: c.bone,
+      hollow: true,
+      dashed: true,
+    ),
+  };
+}
 
 /// Cuts a path into dashes of [dash] followed by gaps of [gap].
 Path _dashed(Path source, {required double dash, required double gap}) {
@@ -286,158 +370,3 @@ class CountBadgePainter extends CustomPainter {
   bool shouldRepaint(CountBadgePainter old) =>
       old.count != count || old.colours != colours;
 }
-
-/// Draws the reserve's own contours, water and track.
-///
-/// These are not a decorative background. They are what remains when a tile
-/// cannot be fetched, which is the situation the app is designed around, so
-/// they have to carry the shape of the ground on their own. The tile layer
-/// above them paints a transparent square wherever it has nothing, and the
-/// vector layer shows through exactly there.
-class ReserveVectorPainter extends CustomPainter {
-  ReserveVectorPainter({required this.colours});
-
-  final FieldColours colours;
-
-  /// Contour bands, drawn as nested offsets from the centre. Deliberately
-  /// regular: this is a placeholder for surveyed contours, and its job is to
-  /// make the ground legible without a tile, not to pretend to be the ground.
-  static const int _contours = 8;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final centre = Offset(size.width / 2, size.height / 2);
-
-    // Scrub: soft patches under everything else, distinct from the acacia
-    // green so the ground reads as cover rather than a flat field.
-    for (var i = 0; i < 4; i++) {
-      final sign = i.isEven ? 1.0 : -1.0;
-      canvas.drawCircle(
-        Offset(
-          centre.dx + sign * size.width * (0.10 + 0.05 * i),
-          centre.dy - size.height * (0.05 + 0.05 * i),
-        ),
-        size.shortestSide * 0.035,
-        Paint()..color = colours.moss.withValues(alpha: 0.40),
-      );
-    }
-
-    // Contours, drawn as nested offsets from the centre.
-    for (var i = _contours; i >= 1; i--) {
-      final radius = size.shortestSide * 0.07 * i;
-      final major = i.isEven;
-      canvas.drawPath(
-        _contour(centre, radius, i),
-        Paint()
-          ..style = PaintingStyle.stroke
-          // Heavier than the design's default rules: a contour has to hold up
-          // against a busy basemap, not just against the painted ground.
-          ..strokeWidth = major ? 2.0 : 1.4
-          ..color = major
-              ? colours.contour
-              : colours.contour.withValues(alpha: 0.55),
-      );
-    }
-
-    // The waterhole. A map without water is not a map of a reserve. The
-    // drainage runs into it, so the water is where the ground points.
-    final waterhole = Offset(
-      centre.dx - size.width * 0.12,
-      centre.dy + size.height * 0.08,
-    );
-    _drawDrainage(canvas, waterhole, size);
-    canvas.drawCircle(
-      waterhole,
-      size.shortestSide * 0.055,
-      Paint()..color = colours.water,
-    );
-    canvas.drawCircle(
-      waterhole,
-      size.shortestSide * 0.055,
-      Paint()
-        ..style = PaintingStyle.stroke
-        // The same line family as the contours, so the waterhole ring holds
-        // up on a light basemap too.
-        ..strokeWidth = 1.6
-        ..color = colours.contour,
-    );
-  }
-
-  /// A stream reaching the waterhole, wobbled deterministically so it does not
-  /// shimmer as the map pans.
-  void _drawDrainage(Canvas canvas, Offset mouth, Size size) {
-    final start = Offset(
-      mouth.dx + size.width * 0.22,
-      mouth.dy - size.height * 0.26,
-    );
-    final path = Path();
-    const steps = 24;
-    for (var i = 0; i <= steps; i++) {
-      final t = i / steps;
-      final wobble =
-          _sin(t * 2 * 3.141592653589793 * 1.5) * size.shortestSide * 0.012;
-      final point = Offset(
-        start.dx + (mouth.dx - start.dx) * t + wobble,
-        start.dy + (mouth.dy - start.dy) * t,
-      );
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..strokeCap = StrokeCap.round
-        ..color = colours.drainage,
-    );
-  }
-
-  /// A closed loop with a deterministic wobble, so the same contour looks the
-  /// same on every frame and does not shimmer as the map pans.
-  Path _contour(Offset centre, double radius, int seed) {
-    final path = Path();
-    const steps = 48;
-    for (var i = 0; i <= steps; i++) {
-      final angle = (i / steps) * 2 * 3.141592653589793;
-      final wobble =
-          1 + 0.06 * _wave(angle * 2, seed) + 0.04 * _wave(angle * 3, seed + 2);
-      final point = Offset(
-        centre.dx + radius * wobble * _cos(angle),
-        centre.dy + radius * wobble * 0.78 * _sin(angle),
-      );
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    return path..close();
-  }
-
-  double _wave(double angle, int seed) => _sin(angle + seed) * 0.5 + 0.5;
-
-  double _sin(double a) => _mathSin(a);
-  double _cos(double a) => _mathCos(a);
-
-  @override
-  bool shouldRepaint(ReserveVectorPainter old) => old.colours != colours;
-}
-
-double _mathSin(double a) {
-  final x = a % (2 * 3.141592653589793);
-  // A small polynomial is enough here and avoids importing dart:math into a
-  // file that otherwise only draws.
-  var term = x;
-  var sum = x;
-  for (var i = 1; i < 6; i++) {
-    term *= -x * x / ((2 * i) * (2 * i + 1));
-    sum += term;
-  }
-  return sum;
-}
-
-double _mathCos(double a) => _mathSin(a + 3.141592653589793 / 2);

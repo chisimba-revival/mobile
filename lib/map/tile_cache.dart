@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:pmtiles/pmtiles.dart';
 
 /// A byte cache for map tiles that treats the network as optional.
 ///
@@ -13,8 +12,8 @@ import 'package:pmtiles/pmtiles.dart';
 /// bands alone, so tiles are added — but they are never allowed to become the
 /// thing the screen depends on. This cache serves a tile from disk when it can,
 /// from the network when it can, and reports failure plainly when it can do
-/// neither, so the caller can fall back to the vector layer underneath. There
-/// is no state in which a missing tile blanks the map.
+/// neither.
+/// There is no state in which a missing tile blanks the map.
 ///
 /// Cached tiles are addressed by zoom, x, y and a source namespace, so the
 /// cache key is derived from the coordinates rather than from a URL. The
@@ -22,12 +21,12 @@ import 'package:pmtiles/pmtiles.dart';
 /// never silently read the bytes of an OpenStreetMap tile that happens to
 /// share its coordinates, because the two are different pictures. Within one
 /// source, the same tile fetched twice is one file.
-class TileCache {
+class TileCache extends ChangeNotifier {
   TileCache({
     required this.directory,
     http.Client? client,
     this.maxBytes = 0,
-    this.pmtilesArchive,
+    this.requestSpacing = const Duration(milliseconds: 120),
   }) : _client = client ?? http.Client();
 
   /// Where cached tiles live. The caller supplies this so tests can use a
@@ -40,17 +39,39 @@ class TileCache {
   /// at several zoom levels will otherwise fill the device.
   final int maxBytes;
 
-  /// Optional PMTiles archive for vector tiles.
-  ///
-  /// If provided, vector tiles are served from this archive instead of the
-  /// network. The archive is a single .pmtiles file that contains all vector
-  /// tiles for the reserve.
-  final PmTilesArchive? pmtilesArchive;
-
   final http.Client _client;
   final _pending = <String, Future<Uint8List?>>{};
 
-  static const _userAgent = 'field-log/1.0 (offline field client)';
+  /// Minimum time between two network requests, shared by every tile in the
+  /// cache. OpenStreetMap now rate-limits per IP on the higher, on-demand
+  /// zoom levels, and a pan that fires thirty requests at once is precisely
+  /// the burst that trips it (HTTP 403 "Access blocked"). Booking a slot
+  /// before each request turns a burst into a smooth trickle — around eight
+  /// tiles a second at the default spacing — which is the difference between
+  /// looking around the map and being mistaken for a scraper.
+  final Duration requestSpacing;
+
+  /// When each tile source was refused by the server, keyed by the source
+  /// namespace. A refused source rests until this time instead of being
+  /// hammered again: the map degrades to the vector layer, which is the
+  /// designed offline behaviour, and the block is not prolonged by retries.
+  final Map<String, DateTime> _blockedUntil = {};
+
+  /// The next moment a request may go out, shared across the whole cache.
+  DateTime? _nextRequestAt;
+
+  /// User-Agent required by OSM's tile usage policy. The URL names this app's
+  /// real repository (github.com/chisimba-revival/mobile); OSM refuses
+  /// requests whose identification is generic, spoofed or non-existent, so
+  /// the contact has to be an address that actually resolves.
+  /// See https://operations.osmfoundation.org/policies/tiles/
+  static const _userAgent =
+      'ChisimbaFieldLog/1.0 (+https://github.com/chisimba-revival/mobile)';
+
+  /// The app's home, also sent on every tile request. OSM requires websites
+  /// to identify via Referer and applications via User-Agent; sending both
+  /// leaves no identification gap, whatever the block rules are checking.
+  static const _referer = 'https://github.com/chisimba-revival/mobile';
 
   /// Open a cache in the application's own storage.
   ///
@@ -59,21 +80,13 @@ class TileCache {
   /// costs a download, never a record.
   static Future<TileCache> forDevice({
     int maxBytes = 48 * 1024 * 1024,
-    String? pmtilesPath,
+    Duration requestSpacing = const Duration(milliseconds: 120),
   }) async {
     final support = await getApplicationSupportDirectory();
-    PmTilesArchive? archive;
-    if (pmtilesPath != null) {
-      try {
-        archive = await PmTilesArchive.from(pmtilesPath);
-      } catch (e) {
-        debugPrint('Failed to open PMTiles archive: $e');
-      }
-    }
     return TileCache(
       directory: Directory(p.join(support.path, 'tiles')),
       maxBytes: maxBytes,
-      pmtilesArchive: archive,
+      requestSpacing: requestSpacing,
     );
   }
 
@@ -82,12 +95,12 @@ class TileCache {
     String path, {
     int maxBytes = 0,
     http.Client? client,
-    PmTilesArchive? pmtilesArchive,
+    Duration requestSpacing = const Duration(milliseconds: 120),
   }) => TileCache(
     directory: Directory(path),
     maxBytes: maxBytes,
     client: client,
-    pmtilesArchive: pmtilesArchive,
+    requestSpacing: requestSpacing,
   );
 
   /// Resolve one tile, or null when it is neither cached nor fetchable.
@@ -114,27 +127,37 @@ class TileCache {
     if (fetch != null && !fetch()) {
       return null;
     }
-    return _download(key, urlFor(zoom, x, y), timeout);
+    if (blocked(source)) {
+      // A source the server refused is resting. Cached tiles still serve
+      // (this check is after the disk read), but the network is not asked
+      // again until the backoff expires.
+      return null;
+    }
+    return _download(key, urlFor(zoom, x, y), timeout, source);
   }
 
-  /// Resolve a vector tile from the PMTiles archive.
+  /// True while [source] is resting after the server refused it (HTTP 403 or
+  /// 429). The map uses this to explain a missing basemap instead of showing
+  /// nothing, and every fetch consults it so a refused source is not asked
+  /// again during the rest.
+  bool blocked(String source) {
+    final until = _blockedUntil[source];
+    return until != null && until.isAfter(DateTime.now());
+  }
+
+  /// Book the next request slot and wait for it.
   ///
-  /// Returns the raw MVT bytes for the given tile coordinates, or null if the
-  /// archive is not available or the tile doesn't exist. This is used by the
-  /// vector tile layer to render vector features.
-  Future<Uint8List?> vectorTile(int zoom, int x, int y) async {
-    if (pmtilesArchive == null) {
-      return null;
-    }
-    try {
-      final tileId = ZXY(zoom, x, y).toTileId();
-      final tile = await pmtilesArchive!.tile(tileId);
-      final bytes = tile.bytes();
-      return Uint8List.fromList(bytes);
-    } catch (e) {
-      debugPrint('Failed to load vector tile $zoom/$x/$y: $e');
-      return null;
-    }
+  /// The slot is booked *before* the wait, so concurrent callers line up
+  /// instead of all deciding to fire at the same moment: the first books n,
+  /// the second books n + spacing, and the wall of parallel requests a pan
+  /// wants to make becomes a stream no faster than one per [requestSpacing].
+  Future<void> _pace() {
+    final now = DateTime.now();
+    final earliest = _nextRequestAt == null || !_nextRequestAt!.isAfter(now)
+        ? now
+        : _nextRequestAt!;
+    _nextRequestAt = earliest.add(requestSpacing);
+    return Future<void>.delayed(earliest.difference(now));
   }
 
   /// How many bytes are held, for the ledger screen to report.
@@ -194,12 +217,38 @@ class TileCache {
   /// The in-flight map matters because the map asks for the same tile again the
   /// moment it is panned back over it, and without this a pan across a cached
   /// area fires one request per tile per frame.
-  Future<Uint8List?> _download(String key, Uri url, Duration timeout) {
+  Future<Uint8List?> _download(
+    String key,
+    Uri url,
+    Duration timeout,
+    String source,
+  ) {
     return _pending.putIfAbsent(key, () async {
       try {
+        // The pace is shared across the whole cache, not per tile: this is
+        // what keeps a pan that wants thirty tiles at once inside the
+        // provider's per-IP limit.
+        await _pace();
         final response = await _client
-            .get(url, headers: {'User-Agent': _userAgent})
+            .get(url, headers: {'User-Agent': _userAgent, 'Referer': _referer})
             .timeout(timeout);
+        if (response.statusCode == 403 || response.statusCode == 429) {
+          // The provider refuses this client: a block (403) or a rate limit
+          // (429). Rest the whole source so the app stops asking — hammering
+          // a limited IP is what turns a short block into a long one — and
+          // notify the map, so it can say why the basemap is missing.
+          _blockedUntil[source] = DateTime.now().add(
+            response.statusCode == 429
+                ? const Duration(minutes: 2)
+                : const Duration(minutes: 10),
+          );
+          notifyListeners();
+          debugPrint(
+            'tile source "$source" refused (HTTP '
+            '${response.statusCode}); resting it',
+          );
+          return null;
+        }
         if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
           return null;
         }
@@ -250,34 +299,50 @@ class TileCache {
         // cache that was explicitly told not to evict deletes itself.
         return;
       }
-      final files = <File>[];
+      final files = <_CacheFile>[];
       var total = 0;
       // Recursive: tiles live at zoom/x/y.tile, so a walk of the cache root
       // alone finds only directories and total stays zero, which makes the
       // budget check below pass on every write and the cache grow forever.
       await for (final entity in directory.list(recursive: true)) {
         if (entity is File) {
-          total += await entity.length();
-          files.add(entity);
+          try {
+            final stat = await entity.stat();
+            final length = stat.size;
+            total += length;
+            files.add(_CacheFile(entity, stat.modified, length));
+          } on FileSystemException {
+            // File disappeared between list and stat; skip it.
+          }
         }
       }
       if (total <= maxBytes || files.isEmpty) {
         return;
       }
 
-      files.sort(
-        (a, b) => a.statSync().modified.compareTo(b.statSync().modified),
-      );
-      for (final file in files) {
+      files.sort((a, b) => a.modified.compareTo(b.modified));
+      for (final cacheFile in files) {
         if (total <= maxBytes) {
           return;
         }
-        final length = await file.length();
-        await file.delete();
-        total -= length;
+        try {
+          await cacheFile.file.delete();
+          total -= cacheFile.length;
+        } on FileSystemException {
+          // Already gone; length already subtracted from total.
+        }
       }
     } on FileSystemException catch (error) {
       debugPrint('tile cache eviction failed: ${error.message}');
     }
   }
+}
+
+/// Internal record for a cache file with its metadata.
+class _CacheFile {
+  const _CacheFile(this.file, this.modified, this.length);
+
+  final File file;
+  final DateTime modified;
+  final int length;
 }

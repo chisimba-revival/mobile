@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:drift/drift.dart' show InsertMode, OrderingTerm;
+import 'package:drift/drift.dart' show BooleanExpressionOperators, OrderingTerm;
+import 'package:flutter_map/flutter_map.dart';
 import 'package:field_log/data/database.dart';
 import 'package:field_log/data/drive_writer.dart';
 import 'package:field_log/data/encounter_writer.dart';
+import 'package:field_log/data/route_writer.dart';
 import 'package:field_log/data/trail_log_writer.dart';
 import 'package:field_log/data/mappers.dart';
 import 'package:field_log/data/operation_queue.dart';
@@ -19,6 +21,8 @@ import 'package:field_log/design/tokens.dart';
 import 'package:field_log/field/card_state.dart';
 import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/map/progress_overlay.dart';
+import 'package:field_log/progress/progress_loader.dart';
 import 'package:field_log/map/maptiler_tiles.dart';
 import 'package:field_log/models/sync_operation.dart' as model;
 import 'package:field_log/map/tile_cache.dart';
@@ -27,6 +31,7 @@ import 'package:field_log/net/chisimba_api.dart';
 import 'package:field_log/net/connectivity_watcher.dart';
 import 'package:field_log/net/session_store.dart';
 import 'package:field_log/screens/map_screen.dart';
+import 'package:field_log/screens/observations_screen.dart';
 import 'package:field_log/screens/trail_logbook_screen.dart';
 import 'package:field_log/screens/drive_logbook_screen.dart';
 import 'package:field_log/screens/pin_detail.dart';
@@ -43,6 +48,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,16 +61,23 @@ Future<void> main() async {
   // Where the reserve office is. This is a build-time value in a real
   // deployment rather than a constant in the source, and it is the one thing
   // that will differ between a device in the reserve and a device in a
-  // developer's hands.
+  // developer's hands. The base is the host only: ChisimbaApi puts the
+  // version and path on every request itself, so a default that already
+  // carried /api/v1 would double it and 404 every call.
   const serviceUrl = String.fromEnvironment(
     'CHISIMBA_API',
-    defaultValue: 'http://10.0.2.2:8080/api/v1',
+    defaultValue: 'http://localhost:8080',
   );
+  // A server the operator corrected on the sign-in screen outlives the run
+  // that typed it: the remembered address wins over the build-time default,
+  // or the correction would have to be retyped after every restart.
+  final prefs = await SharedPreferences.getInstance();
+  final rememberedServer = prefs.getString('chisimba_api_url');
   runApp(
     FieldLogApp(
       database: database,
       tileCache: tileCache,
-      api: ChisimbaApi(baseUrl: serviceUrl),
+      api: ChisimbaApi(baseUrl: rememberedServer ?? serviceUrl),
       sessions: SessionStore(
         // Outside the database on purpose: that file is the logbook, and it is
         // synced and exportable. A credential belongs in neither.
@@ -108,24 +121,45 @@ class FieldLogApp extends StatefulWidget {
 
 class _FieldLogAppState extends State<FieldLogApp> {
   ThemeMode _themeMode = ThemeMode.dark;
+  ThemeVariant _themeVariant = ThemeVariant.standard;
+  Density _density = Density.comfortable;
+  MapStylePreset _mapStylePreset = MapStylePreset.field;
 
   @override
   void initState() {
     super.initState();
-    _restoreThemeMode();
+    _restoreThemeSettings();
   }
 
-  Future<void> _restoreThemeMode() async {
+  Future<void> _restoreThemeSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('theme_mode');
+    final savedMode = prefs.getString('theme_mode');
+    final savedVariant = prefs.getString('theme_variant');
+    final savedDensity = prefs.getString('theme_density');
+    final savedMapStyle = prefs.getString('map_style_preset');
     if (!mounted) {
       return;
     }
     setState(() {
-      _themeMode = switch (saved) {
+      _themeMode = switch (savedMode) {
         'light' => ThemeMode.light,
         'system' => ThemeMode.system,
         _ => ThemeMode.dark,
+      };
+      _themeVariant = switch (savedVariant) {
+        'high-contrast' => ThemeVariant.highContrast,
+        'sepia' => ThemeVariant.sepia,
+        _ => ThemeVariant.standard,
+      };
+      _density = switch (savedDensity) {
+        'compact' => Density.compact,
+        'spacious' => Density.spacious,
+        _ => Density.comfortable,
+      };
+      _mapStylePreset = switch (savedMapStyle) {
+        'navigation' => MapStylePreset.navigation,
+        'survey' => MapStylePreset.survey,
+        _ => MapStylePreset.field,
       };
     });
   }
@@ -136,14 +170,62 @@ class _FieldLogAppState extends State<FieldLogApp> {
     await prefs.setString('theme_mode', mode.name);
   }
 
+  Future<void> _setThemeVariant(ThemeVariant variant) async {
+    setState(() => _themeVariant = variant);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_variant', variant.name);
+  }
+
+  Future<void> _setDensity(Density density) async {
+    setState(() => _density = density);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_density', density.name);
+  }
+
+  Future<void> _setMapStylePreset(MapStylePreset preset) async {
+    setState(() => _mapStylePreset = preset);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('map_style_preset', preset.name);
+  }
+
+  FieldColours _currentColours() {
+    switch (_themeVariant) {
+      case ThemeVariant.highContrast:
+        return FieldColours.highContrast;
+      case ThemeVariant.sepia:
+        return FieldColours.sepia;
+      case ThemeVariant.standard:
+        return _themeMode == ThemeMode.light
+            ? FieldColours.sunlight
+            : FieldColours.dark;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Disable animations when user prefers reduced motion
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    final colours = _currentColours();
+
     return MaterialApp(
       title: 'Field log',
       debugShowCheckedModeBanner: false,
-      theme: fieldTheme(FieldColours.sunlight),
-      darkTheme: fieldTheme(FieldColours.dark),
+      theme: fieldTheme(_currentColours()),
+      darkTheme: fieldTheme(_currentColours()),
       themeMode: _themeMode,
+      builder: (context, child) {
+        // Disable animations globally when user prefers reduced motion
+        if (disableAnimations) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              disableAnimations: true,
+              boldText: MediaQuery.of(context).boldText,
+            ),
+            child: child!,
+          );
+        }
+        return child!;
+      },
       home: FieldLogHome(
         database: widget.database,
         tileCache: widget.tileCache,
@@ -152,6 +234,12 @@ class _FieldLogAppState extends State<FieldLogApp> {
         connectivity: widget.connectivity,
         currentThemeMode: _themeMode,
         onThemeModeChanged: _setThemeMode,
+        currentThemeVariant: _themeVariant,
+        onThemeVariantChanged: _setThemeVariant,
+        currentDensity: _density,
+        onDensityChanged: _setDensity,
+        currentMapStylePreset: _mapStylePreset,
+        onMapStylePresetChanged: _setMapStylePreset,
       ),
     );
   }
@@ -172,6 +260,12 @@ class FieldLogHome extends StatefulWidget {
     required this.connectivity,
     required this.currentThemeMode,
     required this.onThemeModeChanged,
+    required this.currentThemeVariant,
+    required this.onThemeVariantChanged,
+    required this.currentDensity,
+    required this.onDensityChanged,
+    required this.currentMapStylePreset,
+    required this.onMapStylePresetChanged,
     this.tileCache,
   });
 
@@ -181,6 +275,12 @@ class FieldLogHome extends StatefulWidget {
   final ConnectivityWatcher connectivity;
   final ThemeMode currentThemeMode;
   final ValueChanged<ThemeMode> onThemeModeChanged;
+  final ThemeVariant currentThemeVariant;
+  final ValueChanged<ThemeVariant> onThemeVariantChanged;
+  final Density currentDensity;
+  final ValueChanged<Density> onDensityChanged;
+  final MapStylePreset currentMapStylePreset;
+  final ValueChanged<MapStylePreset> onMapStylePresetChanged;
   final TileCache? tileCache;
 
   @override
@@ -210,10 +310,28 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   late final DriveWriter _drives;
   late final TrailLogWriter _trails;
   late final EncounterWriter _encounters;
+  late final RouteWriter _routes;
 
   /// Whether a sync is in flight, so a transport flap or a capture mid-sync
   /// does not start a second push against the same batch.
   bool _syncing = false;
+
+  /// When the last sync finished cleanly, for the "last synced" stamp.
+  ///
+  /// Null until the first successful sync, which is the honest beginning: a
+  /// device that has never sent anything has no "last synced" to claim.
+  DateTime? _lastSyncedAt;
+
+  /// Why the last sync failed, shown where the queue is read.
+  ///
+  /// Cleared by a later successful sync. Kept separate from [_syncing] because
+  /// the two tell different stories: a spinner says "trying now", an error
+  /// says "the last try did not land".
+  String? _syncError;
+
+  /// Drives the 2-minute sync while the phone is online and signed in, so a
+  /// long queue does not wait for the next transport event to drain.
+  Timer? _syncTimer;
 
   FieldUser? _user;
   ConnectivityStatus _status = const ConnectivityStatus(
@@ -248,14 +366,60 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   /// the route editor. Until one is picked, captures are kept unowned.
   String? _selectedOutingId;
 
+  /// The chip that remembers [_selectedOutingId] across restarts, so a planned
+  /// route is drawn on the map again when the app opens rather than waiting for
+  /// somebody to walk back through the route editor.
+  static const _selectedOutingKey = 'chisimba_selected_outing';
+
+  /// The outing currently running, so the map's progress card can show a live
+  /// elapsed readout — and a Stop action — while a drive or walk is on.
+  ///
+  /// Deliberately separate from [_selectedOutingId]: the selection survives
+  /// the end of a drive (sightings filed after the vehicle stops still belong
+  /// to it), while the active indicator exists only while something is being
+  /// driven or walked and is cleared the moment it ends.
+  String? _activeOutingId;
+
+  /// Which logbook opened [_activeOutingId]: 'drive' or 'trail'.
+  String _activeOutingKind = 'drive';
+
+  /// The word the card leads with, derived from [_activeOutingKind].
+  String _activeOutingLabel = '';
+
+  /// When [_activeOutingId] started, for the card's ticking readout.
+  DateTime? _activeOutingStartedAt;
+
+  /// The kind of [_selectedOutingId] as reported by the logbook that started
+  /// it. Kept after the active indicator clears, so a trail that has ended is
+  /// still known to be a trail while it remains the selected outing.
+  String? _selectedOutingKind;
+
+  static const _activeOutingKey = 'chisimba_active_outing';
+  static const _activeOutingKindKey = 'chisimba_active_outing_kind';
+  static const _activeOutingStartedAtKey = 'chisimba_active_outing_started_at';
+
+  /// A stable id for this phone, minted once and kept for the life of the
+  /// install. The service binds a refresh token to the device id given at
+  /// sign-in and refuses to rotate it for any other, so the same value has to
+  /// be presented on every launch. It is not a secret.
+  static const _deviceIdKey = 'chisimba_device_id';
+
   /// The planned route for [_selectedOutingId], drawn over the map.
   PlannedRoute? _route;
   List<RouteWaypoint> _routeWaypoints = const [];
+
+  /// Trail and drive hours for the card that sits on the map. Refolded from the
+  /// database whenever a walk or a drive changes, and empty until the first
+  /// read, so the card never claims a total it has not actually loaded.
+  OutingProgress _progress = OutingProgress.empty;
 
   /// The reserve context every local record is written into. Sync only works
   /// within the token's active context, so this adopts that context when a
   /// sign-in proves who the device belongs to.
   String _contextCode = 'field:write';
+
+  /// Key to access the MapScreenState and its map controller.
+  final _mapKey = GlobalKey<MapScreenState>();
 
   @override
   void initState() {
@@ -268,7 +432,9 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     _drives = DriveWriter(widget.database, _queue);
     _trails = TrailLogWriter(widget.database, queue: _queue);
     _encounters = EncounterWriter(widget.database, _queue);
+    _routes = RouteWriter(widget.database, _queue, _contextCode);
     _read();
+    _readProgress();
     _restore();
     _watchTransport();
     _watchPosition();
@@ -278,10 +444,19 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     // ones; running this at startup is what turns an inflight row left by a
     // mid-push kill into something the next sync will offer again.
     unawaited(_recoverAndCount());
+    // A long queue drains over transport events, but a quiet phone with a
+    // radio up has no events. The periodic sync offers the queue again so a
+    // backhaul that limped mid-batch is not a queue that stops being asked.
+    _syncTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      if (_user != null && _status.hasTransport && !_syncing) {
+        unawaited(_sync());
+      }
+    });
   }
 
   @override
   void dispose() {
+    _syncTimer?.cancel();
     _position?.cancel();
     _transport?.cancel();
     widget.connectivity.dispose();
@@ -296,6 +471,36 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   /// rather than an error worth interrupting anybody for. The trainee can still
   /// record everything either way.
   Future<void> _restore() async {
+    // The selected outing is remembered apart from the session: a planned route
+    // belongs to the phone rather than the account, and has to be drawn whether
+    // or not anyone is signed in.
+    final prefs = await SharedPreferences.getInstance();
+    final rememberedOuting = prefs.getString(_selectedOutingKey);
+    if (rememberedOuting != null && rememberedOuting.isNotEmpty && mounted) {
+      _selectedOutingId = rememberedOuting;
+      await _readRoute();
+    }
+    // The active indicator is restored for the same reason: a drive or walk
+    // interrupted by a restart is still running, and the card should come
+    // back with it. The logbook screen owns the record itself; this only
+    // restores the indicator, and ending the outing from its own screen clears
+    // it again.
+    final activeId = prefs.getString(_activeOutingKey);
+    if (activeId != null && activeId.isNotEmpty && mounted) {
+      final kind = prefs.getString(_activeOutingKindKey) ?? 'drive';
+      final startedAt =
+          DateTime.tryParse(prefs.getString(_activeOutingStartedAtKey) ?? '') ??
+          DateTime.now().toUtc();
+      setState(() {
+        _activeOutingId = activeId;
+        _activeOutingKind = kind;
+        _activeOutingStartedAt = startedAt;
+        _activeOutingLabel = kind == 'trail' ? 'Trail' : 'Drive';
+      });
+    }
+    if (!mounted) {
+      return;
+    }
     final stored = await widget.sessions.read();
     if (stored == null || !stored.isUsable || !mounted) {
       if (mounted) {
@@ -304,7 +509,35 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       return;
     }
     try {
-      final user = await widget.api.whoAmI(stored.accessToken);
+      // A token past its hour is renewed rather than thrown away: the refresh
+      // token lives far longer, and signing a trainee out mid-season because
+      // they opened the app the next morning is the bug this avoids.
+      var session = await _freshSession();
+      if (session == null) {
+        if (mounted) {
+          setState(() => _restoring = false);
+        }
+        return;
+      }
+      FieldUser user;
+      try {
+        user = await widget.api.whoAmI(session.accessToken);
+      } on AuthFailure catch (error) {
+        if (!error.isUnauthorized) {
+          rethrow;
+        }
+        // A 401 with a token that read as still valid means it was revoked or
+        // the clock is off. One renewal, then believe the service.
+        final renewed = await _refreshTokens(session);
+        if (renewed == null) {
+          if (mounted) {
+            setState(() => _restoring = false);
+          }
+          return;
+        }
+        session = renewed;
+        user = await widget.api.whoAmI(session.accessToken);
+      }
       if (!mounted) {
         return;
       }
@@ -317,9 +550,9 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       // rather than waiting for a transport event that may never re-fire.
       if (_status.hasTransport) unawaited(_sync());
     } on Object {
-      // The token did not work. Clearing it stops the next launch trying it
-      // again, and puts the trainee in front of the sign-in form rather than
-      // silently signed in as nobody.
+      // The session is genuinely gone. Clearing it stops the next launch
+      // trying it again, and puts the trainee in front of the sign-in form
+      // rather than silently signed in as nobody.
       await widget.sessions.clear();
       if (mounted) {
         setState(() => _restoring = false);
@@ -360,65 +593,151 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   /// holds and is absorbed as the no-op it is instead of being read as a
   /// disagreement. A single guard makes a transport flap or a capture
   /// landing mid-sync harmless.
+  /// A stable id for this phone, minted once and kept.
+  ///
+  /// The service binds a refresh token to the device id given at sign-in and
+  /// refuses to rotate it for any other, so this has to be the same value on
+  /// every launch. It is not a secret and carries nothing about the user; it
+  /// only tells the service that the token belongs to this install.
+  Future<String> _deviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = prefs.getString(_deviceIdKey);
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+    final minted = const Uuid().v4();
+    await prefs.setString(_deviceIdKey, minted);
+    return minted;
+  }
+
+  /// Exchange the stored refresh token for a new token pair.
+  ///
+  /// Returns the fresh tokens and persists them, or null when the service
+  /// refuses — which means the session is genuinely over, so the stored one is
+  /// cleared and nothing keeps presenting a dead token.
+  Future<StoredTokens?> _refreshTokens(StoredTokens stored) async {
+    try {
+      final refreshed = await widget.api.refreshSession(
+        refreshToken: stored.refreshToken,
+        deviceId: await _deviceId(),
+      );
+      final renewed = StoredTokens(
+        accessToken: refreshed.accessToken,
+        refreshToken: refreshed.refreshToken,
+        expiresInSeconds: refreshed.expiresInSeconds,
+        issuedAt: DateTime.now(),
+      );
+      await widget.sessions.write(renewed);
+      return renewed;
+    } on AuthFailure {
+      await widget.sessions.clear();
+      return null;
+    }
+  }
+
+  /// The session to use now, renewing a stale access token first.
+  ///
+  /// Returns null when there is no usable session, or when it could not be
+  /// renewed; the caller then treats the phone as signed out.
+  Future<StoredTokens?> _freshSession() async {
+    final stored = await widget.sessions.read();
+    if (stored == null || !stored.isUsable) {
+      return null;
+    }
+    if (!stored.isAccessTokenExpired) {
+      return stored;
+    }
+    return _refreshTokens(stored);
+  }
+
+  /// Stand the trainee down because their session ended, once and plainly.
+  ///
+  /// This is deliberately not the sign-in-failure sentence: the name and
+  /// password were never the problem, the token simply aged out, and saying
+  /// otherwise sends somebody hunting for a typo they do not have.
+  Future<void> _sessionExpired() async {
+    await widget.sessions.clear();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _user = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Your session expired — please sign in again.'),
+      ),
+    );
+  }
+
   Future<void> _sync() async {
     if (_syncing || _user == null || !_status.hasTransport) {
       return;
     }
     _syncing = true;
     try {
-      final stored = await widget.sessions.read();
-      if (stored == null || !stored.isUsable) {
+      final stored = await _freshSession();
+      if (stored == null) {
+        if (mounted) {
+          setState(() => _user = null);
+        }
         return;
       }
-      final token = stored.accessToken;
 
-      final report = await _push.push(
-        send: (batch) async {
-          final request = PushRequest(
-            operations: [
-              for (final operation in batch)
-                PushOperation.fromJson(operationToWire(operation)),
-            ],
-          );
-          final response = await widget.api.push(token, request);
-          // The transport's result names its outcome in the service's words;
-          // the engine's contract names it in the enum. The two are different
-          // types on purpose, and this is the one place they are translated.
-          return [
-            for (final result in response.results)
-              model.PushResult(
-                operationId: result.operationId,
-                outcome: switch (result.outcome) {
-                  'applied' => model.PushOutcome.applied,
-                  'noop' => model.PushOutcome.noop,
-                  'deferred' => model.PushOutcome.deferred,
-                  'refused' => model.PushOutcome.refused,
-                  // An outcome this client has never heard of is treated as
-                  // deferred: offered again, with its unknown string still
-                  // readable in the ledger, rather than being marked settled
-                  // and dropped because a newer service grew a word.
-                  _ => model.PushOutcome.deferred,
-                },
-                newRevision: result.newRevision,
-                errorCode: result.errorCode,
-                serverState: result.serverState,
-                serverRevision: result.serverRevision,
+      PushOutcomeReport report;
+      try {
+        report = await _runSyncWith(stored.accessToken);
+      } on AuthFailure catch (error) {
+        // A 401 means the token went stale between the check above and the
+        // service's answer. Renew once and try again; anything else is a real
+        // failure and is reported as one.
+        if (!error.isUnauthorized) {
+          rethrow;
+        }
+        final renewed = await _refreshTokens(stored);
+        if (renewed == null) {
+          await _sessionExpired();
+          return;
+        }
+        report = await _runSyncWith(renewed.accessToken);
+      }
+
+      // A clean sync is the one thing the phone can report without the
+      // service's help. It resets the failure line and stamps the clock; the
+      // map shows the stamp, and a failure that came before it is gone.
+      final pushed = report.sentOperationIds.length;
+      _lastSyncedAt = DateTime.now();
+      final wasFailing = _syncError != null;
+      _syncError = null;
+      if (mounted) {
+        // Only a sync that actually sent something is worth a toast. A quiet
+        // two-minute check-in that moved nothing would nag twice a minute.
+        if (pushed > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                pushed == 1
+                    ? 'Synced — 1 change uploaded'
+                    : 'Synced — $pushed changes uploaded',
               ),
-          ];
-        },
-      );
-      debugPrint(
-        'sync: pushed ${report.sentOperationIds.length}, '
-        '${report.applied} applied, ${report.refused} refused, '
-        '${report.deferred} waiting',
-      );
-
-      await _pullPages(token);
+            ),
+          );
+        } else if (wasFailing) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Back online — sync is clean.')),
+          );
+        }
+      }
     } on Object catch (error) {
       // Being offline in the middle of a sync is a normal field condition,
       // not a fault worth interrupting anybody for. The queue keeps what was
       // not accepted, and the next transport event tries again.
       debugPrint('sync: $error');
+      final freshFailure = _syncError == null;
+      _syncError = error.toString();
+      if (freshFailure && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed — clearing up for another try.')),
+        );
+      }
     } finally {
       _syncing = false;
       await _refreshQueued();
@@ -426,6 +745,57 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         await _read();
       }
     }
+  }
+
+  /// Push the queue and pull the feed with [token], returning the push report.
+  ///
+  /// Split out of [_sync] so a stale-token retry can run the whole exchange
+  /// again with a renewed token without duplicating the translation between
+  /// the transport's result words and the engine's outcome enum.
+  Future<PushOutcomeReport> _runSyncWith(String token) async {
+    final report = await _push.push(
+      send: (batch) async {
+        final request = PushRequest(
+          operations: [
+            for (final operation in batch)
+              PushOperation.fromJson(operationToWire(operation)),
+          ],
+        );
+        final response = await widget.api.push(token, request);
+        // The transport's result names its outcome in the service's words;
+        // the engine's contract names it in the enum. The two are different
+        // types on purpose, and this is the one place they are translated.
+        return [
+          for (final result in response.results)
+            model.PushResult(
+              operationId: result.operationId,
+              outcome: switch (result.outcome) {
+                'applied' => model.PushOutcome.applied,
+                'noop' => model.PushOutcome.noop,
+                'deferred' => model.PushOutcome.deferred,
+                'refused' => model.PushOutcome.refused,
+                // An outcome this client has never heard of is treated as
+                // deferred: offered again, with its unknown string still
+                // readable in the ledger, rather than being marked settled
+                // and dropped because a newer service grew a word.
+                _ => model.PushOutcome.deferred,
+              },
+              newRevision: result.newRevision,
+              errorCode: result.errorCode,
+              serverState: result.serverState,
+              serverRevision: result.serverRevision,
+            ),
+        ];
+      },
+    );
+    debugPrint(
+      'sync: pushed ${report.sentOperationIds.length}, '
+      '${report.applied} applied, ${report.refused} refused, '
+      '${report.deferred} waiting',
+    );
+
+    await _pullPages(token);
+    return report;
   }
 
   /// Pull pages until the feed runs dry or the service asks for a re-pull.
@@ -518,6 +888,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         database: widget.database,
         api: widget.api,
         sessions: widget.sessions,
+        renewSession: _refreshTokens,
       );
       final snapshot = await loader.load();
       if (!mounted) {
@@ -530,17 +901,22 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   }
 
   Future<void> _signIn(String username, String password) async {
+    debugPrint('SIGNIN: server=${widget.api.baseUrl}');
     final evidence = await widget.api.fetchLoginEvidence();
     final session = await widget.api.signIn(
       username: username,
       password: password,
       evidence: evidence,
+      deviceId: await _deviceId(),
     );
     await widget.sessions.write(
       StoredTokens(
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
         expiresInSeconds: session.expiresInSeconds,
+        // Stamped so the token's hour can be measured later and renewed
+        // before it lapses rather than after a 401.
+        issuedAt: DateTime.now(),
       ),
     );
     _contextCode = session.user.activeContext ?? _contextCode;
@@ -583,6 +959,16 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     });
   }
 
+  /// Refolds the trail and drive hours for the map's progress card. Reads the
+  /// database directly, so it is cheap enough to run after any record changes.
+  Future<void> _readProgress() async {
+    final progress = await ProgressLoader(widget.database).load();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _progress = progress);
+  }
+
   /// A sighting the client cannot name is still a sighting, so the label falls
   /// back to the description rather than to nothing. This is deliberately
   /// crude: the species reference table arrives with the service, and until it
@@ -598,9 +984,27 @@ class _FieldLogHomeState extends State<FieldLogHome> {
           // the button was pressed.
           database: widget.database,
           online: _status.hasTransport,
+          onSyncNow: () => unawaited(_sync()),
+          lastSyncedAt: _lastSyncedAt,
         ),
       ),
     );
+  }
+
+  /// The competency catalogue the tally measures requirements against, or an
+  /// empty list when there is no session or the service cannot be reached. The
+  /// tally is still worth opening without it: it shows the hours either way.
+  Future<List<Competency>> _loadCompetencies() async {
+    final session = await _freshSession();
+    if (session == null) {
+      return const [];
+    }
+    try {
+      final catalogue = await widget.api.getCompetencies(session.accessToken);
+      return catalogue.competencies;
+    } on Object {
+      return const [];
+    }
   }
 
   Future<void> _openTally() async {
@@ -612,6 +1016,54 @@ class _FieldLogHomeState extends State<FieldLogHome> {
           // the tab as if nothing had ever been recorded, even when trail
           // logs exist.
           database: widget.database,
+          // The requirements come from the competency catalogue. Without it the
+          // hours still show; the sign-off list is simply not drawn.
+          onLoadCompetencies: _loadCompetencies,
+          // A total nobody can correct is a total nobody trusts. Both of these
+          // write through the same writers the logbooks use, so the record and
+          // the queue move together and the next sync offers the correction.
+          onEditTrail: (localId) async {
+            final row = await (widget.database.select(
+              widget.database.trailLogs,
+            )..where((t) => t.localId.equals(localId))).getSingleOrNull();
+            if (row == null || !mounted) return;
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => TrailLogbookScreen(
+                  database: widget.database,
+                  writer: _trails,
+                  encounters: _encounters,
+                  contextCode: _contextCode,
+                  driveId: row.driveId ?? '',
+                  guideId: row.guideRole,
+                  species: const [],
+                  recentSpecies: const [],
+                  editTrail: row,
+                ),
+              ),
+            );
+            if (!mounted) return;
+            await _readProgress();
+          },
+          onEditDrive: (localId) async {
+            final row = await (widget.database.select(
+              widget.database.drives,
+            )..where((t) => t.localId.equals(localId))).getSingleOrNull();
+            if (row == null || !mounted) return;
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => DriveLogbookScreen(
+                  database: widget.database,
+                  writer: _drives,
+                  contextCode: _contextCode,
+                  guideId: _user?.id,
+                  editDrive: row,
+                ),
+              ),
+            );
+            if (!mounted) return;
+            await _readProgress();
+          },
         ),
       ),
     );
@@ -632,18 +1084,25 @@ class _FieldLogHomeState extends State<FieldLogHome> {
           contextCode: _contextCode,
           guideId: _user?.id,
           onDriveStarted: (localId) {
-            // Sightings tapped from now on belong to this drive. Ending a
-            // drive does not clear it: observations made at the sighting
-            // point after the vehicle stops are still on that drive.
-            setState(() => _selectedOutingId = localId);
+            // Sightings tapped from now on belong to this drive, and the map
+            // draws this drive's planned route. Ending a drive does not clear
+            // it: observations made at the sighting point after the vehicle
+            // stops are still on that drive.
+            _setSelectedOuting(localId);
+            _setActiveOuting(localId, 'drive');
           },
           onDriveEnded: () {
+            // The drive row is closed by the logbook; the card comes off the
+            // map here so the map never claims a drive that is over. The
+            // selection above is deliberately left alone.
+            _stopActiveOuting();
             _refreshQueued();
             if (_status.hasTransport) unawaited(_sync());
           },
         ),
       ),
     );
+    await _readProgress();
   }
 
   /// The trail logbook: start a walk, drop waypoints, record encounters,
@@ -665,15 +1124,20 @@ class _FieldLogHomeState extends State<FieldLogHome> {
           recentSpecies: recent,
           onSpeciesUsed: (choice) => _recent?.note(choice),
           onTrailStarted: (localId) {
-            setState(() => _selectedOutingId = localId);
+            _setSelectedOuting(localId);
+            _setActiveOuting(localId, 'trail');
           },
           onTrailEnded: () {
+            // Same split as the drive: the logbook closes the walk, the card
+            // comes off the map, and the selection survives for the record.
+            _stopActiveOuting();
             _refreshQueued();
             if (_status.hasTransport) unawaited(_sync());
           },
         ),
       ),
     );
+    await _readProgress();
   }
 
   /// Pushes the menu. Everything that used to be (or look like it should be)
@@ -687,6 +1151,12 @@ class _FieldLogHomeState extends State<FieldLogHome> {
           initialServer: widget.api.baseUrl,
           currentThemeMode: widget.currentThemeMode,
           onThemeModeChanged: widget.onThemeModeChanged,
+          currentThemeVariant: widget.currentThemeVariant,
+          onThemeVariantChanged: widget.onThemeVariantChanged,
+          currentDensity: widget.currentDensity,
+          onDensityChanged: widget.onDensityChanged,
+          currentMapStylePreset: widget.currentMapStylePreset,
+          onMapStylePresetChanged: widget.onMapStylePresetChanged,
           onSignIn: () async {
             await _openSignIn();
             return _user?.shortName;
@@ -698,6 +1168,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
               database: widget.database,
               api: widget.api,
               sessions: widget.sessions,
+              renewSession: _refreshTokens,
             );
             final snapshot = await loader.load(forceRefresh: forceRefresh);
             return ReferenceLoadResult(
@@ -707,13 +1178,9 @@ class _FieldLogHomeState extends State<FieldLogHome> {
           },
           onForceConnectivity: kDebugMode
               ? (status) async {
-                  widget.connectivity.forceStatus(
-                    status ??
-                        const ConnectivityStatus(
-                          hasTransport: false,
-                          transports: [],
-                        ),
-                  );
+                  // Null clears the override: the real probe answers again
+                  // rather than being pinned to no-signal.
+                  widget.connectivity.forceStatus(status);
                 }
               : null,
           onOpenRouteEditor: (outing, existingRoute, existingWaypoints) async {
@@ -732,9 +1199,8 @@ class _FieldLogHomeState extends State<FieldLogHome> {
             );
             await _readRoute();
           },
-          onLoadRoute: () async {
-            return _loadRouteForOuting(_selectedOutingId ?? '');
-          },
+          onLoadRoute: _loadRouteForOuting,
+          routeOuting: _routeOuting(),
         ),
       ),
     );
@@ -750,6 +1216,155 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       _route = loaded.route;
       _routeWaypoints = loaded.waypoints;
     });
+    final waypoints = loaded.waypoints;
+    if (waypoints.length >= 2) {
+      /// Fit the camera to show all route waypoints, framed with padding.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _mapKey.currentState?.fitCamera(
+            CameraFit.coordinates(
+              coordinates: waypoints
+                  .map((w) => LatLng(w.latitude, w.longitude))
+                  .toList(),
+              padding: const EdgeInsets.all(40),
+            ),
+          );
+        }
+      });
+    }
+  }
+
+  /// Chooses the outing captures and routes are filed against, remembering it
+  /// across restarts and redrawing the map's planned route for the new outing.
+  ///
+  /// The same id selects the capture owner and the route to draw, so the two
+  /// can never disagree about which outing is "current".
+  void _setSelectedOuting(String? id) {
+    if (id == _selectedOutingId) {
+      return;
+    }
+    setState(() => _selectedOutingId = id);
+    unawaited(_rememberOuting(id));
+    unawaited(_readRoute());
+  }
+
+  Future<void> _rememberOuting(String? id) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (id == null || id.isEmpty) {
+      await prefs.remove(_selectedOutingKey);
+    } else {
+      await prefs.setString(_selectedOutingKey, id);
+    }
+  }
+
+  /// Marks an outing as running: the map's card shows a live elapsed readout
+  /// and a Stop action from this moment until the logbook ends it.
+  void _setActiveOuting(String localId, String kind) {
+    if (_activeOutingId == localId && _activeOutingKind == kind) {
+      return;
+    }
+    setState(() {
+      _activeOutingId = localId;
+      _activeOutingKind = kind;
+      _activeOutingStartedAt = DateTime.now().toUtc();
+      _activeOutingLabel = kind == 'trail' ? 'Trail' : 'Drive';
+      _selectedOutingKind = kind;
+    });
+    unawaited(_rememberActiveOuting());
+  }
+
+  /// Takes the active-offing card off the map.
+  ///
+  /// Deliberately does not end the record: the drive or trail row is closed by
+  /// its own logbook screen, which owns the facts of the end (hours, head
+  /// count). This only clears the indicator — so [_selectedOutingId], the
+  /// outing captures are filed against, survives untouched.
+  void _stopActiveOuting() {
+    if (_activeOutingId == null) {
+      return;
+    }
+    setState(() {
+      _activeOutingId = null;
+      _activeOutingKind = 'drive';
+      _activeOutingLabel = '';
+      _activeOutingStartedAt = null;
+    });
+    unawaited(_forgetActiveOuting());
+  }
+
+  Future<void> _rememberActiveOuting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = _activeOutingId;
+    if (id == null) {
+      return;
+    }
+    await prefs.setString(_activeOutingKey, id);
+    await prefs.setString(_activeOutingKindKey, _activeOutingKind);
+    final startedAt = _activeOutingStartedAt;
+    if (startedAt != null) {
+      await prefs.setString(
+        _activeOutingStartedAtKey,
+        startedAt.toIso8601String(),
+      );
+    }
+  }
+
+  Future<void> _forgetActiveOuting() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_activeOutingKey);
+    await prefs.remove(_activeOutingKindKey);
+    await prefs.remove(_activeOutingStartedAtKey);
+  }
+
+  /// Whether the selected outing is a walk rather than a drive, so the field
+  /// card keeps trail-only fields (lessons learned, hours on this walk, rifle
+  /// role) off a capture made during a drive.
+  ///
+  /// A log this phone started has no row in the service's outings list, so its
+  /// kind is the one its logbook reported when it started; a planned outing
+  /// picked from the reference list carries its own kind.
+  bool get _isTrailWalk {
+    final id = _selectedOutingId;
+    if (id == null) {
+      return false;
+    }
+    for (final o in _reference?.outings ?? const <Outing>[]) {
+      if (o.id == id) {
+        final k = o.kind.toLowerCase();
+        return k.contains('trail') || k.contains('walk') || k.contains('hike');
+      }
+    }
+    return _selectedOutingKind == 'trail';
+  }
+
+  /// The outing the route editor plans for: the selected one when there is
+  /// one, else the first the reference data knows about, else null so the
+  /// editor can say a walk or drive has to come first.
+  ///
+  /// A selected outing the service has not listed yet (an offline log) is
+  /// described just well enough to hang a route on, because the route only
+  /// needs an owner id; nothing about the route depends on the other fields.
+  Outing? _routeOuting() {
+    final id = _selectedOutingId;
+    final known = _reference?.outings ?? const <Outing>[];
+    if (id == null || id.isEmpty) {
+      return known.isEmpty ? null : known.first;
+    }
+    for (final outing in known) {
+      if (outing.id == id) {
+        return outing;
+      }
+    }
+    return Outing(
+      id: id,
+      kind: 'Field outing',
+      contextCode: _contextCode,
+      guideId: _user?.id ?? '',
+      traineeIds: const [],
+      status: 'planned',
+      plannedStart: DateTime.now().toUtc().toIso8601String(),
+      revision: 0,
+    );
   }
 
   /// Loads the latest planned route and its ordered waypoints for an outing.
@@ -758,9 +1373,14 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     if (outingId.isEmpty) {
       return (route: null, waypoints: const <RouteWaypoint>[]);
     }
+    // A tombstoned route is a route the user replaced: the latest live one is
+    // the only one worth drawing, so the dead ones never shadow it.
     final routeRow =
         await (widget.database.select(widget.database.plannedRoutes)
-              ..where((t) => t.outingId.equals(outingId))
+              ..where(
+                (t) =>
+                    t.outingId.equals(outingId) & t.isTombstone.equals(false),
+              )
               ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
             .getSingleOrNull();
     if (routeRow == null) {
@@ -768,7 +1388,11 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     }
     final waypoints =
         await (widget.database.select(widget.database.routeWaypoints)
-              ..where((t) => t.routeId.equals(routeRow.localId))
+              ..where(
+                (t) =>
+                    t.routeId.equals(routeRow.localId) &
+                    t.isTombstone.equals(false),
+              )
               ..orderBy([(t) => OrderingTerm.asc(t.ordinal)]))
             .get();
     return (route: routeRow, waypoints: waypoints);
@@ -784,42 +1408,29 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     PlannedRoute route,
     List<RouteWaypoint> waypoints,
   ) async {
-    await widget.database.transaction(() async {
-      // The foreign key needs the outing to exist before the route can. An
-      // outing that has never been started locally gets a row now, so planning
-      // a route never fails because the record it belongs to is missing.
-      await widget.database
-          .into(widget.database.drives)
-          .insert(
-            DrivesCompanion.insert(
-              localId: route.outingId,
-              contextCode: _contextCode,
-              startedAt: DateTime.now().toUtc(),
-            ),
-            mode: InsertMode.insertOrIgnore,
-          );
-      final old = await (widget.database.select(
-        widget.database.plannedRoutes,
-      )..where((t) => t.outingId.equals(route.outingId))).get();
-      for (final row in old) {
-        // Deleting the route drops its waypoints through the cascade, which is
-        // why only the owner needs to be removed here.
-        await (widget.database.delete(
-          widget.database.plannedRoutes,
-        )..where((t) => t.localId.equals(row.localId))).go();
-      }
-      await widget.database.into(widget.database.plannedRoutes).insert(route);
-      for (final waypoint in waypoints) {
-        await widget.database
-            .into(widget.database.routeWaypoints)
-            .insert(waypoint);
-      }
-    });
+    await _routes.saveRoute(
+      outingId: route.outingId,
+      waypoints: waypoints,
+      routeLocalId: route.localId,
+    );
     if (!mounted) {
       return;
     }
     setState(() => _selectedOutingId = route.outingId);
+    unawaited(_rememberOuting(route.outingId));
     await _readRoute();
+  }
+
+  /// Deletes a pin's record: tombstones it and queues the deletion, then
+  /// re-reads so the map draws it hollow rather than removing it. The record is
+  /// not erased — rule 9 — because a deleted observation is still part of the
+  /// trail of the day.
+  Future<void> _deleteSighting(String localId) async {
+    await _sightings.delete(localId);
+    if (!mounted) {
+      return;
+    }
+    await _read();
   }
 
   Future<void> _openSighting(String localId) async {
@@ -843,11 +1454,87 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     );
   }
 
-  /// Builds what the detail screen shows from a stored row.
+  /// Opens the observations logbook: every record on this phone, newest first.
   ///
-  /// Deliberately mechanical. The screen asks for plain values so it can be
-  /// built without a database, and the translation belongs in one place here
-  /// rather than spread across whichever screen happens to read the row.
+  /// The map draws what is on the ground now; the logbook is the record of what
+  /// has been seen and what happened to each row since — filed, corrected,
+  /// verified, refused. Reopening a record takes the same screen the pin opens,
+  /// with the same amendment and correction actions, so a trainee can revisit
+  /// and edit anything from the list. When they come back, the list is re-read
+  /// so it never shows a record the way it was before the reader changed it.
+  Future<void> _openObservations() async {
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ObservationsScreen(database: widget.database),
+      ),
+    );
+  }
+
+  /// Reads every record that still exists into the summaries the logbook lists.
+  ///
+  /// Deleted rows are dropped here so the logbook only ever speaks of records
+  /// that are still real, which is the map's own rule for pins.
+  Future<List<SightingSummary>> _observationSummaries() async {
+    final rows = await (widget.database.select(
+      widget.database.sightings,
+    )..where((t) => t.isTombstone.equals(false))).get();
+    return [for (final row in rows) _summaryOf(row)]
+      ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+  }
+
+  /// Files a sighting that was captured without an outing against an open
+  /// drive.
+  ///
+  /// The service refuses a sighting without an outing, so the record has been
+  /// safe on this phone but never queued. Filing it writes the outing id and
+  /// queues the create in one transaction, and then the queue is offered the
+  /// same chance to leave that any recorded sighting gets.
+  Future<void> _fileSighting(String localId) async {
+    final drives =
+        await (widget.database.select(widget.database.drives)
+              ..where((t) => t.endedAt.isNull())
+              ..where((t) => t.isTombstone.equals(false)))
+            .get();
+
+    if (!mounted) {
+      return;
+    }
+
+    // No open drive means nothing to file against. Saying so beats showing a
+    // picker that can only come back empty: the record stays where it is, and
+    // the booking is still offered from the pin.
+    if (drives.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Start a drive first, then file the record to it.'),
+        ),
+      );
+      return;
+    }
+
+    final driveId = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) =>
+          _DrivePicker(drives: drives, colours: context.reserve),
+    );
+    if (driveId == null || !mounted) {
+      return;
+    }
+
+    final filed = await _sightings.fileOne(localId, driveId);
+    await _read();
+    await _refreshQueued();
+    if (_status.hasTransport) unawaited(_sync());
+    if (filed == 0 || !mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Filed to the outing.')));
+  }
+
   /// Record an addition and queue it to go up.
   ///
   /// An unknown kind is refused rather than guessed. Writing an amendment to a
@@ -881,6 +1568,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       visual: pinVisualFor(row, commonNameFor: _nameOf),
       commonName: _nameOf(row.speciesCode ?? ''),
       scientificName: '',
+      driveId: row.driveId,
       // The screen shows the status as the contract's word for it, so the
       // enum is converted rather than stringified: the wire names are the
       // service's, and toString on an enum would give the Dart identifier.
@@ -985,18 +1673,32 @@ class _FieldLogHomeState extends State<FieldLogHome> {
           accuracyMetres: _gps.accuracyMetres == 0 ? null : _gps.accuracyMetres,
           outings: snapshot?.outings ?? const [],
           selectedOutingId: _selectedOutingId,
-          onOutingChanged: (id) => setState(() => _selectedOutingId = id),
+          isTrailWalk: _isTrailWalk,
+          onOutingChanged: _setSelectedOuting,
           recentSpecies: recent,
           onReloadSpecies: () {
             final loader = ReferenceLoader(
               database: widget.database,
               api: widget.api,
               sessions: widget.sessions,
+              renewSession: _refreshTokens,
             );
             return loader.load(forceRefresh: true);
           },
           onSpeciesUsed: (choice) {
             _recent?.note(choice);
+          },
+          onNavigate: () {
+            // Pop the field card and center the map on the coordinate
+            Navigator.of(context).pop();
+            if (_currentPosition != null) {
+              _mapKey.currentState?.fitCamera(
+                CameraFit.coordinates(
+                  coordinates: [_currentPosition!],
+                  padding: const EdgeInsets.all(20),
+                ),
+              );
+            }
           },
           onSave: (draft) async {
             final writer = _sightings;
@@ -1031,6 +1733,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   @override
   Widget build(BuildContext context) {
     final map = MapScreen(
+      key: _mapKey,
       pins: _pins,
       queuedCount: _queued,
       // The basemap decides the palette, not the other way round. A loaded
@@ -1050,6 +1753,22 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       currentPosition: _currentPosition,
       route: _route,
       routeWaypoints: _routeWaypoints,
+      progress: _progress,
+      // The live indicator: present only while a drive or walk is running,
+      // and the thing its Stop action clears. Null hides the card outright.
+      activeOuting: _activeOutingId == null
+          ? null
+          : ActiveOuting(
+              label: _activeOutingLabel,
+              kind: _activeOutingKind,
+              startedAt: _activeOutingStartedAt!,
+              onStop: _stopActiveOuting,
+            ),
+      // The bar's context line, derived from real state: what is running, else
+      // the reserve context the records are written into.
+      subtitle: _activeOutingLabel.isNotEmpty
+          ? _activeOutingLabel
+          : _contextCode,
       onMapTap: _captureAt,
       onDropPin: _captureAt,
       onOpenLedger: _openLedger,
@@ -1057,7 +1776,14 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       onOpenDrive: _openDrive,
       onOpenTrail: _openTrail,
       onOpenSighting: _openSighting,
+      onDeleteSighting: _deleteSighting,
+      onOpenObservations: _openObservations,
       onRecordSighting: _recordSighting,
+      syncing: _syncing,
+      lastSyncedAt: _lastSyncedAt,
+      syncError: _syncError,
+      mapStylePreset: widget.currentMapStylePreset,
+      onMapStylePresetChanged: widget.onMapStylePresetChanged,
     );
 
     // Signing in is an invitation, not a gate. The contract's rule 19 is that
@@ -1106,6 +1832,109 @@ class _FieldLogHomeState extends State<FieldLogHome> {
         fullscreenDialog: true,
       ),
     );
+  }
+}
+
+/// The open drives a recorded-but-unfiled sighting can be filed against.
+///
+/// A bottom sheet, because the record's reader was already looking at the
+/// record; the drive is a choice made in passing, not a journey of its own.
+/// Each row names the drive by when it started, which is the only label an
+/// outings log keeps that a reader can count on.
+class _DrivePicker extends StatelessWidget {
+  const _DrivePicker({required this.drives, required this.colours});
+
+  final List<DriveRow> drives;
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          Insets.lg,
+          Insets.md,
+          Insets.lg,
+          Insets.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'File to an outing',
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.cardTitle,
+                fontWeight: FontWeight.w600,
+                color: colours.bone,
+              ),
+            ),
+            const SizedBox(height: Insets.sm),
+            Text(
+              'The record only leaves this phone once it is filed.',
+              style: TextStyle(
+                fontFamily: Faces.book.first,
+                fontSize: Faces.supporting,
+                height: 1.4,
+                color: colours.ash2,
+              ),
+            ),
+            const SizedBox(height: Insets.md),
+            ...drives.map(
+              (drive) => Padding(
+                padding: const EdgeInsets.only(bottom: Insets.sm),
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(drive.localId),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colours.bone,
+                    side: BorderSide(color: colours.ruleStrong),
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Insets.md,
+                      vertical: Insets.sm,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(Corners.control),
+                    ),
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.directions_car_outlined,
+                          size: 18,
+                          color: colours.bone,
+                        ),
+                        const SizedBox(width: Insets.sm),
+                        Text(
+                          _driveLabel(drive),
+                          style: TextStyle(
+                            fontFamily: Faces.ui.first,
+                            fontSize: Faces.label,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// A drive by the local clock, the way the logbooks name them.
+  static String _driveLabel(DriveRow drive) {
+    final local = drive.startedAt.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    return 'Drive — $day/$month at $hour:$minute';
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:field_log/net/connectivity_watcher.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A check that blows up the way desktop Linux does when NetworkManager is
@@ -62,4 +63,45 @@ void main() {
 
     expect(first.hasTransport, isFalse);
   });
+
+  test(
+    'a desktop probe that cannot see the network does not claim no signal',
+    () async {
+      // Desktop Linux without NetworkManager answers "no transport" on a
+      // machine whose network works. Withholding the network on that lie is
+      // what left the desktop map without a basemap.
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final watcher = ConnectivityWatcher(probe: _NoneProbe());
+
+      final status = await watcher.current();
+
+      expect(status.hasTransport, isTrue);
+      expect(status.transports.first, startsWith('desktop'));
+    },
+  );
+
+  test('forcing a status overrides what the probe reports', () async {
+    final watcher = ConnectivityWatcher(probe: _WifiProbe());
+
+    watcher.forceStatus(
+      const ConnectivityStatus(hasTransport: false, transports: []),
+    );
+    expect((await watcher.current()).hasTransport, isFalse);
+
+    watcher.forceStatus(null);
+    expect((await watcher.current()).hasTransport, isTrue);
+  });
+}
+
+/// A check that reports no transport at all.
+class _NoneProbe implements TransportProbe {
+  @override
+  Future<List<ConnectivityResult>> checkConnectivity() async => const [
+    ConnectivityResult.none,
+  ];
+
+  @override
+  Stream<List<ConnectivityResult>> get onConnectivityChanged =>
+      const Stream.empty();
 }

@@ -199,6 +199,35 @@ class OperationQueue {
     );
   }
 
+  /// Return rows left inflight by a failed send to pending.
+  ///
+  /// [markInflight] is only half a step. A batch whose answer never arrived
+  /// has to be undone as well, or its rows stay invisible to [nextBatch] — and
+  /// so to the ledger and to the batch — until a cold start runs
+  /// [recoverInterrupted]. A failed push is a routine field event (no signal,
+  /// a server that is down), so the recovery has to happen at the failure
+  /// rather than at the next launch.
+  ///
+  /// Re-sending is safe: the operation id is unchanged, and the service answers
+  /// `noop` to a repeat of one it already applied.
+  ///
+  /// The state is part of the match, so a row that has settled in the meantime
+  /// is not reopened. Only inflight rows qualify.
+  Future<void> returnToPending(Iterable<String> operationIds) async {
+    for (final id in operationIds) {
+      await (_db.update(_db.queuedOperations)..where(
+            (t) =>
+                t.operationId.equals(id) &
+                t.state.equals(OperationState.inflight.name),
+          ))
+          .write(
+            QueuedOperationsCompanion(
+              state: const Value(OperationState.pending),
+            ),
+          );
+    }
+  }
+
   /// Operation ids that have reached a terminal outcome.
   Future<Set<String>> _settledOperationIds() async {
     final rows = await (_db.select(
@@ -207,12 +236,24 @@ class OperationQueue {
     return rows.map((r) => r.operationId).toSet();
   }
 
-  /// Everything still waiting, for the ledger screen.
-  Future<List<QueuedOperationRow>> pending() {
-    return (_db.select(_db.queuedOperations)
-          ..where((t) => t.state.equals(OperationState.settled.name).not())
-          ..orderBy([(t) => OrderingTerm.asc(t.enqueuedAt)]))
-        .get();
+  /// Everything still waiting, for the ledger and the map badge.
+  ///
+  /// This is not [nextBatch], and the difference is the point. `nextBatch`
+  /// answers "what may the service be offered next", which withholds an
+  /// inflight row and a row whose prerequisite has not settled. This answers
+  /// "what is outstanding", which includes both: a device holding two records
+  /// it has never managed to send has two rows waiting, whatever state they are
+  /// in on the way out. A reader is entitled to be told that, and a queue that
+  /// hid the rows it could not send yet would report itself empty while the
+  /// badge beside it counted them.
+  Future<List<QueuedOperationRow>> pending({int? limit}) {
+    final query = _db.select(_db.queuedOperations)
+      ..where((t) => t.state.equals(OperationState.settled.name).not())
+      ..orderBy([(t) => OrderingTerm.asc(t.enqueuedAt)]);
+    if (limit != null) {
+      query.limit(limit);
+    }
+    return query.get();
   }
 
   /// One row by operation id, or null.

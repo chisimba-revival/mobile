@@ -5988,6 +5988,18 @@ class $PlannedRoutesTable extends PlannedRoutes
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _hasPendingChangesMeta = const VerificationMeta(
     'hasPendingChanges',
   );
@@ -6018,6 +6030,17 @@ class $PlannedRoutesTable extends PlannedRoutes
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     localId,
@@ -6025,8 +6048,10 @@ class $PlannedRoutesTable extends PlannedRoutes
     outingId,
     createdAt,
     updatedAt,
+    revision,
     hasPendingChanges,
     isTombstone,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6078,6 +6103,12 @@ class $PlannedRoutesTable extends PlannedRoutes
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    }
     if (data.containsKey('has_pending_changes')) {
       context.handle(
         _hasPendingChangesMeta,
@@ -6094,6 +6125,12 @@ class $PlannedRoutesTable extends PlannedRoutes
           data['is_tombstone']!,
           _isTombstoneMeta,
         ),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
       );
     }
     return context;
@@ -6125,6 +6162,10 @@ class $PlannedRoutesTable extends PlannedRoutes
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
       hasPendingChanges: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}has_pending_changes'],
@@ -6133,6 +6174,10 @@ class $PlannedRoutesTable extends PlannedRoutes
         DriftSqlType.bool,
         data['${effectivePrefix}is_tombstone'],
       )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -6158,19 +6203,27 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
   /// When the route was last modified locally.
   final DateTime updatedAt;
 
+  /// The revision of this route. Incremented on every server write.
+  final int revision;
+
   /// Whether this route has local changes not yet sent to the server.
   final bool hasPendingChanges;
 
   /// Whether this route has been deleted (soft delete).
   final bool isTombstone;
+
+  /// When the route was deleted (soft delete).
+  final DateTime? deletedAt;
   const PlannedRoute({
     required this.localId,
     this.serverId,
     required this.outingId,
     required this.createdAt,
     required this.updatedAt,
+    required this.revision,
     required this.hasPendingChanges,
     required this.isTombstone,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6182,8 +6235,12 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
     map['outing_id'] = Variable<String>(outingId);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['revision'] = Variable<int>(revision);
     map['has_pending_changes'] = Variable<bool>(hasPendingChanges);
     map['is_tombstone'] = Variable<bool>(isTombstone);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -6196,8 +6253,12 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
       outingId: Value(outingId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      revision: Value(revision),
       hasPendingChanges: Value(hasPendingChanges),
       isTombstone: Value(isTombstone),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -6212,8 +6273,10 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
       outingId: serializer.fromJson<String>(json['outingId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      revision: serializer.fromJson<int>(json['revision']),
       hasPendingChanges: serializer.fromJson<bool>(json['hasPendingChanges']),
       isTombstone: serializer.fromJson<bool>(json['isTombstone']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -6225,8 +6288,10 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
       'outingId': serializer.toJson<String>(outingId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'revision': serializer.toJson<int>(revision),
       'hasPendingChanges': serializer.toJson<bool>(hasPendingChanges),
       'isTombstone': serializer.toJson<bool>(isTombstone),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -6236,16 +6301,20 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
     String? outingId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? revision,
     bool? hasPendingChanges,
     bool? isTombstone,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => PlannedRoute(
     localId: localId ?? this.localId,
     serverId: serverId.present ? serverId.value : this.serverId,
     outingId: outingId ?? this.outingId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    revision: revision ?? this.revision,
     hasPendingChanges: hasPendingChanges ?? this.hasPendingChanges,
     isTombstone: isTombstone ?? this.isTombstone,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   PlannedRoute copyWithCompanion(PlannedRoutesCompanion data) {
     return PlannedRoute(
@@ -6254,12 +6323,14 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
       outingId: data.outingId.present ? data.outingId.value : this.outingId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      revision: data.revision.present ? data.revision.value : this.revision,
       hasPendingChanges: data.hasPendingChanges.present
           ? data.hasPendingChanges.value
           : this.hasPendingChanges,
       isTombstone: data.isTombstone.present
           ? data.isTombstone.value
           : this.isTombstone,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -6271,8 +6342,10 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
           ..write('outingId: $outingId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('revision: $revision, ')
           ..write('hasPendingChanges: $hasPendingChanges, ')
-          ..write('isTombstone: $isTombstone')
+          ..write('isTombstone: $isTombstone, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
@@ -6284,8 +6357,10 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
     outingId,
     createdAt,
     updatedAt,
+    revision,
     hasPendingChanges,
     isTombstone,
+    deletedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -6296,8 +6371,10 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
           other.outingId == this.outingId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
+          other.revision == this.revision &&
           other.hasPendingChanges == this.hasPendingChanges &&
-          other.isTombstone == this.isTombstone);
+          other.isTombstone == this.isTombstone &&
+          other.deletedAt == this.deletedAt);
 }
 
 class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
@@ -6306,8 +6383,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
   final Value<String> outingId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<int> revision;
   final Value<bool> hasPendingChanges;
   final Value<bool> isTombstone;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const PlannedRoutesCompanion({
     this.localId = const Value.absent(),
@@ -6315,8 +6394,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
     this.outingId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.revision = const Value.absent(),
     this.hasPendingChanges = const Value.absent(),
     this.isTombstone = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlannedRoutesCompanion.insert({
@@ -6325,8 +6406,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
     required String outingId,
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.revision = const Value.absent(),
     this.hasPendingChanges = const Value.absent(),
     this.isTombstone = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : localId = Value(localId),
        outingId = Value(outingId),
@@ -6338,8 +6421,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
     Expression<String>? outingId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<int>? revision,
     Expression<bool>? hasPendingChanges,
     Expression<bool>? isTombstone,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6348,8 +6433,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
       if (outingId != null) 'outing_id': outingId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (revision != null) 'revision': revision,
       if (hasPendingChanges != null) 'has_pending_changes': hasPendingChanges,
       if (isTombstone != null) 'is_tombstone': isTombstone,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6360,8 +6447,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
     Value<String>? outingId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<int>? revision,
     Value<bool>? hasPendingChanges,
     Value<bool>? isTombstone,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return PlannedRoutesCompanion(
@@ -6370,8 +6459,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
       outingId: outingId ?? this.outingId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      revision: revision ?? this.revision,
       hasPendingChanges: hasPendingChanges ?? this.hasPendingChanges,
       isTombstone: isTombstone ?? this.isTombstone,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6394,11 +6485,17 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
     if (hasPendingChanges.present) {
       map['has_pending_changes'] = Variable<bool>(hasPendingChanges.value);
     }
     if (isTombstone.present) {
       map['is_tombstone'] = Variable<bool>(isTombstone.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -6414,8 +6511,10 @@ class PlannedRoutesCompanion extends UpdateCompanion<PlannedRoute> {
           ..write('outingId: $outingId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('revision: $revision, ')
           ..write('hasPendingChanges: $hasPendingChanges, ')
           ..write('isTombstone: $isTombstone, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6503,6 +6602,44 @@ class $RouteWaypointsTable extends RouteWaypoints
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isTombstoneMeta = const VerificationMeta(
+    'isTombstone',
+  );
+  @override
+  late final GeneratedColumn<bool> isTombstone = GeneratedColumn<bool>(
+    'is_tombstone',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_tombstone" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     routeId,
@@ -6512,6 +6649,9 @@ class $RouteWaypointsTable extends RouteWaypoints
     label,
     kind,
     note,
+    revision,
+    isTombstone,
+    deletedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6575,6 +6715,27 @@ class $RouteWaypointsTable extends RouteWaypoints
         note.isAcceptableOrUnknown(data['note']!, _noteMeta),
       );
     }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    }
+    if (data.containsKey('is_tombstone')) {
+      context.handle(
+        _isTombstoneMeta,
+        isTombstone.isAcceptableOrUnknown(
+          data['is_tombstone']!,
+          _isTombstoneMeta,
+        ),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -6612,6 +6773,18 @@ class $RouteWaypointsTable extends RouteWaypoints
         DriftSqlType.string,
         data['${effectivePrefix}note'],
       ),
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      isTombstone: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_tombstone'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
     );
   }
 
@@ -6642,6 +6815,15 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
 
   /// Optional note for this waypoint.
   final String? note;
+
+  /// The revision of this waypoint. Incremented on every server write.
+  final int revision;
+
+  /// Whether this waypoint has been deleted (soft delete).
+  final bool isTombstone;
+
+  /// When the waypoint was deleted (soft delete).
+  final DateTime? deletedAt;
   const RouteWaypoint({
     required this.routeId,
     required this.ordinal,
@@ -6650,6 +6832,9 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
     this.label,
     required this.kind,
     this.note,
+    required this.revision,
+    required this.isTombstone,
+    this.deletedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6665,6 +6850,11 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
     if (!nullToAbsent || note != null) {
       map['note'] = Variable<String>(note);
     }
+    map['revision'] = Variable<int>(revision);
+    map['is_tombstone'] = Variable<bool>(isTombstone);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
     return map;
   }
 
@@ -6679,6 +6869,11 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
           : Value(label),
       kind: Value(kind),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      revision: Value(revision),
+      isTombstone: Value(isTombstone),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
     );
   }
 
@@ -6695,6 +6890,9 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
       label: serializer.fromJson<String?>(json['label']),
       kind: serializer.fromJson<String>(json['kind']),
       note: serializer.fromJson<String?>(json['note']),
+      revision: serializer.fromJson<int>(json['revision']),
+      isTombstone: serializer.fromJson<bool>(json['isTombstone']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
   }
   @override
@@ -6708,6 +6906,9 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
       'label': serializer.toJson<String?>(label),
       'kind': serializer.toJson<String>(kind),
       'note': serializer.toJson<String?>(note),
+      'revision': serializer.toJson<int>(revision),
+      'isTombstone': serializer.toJson<bool>(isTombstone),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
   }
 
@@ -6719,6 +6920,9 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
     Value<String?> label = const Value.absent(),
     String? kind,
     Value<String?> note = const Value.absent(),
+    int? revision,
+    bool? isTombstone,
+    Value<DateTime?> deletedAt = const Value.absent(),
   }) => RouteWaypoint(
     routeId: routeId ?? this.routeId,
     ordinal: ordinal ?? this.ordinal,
@@ -6727,6 +6931,9 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
     label: label.present ? label.value : this.label,
     kind: kind ?? this.kind,
     note: note.present ? note.value : this.note,
+    revision: revision ?? this.revision,
+    isTombstone: isTombstone ?? this.isTombstone,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
   );
   RouteWaypoint copyWithCompanion(RouteWaypointsCompanion data) {
     return RouteWaypoint(
@@ -6737,6 +6944,11 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
       label: data.label.present ? data.label.value : this.label,
       kind: data.kind.present ? data.kind.value : this.kind,
       note: data.note.present ? data.note.value : this.note,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      isTombstone: data.isTombstone.present
+          ? data.isTombstone.value
+          : this.isTombstone,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
   }
 
@@ -6749,14 +6961,27 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
           ..write('longitude: $longitude, ')
           ..write('label: $label, ')
           ..write('kind: $kind, ')
-          ..write('note: $note')
+          ..write('note: $note, ')
+          ..write('revision: $revision, ')
+          ..write('isTombstone: $isTombstone, ')
+          ..write('deletedAt: $deletedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(routeId, ordinal, latitude, longitude, label, kind, note);
+  int get hashCode => Object.hash(
+    routeId,
+    ordinal,
+    latitude,
+    longitude,
+    label,
+    kind,
+    note,
+    revision,
+    isTombstone,
+    deletedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -6767,7 +6992,10 @@ class RouteWaypoint extends DataClass implements Insertable<RouteWaypoint> {
           other.longitude == this.longitude &&
           other.label == this.label &&
           other.kind == this.kind &&
-          other.note == this.note);
+          other.note == this.note &&
+          other.revision == this.revision &&
+          other.isTombstone == this.isTombstone &&
+          other.deletedAt == this.deletedAt);
 }
 
 class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
@@ -6778,6 +7006,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
   final Value<String?> label;
   final Value<String> kind;
   final Value<String?> note;
+  final Value<int> revision;
+  final Value<bool> isTombstone;
+  final Value<DateTime?> deletedAt;
   final Value<int> rowid;
   const RouteWaypointsCompanion({
     this.routeId = const Value.absent(),
@@ -6787,6 +7018,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
     this.label = const Value.absent(),
     this.kind = const Value.absent(),
     this.note = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.isTombstone = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RouteWaypointsCompanion.insert({
@@ -6797,6 +7031,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
     this.label = const Value.absent(),
     this.kind = const Value.absent(),
     this.note = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.isTombstone = const Value.absent(),
+    this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : routeId = Value(routeId),
        ordinal = Value(ordinal),
@@ -6810,6 +7047,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
     Expression<String>? label,
     Expression<String>? kind,
     Expression<String>? note,
+    Expression<int>? revision,
+    Expression<bool>? isTombstone,
+    Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6820,6 +7060,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
       if (label != null) 'label': label,
       if (kind != null) 'kind': kind,
       if (note != null) 'note': note,
+      if (revision != null) 'revision': revision,
+      if (isTombstone != null) 'is_tombstone': isTombstone,
+      if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6832,6 +7075,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
     Value<String?>? label,
     Value<String>? kind,
     Value<String?>? note,
+    Value<int>? revision,
+    Value<bool>? isTombstone,
+    Value<DateTime?>? deletedAt,
     Value<int>? rowid,
   }) {
     return RouteWaypointsCompanion(
@@ -6842,6 +7088,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
       label: label ?? this.label,
       kind: kind ?? this.kind,
       note: note ?? this.note,
+      revision: revision ?? this.revision,
+      isTombstone: isTombstone ?? this.isTombstone,
+      deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6870,6 +7119,15 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
     if (note.present) {
       map['note'] = Variable<String>(note.value);
     }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (isTombstone.present) {
+      map['is_tombstone'] = Variable<bool>(isTombstone.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6886,6 +7144,9 @@ class RouteWaypointsCompanion extends UpdateCompanion<RouteWaypoint> {
           ..write('label: $label, ')
           ..write('kind: $kind, ')
           ..write('note: $note, ')
+          ..write('revision: $revision, ')
+          ..write('isTombstone: $isTombstone, ')
+          ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -12271,8 +12532,10 @@ typedef $$PlannedRoutesTableCreateCompanionBuilder =
       required String outingId,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<int> revision,
       Value<bool> hasPendingChanges,
       Value<bool> isTombstone,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$PlannedRoutesTableUpdateCompanionBuilder =
@@ -12282,8 +12545,10 @@ typedef $$PlannedRoutesTableUpdateCompanionBuilder =
       Value<String> outingId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<int> revision,
       Value<bool> hasPendingChanges,
       Value<bool> isTombstone,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -12362,6 +12627,11 @@ class $$PlannedRoutesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get hasPendingChanges => $composableBuilder(
     column: $table.hasPendingChanges,
     builder: (column) => ColumnFilters(column),
@@ -12369,6 +12639,11 @@ class $$PlannedRoutesTableFilterComposer
 
   ColumnFilters<bool> get isTombstone => $composableBuilder(
     column: $table.isTombstone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12450,6 +12725,11 @@ class $$PlannedRoutesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get hasPendingChanges => $composableBuilder(
     column: $table.hasPendingChanges,
     builder: (column) => ColumnOrderings(column),
@@ -12457,6 +12737,11 @@ class $$PlannedRoutesTableOrderingComposer
 
   ColumnOrderings<bool> get isTombstone => $composableBuilder(
     column: $table.isTombstone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -12505,6 +12790,9 @@ class $$PlannedRoutesTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
   GeneratedColumn<bool> get hasPendingChanges => $composableBuilder(
     column: $table.hasPendingChanges,
     builder: (column) => column,
@@ -12514,6 +12802,9 @@ class $$PlannedRoutesTableAnnotationComposer
     column: $table.isTombstone,
     builder: (column) => column,
   );
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   $$DrivesTableAnnotationComposer get outingId {
     final $$DrivesTableAnnotationComposer composer = $composerBuilder(
@@ -12599,8 +12890,10 @@ class $$PlannedRoutesTableTableManager
                 Value<String> outingId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> revision = const Value.absent(),
                 Value<bool> hasPendingChanges = const Value.absent(),
                 Value<bool> isTombstone = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlannedRoutesCompanion(
                 localId: localId,
@@ -12608,8 +12901,10 @@ class $$PlannedRoutesTableTableManager
                 outingId: outingId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                revision: revision,
                 hasPendingChanges: hasPendingChanges,
                 isTombstone: isTombstone,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -12619,8 +12914,10 @@ class $$PlannedRoutesTableTableManager
                 required String outingId,
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<int> revision = const Value.absent(),
                 Value<bool> hasPendingChanges = const Value.absent(),
                 Value<bool> isTombstone = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PlannedRoutesCompanion.insert(
                 localId: localId,
@@ -12628,8 +12925,10 @@ class $$PlannedRoutesTableTableManager
                 outingId: outingId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                revision: revision,
                 hasPendingChanges: hasPendingChanges,
                 isTombstone: isTombstone,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -12731,6 +13030,9 @@ typedef $$RouteWaypointsTableCreateCompanionBuilder =
       Value<String?> label,
       Value<String> kind,
       Value<String?> note,
+      Value<int> revision,
+      Value<bool> isTombstone,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 typedef $$RouteWaypointsTableUpdateCompanionBuilder =
@@ -12742,6 +13044,9 @@ typedef $$RouteWaypointsTableUpdateCompanionBuilder =
       Value<String?> label,
       Value<String> kind,
       Value<String?> note,
+      Value<int> revision,
+      Value<bool> isTombstone,
+      Value<DateTime?> deletedAt,
       Value<int> rowid,
     });
 
@@ -12816,6 +13121,21 @@ class $$RouteWaypointsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$PlannedRoutesTableFilterComposer get routeId {
     final $$PlannedRoutesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -12879,6 +13199,21 @@ class $$RouteWaypointsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$PlannedRoutesTableOrderingComposer get routeId {
     final $$PlannedRoutesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -12929,6 +13264,17 @@ class $$RouteWaypointsTableAnnotationComposer
 
   GeneratedColumn<String> get note =>
       $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<bool> get isTombstone => $composableBuilder(
+    column: $table.isTombstone,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
   $$PlannedRoutesTableAnnotationComposer get routeId {
     final $$PlannedRoutesTableAnnotationComposer composer = $composerBuilder(
@@ -12991,6 +13337,9 @@ class $$RouteWaypointsTableTableManager
                 Value<String?> label = const Value.absent(),
                 Value<String> kind = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<bool> isTombstone = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RouteWaypointsCompanion(
                 routeId: routeId,
@@ -13000,6 +13349,9 @@ class $$RouteWaypointsTableTableManager
                 label: label,
                 kind: kind,
                 note: note,
+                revision: revision,
+                isTombstone: isTombstone,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -13011,6 +13363,9 @@ class $$RouteWaypointsTableTableManager
                 Value<String?> label = const Value.absent(),
                 Value<String> kind = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<bool> isTombstone = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RouteWaypointsCompanion.insert(
                 routeId: routeId,
@@ -13020,6 +13375,9 @@ class $$RouteWaypointsTableTableManager
                 label: label,
                 kind: kind,
                 note: note,
+                revision: revision,
+                isTombstone: isTombstone,
+                deletedAt: deletedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

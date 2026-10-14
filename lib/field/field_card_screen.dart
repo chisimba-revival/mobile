@@ -34,6 +34,7 @@ class FieldCardScreen extends StatefulWidget {
     this.recentSpecies = const [],
     this.onReloadSpecies,
     this.onSpeciesUsed,
+    this.onNavigate,
   });
 
   final FieldDraft initial;
@@ -80,6 +81,10 @@ class FieldCardScreen extends StatefulWidget {
   /// Called after a successful save with the species that was recorded, so
   /// the caller can remember it as recently used.
   final ValueChanged<SpeciesChoice>? onSpeciesUsed;
+
+  /// Called when the user wants to navigate the map to this card's coordinate.
+  /// The card should pop and the map should center on the coordinate.
+  final VoidCallback? onNavigate;
 
   @override
   State<FieldCardScreen> createState() => _FieldCardScreenState();
@@ -139,6 +144,19 @@ class _FieldCardScreenState extends State<FieldCardScreen> {
       title: 'What did you see?',
       onBack: widget.onCancel,
       backTooltip: 'Discard this card',
+      floatingActionButton: widget.onNavigate != null
+          ? FloatingActionButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                widget.onNavigate!();
+              },
+              tooltip: 'Return to map',
+              backgroundColor: colours.dust,
+              foregroundColor: colours.bone,
+              child: const Icon(Icons.map),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
           Insets.lg,
@@ -152,6 +170,7 @@ class _FieldCardScreenState extends State<FieldCardScreen> {
               coordinateLabel: widget.coordinateLabel,
               accuracyMetres: widget.accuracyMetres,
               colours: colours,
+              onNavigate: widget.onNavigate,
             ),
           const SizedBox(height: Insets.lg),
           _ModeSwitch(
@@ -471,11 +490,13 @@ class _LocationStrip extends StatefulWidget {
     required this.coordinateLabel,
     required this.accuracyMetres,
     required this.colours,
+    this.onNavigate,
   });
 
   final String coordinateLabel;
   final double? accuracyMetres;
   final FieldColours colours;
+  final VoidCallback? onNavigate;
 
   @override
   State<_LocationStrip> createState() => _LocationStripState();
@@ -512,7 +533,7 @@ class _LocationStripState extends State<_LocationStrip> {
     // We don't have satellite count in the strip, so use accuracy only
     if (acc <= 10) return '3D';
     if (acc <= 50) return '2D';
-    return 'Weak';
+    return 'No fix';
   }
 
   Color _fixColor(FieldColours colours) {
@@ -587,12 +608,15 @@ class _LocationStripState extends State<_LocationStrip> {
                   ),
                 ),
               ),
-              // Compass rose (tiny, rotates with device heading)
+              // Compass rose (tiny, 4px, rotates with device heading)
               if (_heading != null) ...[
                 const SizedBox(width: Insets.sm),
                 Transform.rotate(
                   angle: -_heading! * 3.141592653589793 / 180,
-                  child: Icon(Icons.explore, size: 14, color: colours.ash2),
+                  child: CustomPaint(
+                    size: const Size(10, 10),
+                    painter: _CompassRosePainter(colours: colours),
+                  ),
                 ),
               ],
               const SizedBox(width: Insets.sm),
@@ -617,12 +641,77 @@ class _LocationStripState extends State<_LocationStrip> {
                   ),
                 ),
               ),
+              // Navigate button
+              if (widget.onNavigate != null) ...[
+                const SizedBox(width: Insets.sm),
+                InkWell(
+                  onTap: widget.onNavigate,
+                  borderRadius: BorderRadius.circular(Corners.control),
+                  child: Padding(
+                    padding: const EdgeInsets.all(Insets.xs),
+                    child: Icon(
+                      Icons.navigation,
+                      size: 18,
+                      color: colours.straw,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// Tiny 4px compass rose: a cross with N/S/E/W tips.
+class _CompassRosePainter extends CustomPainter {
+  const _CompassRosePainter({required this.colours});
+
+  final FieldColours colours;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2;
+    final paint = Paint()
+      ..color = colours.ash2
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    // N-S line
+    canvas.drawLine(
+      Offset(center.dx, center.dy - radius),
+      Offset(center.dx, center.dy + radius),
+      paint,
+    );
+    // E-W line
+    canvas.drawLine(
+      Offset(center.dx - radius, center.dy),
+      Offset(center.dx + radius, center.dy),
+      paint,
+    );
+    // N label (tiny)
+    final north = TextPainter(
+      text: TextSpan(
+        text: 'N',
+        style: TextStyle(
+          fontFamily: Faces.ui.first,
+          fontSize: 5,
+          color: colours.straw,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    north.paint(
+      canvas,
+      Offset(center.dx - north.width / 2, center.dy - radius - 8),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CompassRosePainter old) => old.colours != colours;
 }
 
 /// The two modes, as a radio group.
@@ -1064,13 +1153,20 @@ class SpeciesPickerState extends State<SpeciesPicker> {
   Widget build(BuildContext context) {
     final query = _query.trim();
     final matches = _all.where((option) => option.matches(query)).toList();
+    // The box is measured against the keyboard-reduced height, not the full
+    // screen: the padding below adds the keyboard inset again, and a box of
+    // 0.7 of the full height on top of that can exceed the viewport.
+    final height =
+        (MediaQuery.sizeOf(context).height -
+            MediaQuery.viewInsetsOf(context).bottom) *
+        0.7;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
         ),
         child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.7,
+          height: height,
           child: Column(
             children: [
               Container(
@@ -1360,12 +1456,14 @@ class _CountStepper extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(
-              'How many',
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.label,
-                color: colours.bone,
+            Expanded(
+              child: Text(
+                'How many',
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.label,
+                  color: colours.bone,
+                ),
               ),
             ),
             const Spacer(),
@@ -1430,8 +1528,11 @@ class _StepButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(Corners.chip),
       child: Container(
-        width: 36,
-        height: 36,
+        // 44 is the smallest target the design's own rules allow: a stepper
+        // button is pressed in a moving vehicle, and 36 is a miss waiting to
+        // happen.
+        width: 44,
+        height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(Corners.chip),

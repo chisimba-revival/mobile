@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// The reserve vocabulary, from `chisimba-info/docs/mobile-design/README.md`.
@@ -26,6 +28,67 @@ abstract final class Insets {
   static const double giant = 48;
 }
 
+/// Density-scaled insets helpers.
+///
+/// Use these functions to get spacing values scaled by the current density.
+/// The base Insets values are multiplied by the density's scale factor.
+double _insetScale(double value, Density density) => value * density.scale;
+
+/// xs (4px) scaled by density.
+double Insets_xs(Density density) => _insetScale(Insets.xs, density);
+
+/// sm (8px) scaled by density.
+double Insets_sm(Density density) => _insetScale(Insets.sm, density);
+
+/// md (12px) scaled by density.
+double Insets_md(Density density) => _insetScale(Insets.md, density);
+
+/// lg (16px) scaled by density.
+double Insets_lg(Density density) => _insetScale(Insets.lg, density);
+
+/// xl (20px) scaled by density.
+double Insets_xl(Density density) => _insetScale(Insets.xl, density);
+
+/// xxl (24px) scaled by density.
+double Insets_xxl(Density density) => _insetScale(Insets.xxl, density);
+
+/// xxxl (32px) scaled by density.
+double Insets_xxxl(Density density) => _insetScale(Insets.xxxl, density);
+
+/// huge (40px) scaled by density.
+double Insets_huge(Density density) => _insetScale(Insets.huge, density);
+
+/// giant (48px) scaled by density.
+double Insets_giant(Density density) => _insetScale(Insets.giant, density);
+
+/// EdgeInsets.all scaled by density.
+EdgeInsets Insets_all(double value, Density density) =>
+    EdgeInsets.all(_insetScale(value, density));
+
+/// EdgeInsets.symmetric scaled by density.
+EdgeInsets Insets_symmetric({
+  double horizontal = 0,
+  double vertical = 0,
+  required Density density,
+}) => EdgeInsets.symmetric(
+  horizontal: _insetScale(horizontal, density),
+  vertical: _insetScale(vertical, density),
+);
+
+/// EdgeInsets.fromLTRB scaled by density.
+EdgeInsets Insets_fromLTRB(
+  double left,
+  double top,
+  double right,
+  double bottom,
+  Density density,
+) => EdgeInsets.fromLTRB(
+  _insetScale(left, density),
+  _insetScale(top, density),
+  _insetScale(right, density),
+  _insetScale(bottom, density),
+);
+
 /// Radius is 3, 5 and 14px. Clipped, not pills.
 abstract final class Corners {
   /// Chips and inline marks.
@@ -36,6 +99,46 @@ abstract final class Corners {
 
   /// Sheets and cards.
   static const double sheet = 14;
+}
+
+/// Density scale — controls the visual weight and spacing density.
+///
+/// Applied as a multiplier to [Insets] base values. The design tokens
+/// themselves are unchanged; density is a runtime preference that scales
+/// the effective spacing and touch targets.
+enum Density {
+  /// Compact — 85% scale. More content, smaller touch targets (still >= 44px).
+  compact(0.85),
+
+  /// Comfortable — 100% scale. The design default.
+  comfortable(1.0),
+
+  /// Spacious — 120% scale. More breathing room, larger targets.
+  spacious(1.2);
+
+  const Density(this.scale);
+
+  final double scale;
+
+  /// Effective base spacing unit for this density.
+  double get baseSpacing => Insets.base * scale;
+
+  /// Effective minimum touch target (never below 44px for accessibility).
+  double get minTouchTarget => (44 * scale).clamp(44.0, double.infinity);
+
+  /// Label for UI display.
+  String get label => switch (this) {
+    Density.compact => 'Compact',
+    Density.comfortable => 'Comfortable',
+    Density.spacious => 'Spacious',
+  };
+
+  /// Description for UI display.
+  String get description => switch (this) {
+    Density.compact => 'More content on screen',
+    Density.comfortable => 'Balanced spacing (default)',
+    Density.spacious => 'More breathing room',
+  };
 }
 
 /// Ink and surface colours for one brightness.
@@ -61,6 +164,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
     required this.rule,
     required this.ruleStrong,
     required this.contour,
+    required this.focus,
     required this.name,
     required this.brightness,
   });
@@ -124,6 +228,13 @@ class FieldColours extends ThemeExtension<FieldColours> {
   /// basemap. In the dark palette it is ruleStrong re-stated; under sunlight
   /// it is a pronounced warm grey-brown that beats the light tiles.
   final Color contour;
+
+  /// Focus ring colour for accessible keyboard navigation.
+  ///
+  /// Uses the accent dust hue with full opacity so the ring is unmistakable
+  /// against any surface. The same token on both palettes keeps the visual
+  /// language consistent across themes.
+  final Color focus;
 
   /// Which brightness this set describes. Carried so that a widget can choose
   /// an appropriate ink on an accent without a second lookup table.
@@ -201,6 +312,8 @@ class FieldColours extends ThemeExtension<FieldColours> {
     // A contour is ruleStrong re-stated: the same pale line that reads on this
     // dark ground. The sunlight palette re-derives it for its own ground.
     contour: Color(0xFF525952),
+    // Focus ring uses the dust accent hue for high visibility.
+    focus: Color(0xFFC4612F),
     brightness: Brightness.dark,
   );
 
@@ -230,11 +343,71 @@ class FieldColours extends ThemeExtension<FieldColours> {
     ruleFaint: Color(0xFFCFCBC0),
     rule: Color(0xFFBEBCB1),
     ruleStrong: Color(0xFFA8A89E),
-    // Under sunlight the ground is a light basemap, so the contour line must
-    // beat the tile rather than the painted ground: a warm grey-brown, clearly
-    // darker than the beige of a loaded basemap and distinct from the map's
-    // cyan and blue symbols.
+    // Under sunlight the ground is a light basemap, so anything drawn on it
+    // must beat the tile: a warm grey-brown, clearly darker than the beige of
+    // a loaded basemap and distinct from the map's cyan and blue symbols.
     contour: Color(0xFF6E6758),
+    // Focus ring uses the dust accent hue for high visibility.
+    focus: Color(0xFFC4612F),
+    brightness: Brightness.light,
+  );
+
+  /// High Contrast — WCAG AAA compliant for low-vision users.
+  ///
+  /// Maximises contrast ratios (>7:1) by using pure black/white surfaces
+  /// and saturated accents. Follows the same hue vocabulary so the app's
+  /// visual language is preserved.
+  static const FieldColours highContrast = FieldColours(
+    name: 'high-contrast',
+    canopy: Color(0xFF000000), // Pure black
+    canopyRaised: Color(0xFF1A1A1A), // Slightly raised
+    canopyOverlay: Color(0xFF2D2D2D), // Overlay
+    inset: Color(0xFF0D0D0D), // Input fill
+    bone: Color(0xFFFFFFFF), // Pure white text
+    ash1: Color(0xFFE0E0E0), // 87% white
+    ash2: Color(0xFFB0B0B0), // 69% white
+    ash3: Color(0xFF808080), // 50% white
+    ash4: Color(0xFF505050), // 31% white
+    dust: Color(0xFFFF8C00), // Dark orange (AAA on black)
+    straw: Color(0xFFFFFF00), // Pure yellow (AAA on black)
+    moss: Color(0xFF00FF7F), // Spring green (AAA on black)
+    blood: Color(0xFFFF4444), // Bright red (AAA on black)
+    water: Color(0xFF00BFFF), // Deep sky blue
+    drainage: Color(0xFF00FFFF), // Cyan
+    ruleFaint: Color(0xFF333333),
+    rule: Color(0xFF555555),
+    ruleStrong: Color(0xFF888888),
+    contour: Color(0xFF888888),
+    focus: Color(0xFFFF8C00), // Dark orange focus ring
+    brightness: Brightness.dark,
+  );
+
+  /// Sepia — warm paper tone for reduced eye strain during long sessions.
+  ///
+  /// Uses a warm beige base with brown ink, like an aged field notebook.
+  /// Accents are muted to maintain the paper aesthetic while staying legible.
+  static const FieldColours sepia = FieldColours(
+    name: 'sepia',
+    canopy: Color(0xFFF5F0E1), // Warm paper
+    canopyRaised: Color(0xFFE8E2D0), // Slightly darker paper
+    canopyOverlay: Color(0xFFDCD6C6), // Overlay paper
+    inset: Color(0xFFD0C9B8), // Input fill
+    bone: Color(0xFF3C2F1F), // Dark brown ink
+    ash1: Color(0xFF5D4E37), // Medium brown
+    ash2: Color(0xFF8B7D65), // Light brown
+    ash3: Color(0xFFB8A990), // Pale brown
+    ash4: Color(0xFFD4C8B0), // Very pale brown
+    dust: Color(0xFFB87333), // Copper accent
+    straw: Color(0xFFC4A02E), // Antique gold
+    moss: Color(0xFF5D8A4C), // Sage green
+    blood: Color(0xFFC05030), // Brick red
+    water: Color(0xFF4A7C8C), // Muted teal
+    drainage: Color(0xFF6B9BA8), // Pale teal
+    ruleFaint: Color(0xFFD4C8B0),
+    rule: Color(0xFFB8A990),
+    ruleStrong: Color(0xFF8B7D65),
+    contour: Color(0xFF8B7D65),
+    focus: Color(0xFFB87333), // Copper focus ring
     brightness: Brightness.light,
   );
 
@@ -259,6 +432,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
     Color? rule,
     Color? ruleStrong,
     Color? contour,
+    Color? focus,
     Brightness? brightness,
   }) {
     return FieldColours(
@@ -282,6 +456,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
       rule: rule ?? this.rule,
       ruleStrong: ruleStrong ?? this.ruleStrong,
       contour: contour ?? this.contour,
+      focus: focus ?? this.focus,
       brightness: brightness ?? this.brightness,
     );
   }
@@ -312,6 +487,7 @@ class FieldColours extends ThemeExtension<FieldColours> {
       rule: Color.lerp(rule, other.rule, t)!,
       ruleStrong: Color.lerp(ruleStrong, other.ruleStrong, t)!,
       contour: Color.lerp(contour, other.contour, t)!,
+      focus: Color.lerp(focus, other.focus, t)!,
       brightness: t < 0.5 ? brightness : other.brightness,
     );
   }
@@ -357,4 +533,90 @@ abstract final class Faces {
 
   /// Stamps and status marks.
   static const double stamp = 12;
+
+  /// A field measurement, read at a glance from a moving vehicle: a live
+  /// distance, a tally hour total. Larger than [noteBody] because it is a
+  /// scan value rather than running text.
+  static const double measure = 26;
+
+  /// A record's headline number, such as a sighting's count on the pin card.
+  /// The largest type in the app, used where one figure is the record.
+  static const double display = 40;
+
+  /// The smallest chrome: map attribution and scale-bar labels, which must sit
+  /// inside the map without competing with it. Below [stamp] deliberately.
+  static const double micro = 10;
+}
+
+/// Map style presets — curated layer combinations for different field tasks.
+///
+/// Each preset defines which base layers and overlays are visible by default.
+/// The operator can still toggle individual layers; the preset is a starting
+/// point that matches the task.
+enum MapStylePreset {
+  /// Field work — species, observations, GPS accuracy.
+  field(
+    label: 'Field',
+    description: 'Observations, species, accuracy rings',
+    baseLayers: {'satellite', 'topo'},
+    overlays: {'observations', 'species', 'accuracy', 'grid'},
+  ),
+
+  /// Navigation — routes, waypoints, tracks.
+  navigation(
+    label: 'Navigation',
+    description: 'Routes, waypoints, tracks, bearing',
+    baseLayers: {'topo', 'osm'},
+    overlays: {'routes', 'waypoints', 'tracks', 'bearing', 'compass'},
+  ),
+
+  /// Survey — boundaries, transects, quadrats.
+  survey(
+    label: 'Survey',
+    description: 'Boundaries, transects, quadrats, grid',
+    baseLayers: {'topo', 'aerial'},
+    overlays: {'boundaries', 'transects', 'quadrats', 'grid', 'scale'},
+  );
+
+  const MapStylePreset({
+    required this.label,
+    required this.description,
+    required this.baseLayers,
+    required this.overlays,
+  });
+
+  final String label;
+  final String description;
+  final Set<String> baseLayers;
+  final Set<String> overlays;
+}
+
+/// Theme variant — colour palette variants beyond the light/dark mode.
+enum ThemeVariant {
+  /// Standard palette (Canopy/Sunlight).
+  standard,
+
+  /// High contrast for low-vision accessibility (WCAG AAA).
+  highContrast,
+
+  /// Warm sepia paper tone for reduced eye strain.
+  sepia;
+
+  String get label => switch (this) {
+    ThemeVariant.standard => 'Standard',
+    ThemeVariant.highContrast => 'High Contrast',
+    ThemeVariant.sepia => 'Sepia',
+  };
+
+  String get subtitle => switch (this) {
+    ThemeVariant.standard => 'Default',
+    ThemeVariant.highContrast => 'WCAG AAA',
+    ThemeVariant.sepia => 'Warm paper',
+  };
+
+  IconData get icon => switch (this) {
+    ThemeVariant.standard => Icons.palette_outlined,
+    ThemeVariant.highContrast => Icons.contrast_outlined,
+    ThemeVariant.sepia => Icons.wb_sunny_outlined,
+  };
 }

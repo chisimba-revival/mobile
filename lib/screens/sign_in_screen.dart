@@ -1,3 +1,4 @@
+import 'package:field_log/design/components.dart';
 import 'package:field_log/design/field_scaffold.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
@@ -120,14 +121,12 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colours = context.reserve;
+    final colours = context.colours;
 
     return FieldScaffold(
       title: 'Field LogBook',
       body: Center(
         child: SingleChildScrollView(
-          // The design's bottom safe inset, so the button clears the keyboard
-          // rather than hiding behind it.
           padding: const EdgeInsets.fromLTRB(
             Insets.xl,
             Insets.md,
@@ -135,7 +134,6 @@ class _SignInScreenState extends State<SignInScreen> {
             Insets.giant,
           ),
           child: ConstrainedBox(
-            // A long line in a vehicle is a line nobody reads to the end.
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -150,32 +148,30 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ),
                 const SizedBox(height: Insets.xxl),
-                _Field(
-                  label: 'Reserve office address',
+                FieldFormField(
                   controller: _server,
-                  colours: colours,
+                  label: 'Reserve office address',
                   hint: 'http://reserve.example:8080',
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => _usernameFocus.requestFocus(),
+                  autofillHints: const [AutofillHints.url],
                 ),
                 const SizedBox(height: Insets.lg),
-                _Field(
-                  label: 'Username',
+                FieldFormField(
                   controller: _username,
-                  colours: colours,
+                  label: 'Username',
                   focusNode: _usernameFocus,
                   autofillHints: const [AutofillHints.username],
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => _passwordFocus.requestFocus(),
                 ),
                 const SizedBox(height: Insets.lg),
-                _Field(
-                  label: 'Password',
+                FieldFormField(
                   controller: _password,
-                  colours: colours,
-                  obscure: !_showPassword,
+                  label: 'Password',
                   focusNode: _passwordFocus,
+                  obscureText: !_showPassword,
                   autofillHints: const [AutofillHints.password],
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _submit(),
@@ -188,45 +184,22 @@ class _SignInScreenState extends State<SignInScreen> {
                           : Icons.visibility_outlined,
                       color: colours.ash2,
                     ),
-                    // An eye is not a label. The screen reader needs to be
-                    // told which way the toggle currently points.
                     tooltip: _showPassword ? 'Hide password' : 'Show password',
                   ),
                 ),
                 if (_problem != null) ...[
                   const SizedBox(height: Insets.lg),
-                  _Problem(colours: colours, message: _problem!),
+                  FieldBanner(
+                    message: _problem!,
+                    type: FieldSnackBarType.error,
+                    onDismiss: () => setState(() => _problem = null),
+                  ),
                 ],
                 const SizedBox(height: Insets.xl),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colours.bone,
-                      foregroundColor: colours.canopy,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(Corners.control),
-                      ),
-                    ),
-                    child: _busy
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colours.canopy,
-                            ),
-                          )
-                        : Text(
-                            'Sign in',
-                            style: TextStyle(
-                              fontFamily: Faces.ui.first,
-                              fontSize: Faces.label,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
+                FieldPrimaryButton(
+                  label: 'Sign in',
+                  onPressed: _busy ? null : _submit,
+                  isLoading: _busy,
                 ),
                 const SizedBox(height: Insets.lg),
                 Text(
@@ -243,141 +216,6 @@ class _SignInScreenState extends State<SignInScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// A labelled field. The label sits above the control rather than inside it so
-/// the control never has to carry placeholder text that vanishes on focus and
-/// takes the label with it.
-class _Field extends StatelessWidget {
-  const _Field({
-    required this.label,
-    required this.controller,
-    required this.colours,
-    this.obscure = false,
-    this.focusNode,
-    this.autofillHints = const <String>[],
-    this.textInputAction,
-    this.onSubmitted,
-    this.suffix,
-    this.hint,
-    this.keyboardType,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final FieldColours colours;
-  final bool obscure;
-  final FocusNode? focusNode;
-  final List<String> autofillHints;
-  final TextInputAction? textInputAction;
-  final ValueChanged<String>? onSubmitted;
-  final Widget? suffix;
-
-  /// Placeholder shown only while the field is empty — an address example,
-  /// never a label, for the reason in the class comment above.
-  final String? hint;
-  final TextInputType? keyboardType;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: Faces.ui.first,
-            fontSize: Faces.stamp,
-            color: colours.ash2,
-          ),
-        ),
-        const SizedBox(height: Insets.xs),
-        TextField(
-          controller: controller,
-          focusNode: focusNode,
-          obscureText: obscure,
-          autocorrect: false,
-          keyboardType: keyboardType,
-          // A username is not a sentence and a password is never one.
-          enableSuggestions: !obscure,
-          autofillHints: autofillHints,
-          textInputAction: textInputAction,
-          onSubmitted: onSubmitted,
-          style: TextStyle(
-            fontFamily: Faces.ui.first,
-            fontSize: Faces.body,
-            color: colours.bone,
-          ),
-          cursorColor: colours.bone,
-          decoration: InputDecoration(
-            isDense: true,
-            filled: true,
-            fillColor: colours.canopyRaised,
-            hintText: hint,
-            hintStyle: TextStyle(
-              fontFamily: Faces.ui.first,
-              fontSize: Faces.body,
-              color: colours.ash3,
-            ),
-            suffixIcon: suffix,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: Insets.md,
-              vertical: Insets.md,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(Corners.control),
-              borderSide: BorderSide(color: colours.rule),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(Corners.control),
-              borderSide: BorderSide(color: colours.bone, width: 1.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Problem extends StatelessWidget {
-  const _Problem({required this.colours, required this.message});
-
-  final FieldColours colours;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(Insets.md),
-      decoration: BoxDecoration(
-        color: colours.blood.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(Corners.control),
-        border: Border.all(color: colours.blood),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 18,
-            color: colours.inkOn(colours.blood),
-          ),
-          const SizedBox(width: Insets.sm),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.supporting,
-                height: 1.4,
-                color: colours.bone,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

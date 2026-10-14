@@ -47,11 +47,22 @@ class ReferenceLoader {
     required this.database,
     required this.api,
     required this.sessions,
+    this.renewSession,
   });
 
   final FieldLogDatabase database;
   final ChisimbaApi api;
   final SessionStore sessions;
+
+  /// Exchanges the stored refresh token for a usable access token.
+  ///
+  /// The reference path faces the same fact sync does — an access token lives
+  /// an hour — and it used to simply send the dead one and report the
+  /// resulting 401 as a wrong password. Sync renews; now this does too. It
+  /// stays optional because the device id the exchange needs belongs to the
+  /// caller, and a caller that cannot renew still gets the cache it always
+  /// did.
+  final Future<StoredTokens?> Function(StoredTokens stored)? renewSession;
 
   /// How long a successful fetch stays fresh. Two minutes keeps a long
   /// session from re-downloading the catalogue for every sighting while still
@@ -110,19 +121,64 @@ class ReferenceLoader {
       return cached;
     }
 
+    // A stored access token lives an hour, so on a phone that has been open or
+    // asleep it is very often already dead by the time the app is used again.
+    // Renewing before the fetch is what makes the fetch work at all; sync has
+    // done this all along and this path simply never called it.
+    var live = await _renewIfExpired(stored);
+
     try {
-      return await _refresh(stored.accessToken).timeout(_refreshTimeout);
+      return await _refresh(live.accessToken).timeout(_refreshTimeout);
     } on Object catch (error) {
-      debugPrint('Reference refresh failed; serving cache: $error');
+      // The hour can also run out between the check above and the request, so
+      // a refusal is retried once against a renewed credential before the
+      // cache is accepted.
+      if (error is AuthFailure && error.isUnauthorized) {
+        final renewed = await renewSession?.call(live);
+        if (renewed != null && renewed.isUsable) {
+          live = renewed;
+          try {
+            return await _refresh(live.accessToken).timeout(_refreshTimeout);
+          } on Object {
+            // A renewed credential refused as well is a real sign-out rather
+            // than a fluke; fall through and serve the cache.
+          }
+        }
+      }
+
+      final said = _asSpoken(error);
+      debugPrint('Reference refresh failed; serving cache: $said');
       return ReferenceSnapshot(
         species: cached.species,
         outings: cached.outings,
         reference: cached.reference,
         fromCache: true,
-        refreshError: '$error',
+        refreshError: said,
       );
     }
   }
+
+  /// The stored token while it is still inside its hour, otherwise a renewed
+  /// one. With no renewal offered the stored token is returned, so a caller
+  /// that cannot renew behaves exactly as it did before.
+  Future<StoredTokens> _renewIfExpired(StoredTokens stored) async {
+    if (!stored.isAccessTokenExpired) {
+      return stored;
+    }
+    final renewed = await renewSession?.call(stored);
+    return renewed != null && renewed.isUsable ? renewed : stored;
+  }
+
+  /// What to say about a failed refresh.
+  ///
+  /// A 401 here is never a wrong password: nobody types one into a reference
+  /// refresh. It is an access token that lived its hour, and telling somebody
+  /// to check the name and password sends them to re-enter credentials that
+  /// were never wrong.
+  static String _asSpoken(Object error) =>
+      error is AuthFailure && error.isUnauthorized
+      ? 'Your session expired — sign in again.'
+      : '$error';
 
   Future<ReferenceSnapshot> _refresh(String accessToken) async {
     final speciesList = await api.getSpecies(accessToken);

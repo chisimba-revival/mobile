@@ -5,18 +5,14 @@ import 'package:field_log/design/tokens.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/map/osm_tiles.dart';
 import 'package:field_log/map/maptiler_tiles.dart';
-import 'package:field_log/map/pin_painter.dart';
-import 'package:field_log/map/reserve_topology.dart';
 import 'package:field_log/map/tile_cache.dart';
-import 'package:field_log/map/vector_tile_layer.dart';
 import 'package:field_log/net/chisimba_api.dart' as chisimba;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:field_log/screens/map_screen.dart'
+    show countryZoom, fallbackCentre;
 import 'package:uuid/uuid.dart';
-
-/// The reserve centre constant from map_screen.dart.
-const reserveCentre = LatLng(-1.2921, 36.8219);
 
 /// Mutes a remote raster basemap so the reserve's own features read over it.
 /// Same filter and rationale as `_TileLayer._mute` in map_screen.dart: each
@@ -47,7 +43,7 @@ const ColorFilter _tileMute = ColorFilter.matrix(<double>[
 
 /// The route editor's tile layer, kept in step with the field map's: MapTiler
 /// light tiles when a key is compiled in, OpenStreetMap otherwise (dimmed so
-/// the route and the reserve's features read over it).
+/// the route reads over it).
 class _RouteTiles extends StatelessWidget {
   const _RouteTiles({required this.cache});
 
@@ -70,25 +66,6 @@ class _RouteTiles extends StatelessWidget {
     return maptilerEnabled
         ? tiles
         : ColorFiltered(colorFilter: _tileMute, child: tiles);
-  }
-}
-
-/// Vector layer for the route editor (copied from map_screen.dart).
-class _VectorLayer extends StatelessWidget {
-  const _VectorLayer({required this.colours});
-
-  final FieldColours colours;
-
-  @override
-  Widget build(BuildContext context) {
-    return MobileLayerTransformer(
-      child: IgnorePointer(
-        child: CustomPaint(
-          painter: ReserveVectorPainter(colours: colours),
-          size: Size.infinite,
-        ),
-      ),
-    );
   }
 }
 
@@ -132,11 +109,6 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
   late List<_EditableWaypoint> _waypoints;
   LatLng? _ghostWaypoint;
   int? _selectedIndex;
-
-  /// Path to the reserve's surveyed topology archive, or null when the build
-  /// shipped one that has not been copied yet (or none at all), leaving the
-  /// painted vector map in place — the same fallback as the field map.
-  String? _topologyPath;
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
@@ -153,14 +125,6 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-
-    // The map draws its fallback until the archive copy lands; a map that
-    // flickered through a "loading" state to draw the same lines would be
-    // a worse version of this.
-    prepareReserveTopology().then((path) {
-      if (!mounted || path == null || path == _topologyPath) return;
-      setState(() => _topologyPath = path);
-    });
   }
 
   @override
@@ -226,6 +190,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
           updatedAt: now,
           hasPendingChanges: true,
           isTombstone: false,
+          revision: 0,
         );
 
     final updatedRoute = route.copyWith(
@@ -244,6 +209,8 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
         label: w.label,
         kind: w.kind.name,
         note: w.note,
+        revision: 0,
+        isTombstone: false,
       );
     }).toList();
 
@@ -261,7 +228,11 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
             _waypoints.map((w) => w.longitude).reduce((a, b) => a + b) /
                 _waypoints.length,
           )
-        : reserveCentre;
+        // No waypoints yet, and this editor is not told where the device is:
+        // the same country view the field map opens on, rather than a preset
+        // location in another country altogether.
+        : fallbackCentre;
+    final double initialZoom = _waypoints.isNotEmpty ? 14 : countryZoom;
 
     return FieldScaffold(
       eyebrow: 'Route Editor',
@@ -291,30 +262,20 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
             options: MapOptions(
               backgroundColor: colours.inset,
               initialCenter: centre,
-              initialZoom: 14,
-              minZoom: 8,
+              initialZoom: initialZoom,
+              // Same floor as the field map: the empty editor opens on the
+              // country view, and has to be able to zoom out to have it.
+              minZoom: 5,
               maxZoom: 18,
               onTap: (tapPosition, point) => _showGhostWaypoint(point),
               onLongPress: (tapPosition, point) => _addWaypoint(point),
             ),
             children: [
-              // The tile basemap first, the reserve's own features on top of
-              // it, so this map reads the same as the field map. MapTiler's
-              // light tiles are the deliberate "proper map" look and go
-              // un-muted; the OSM fallback is dimmed (see _tileMute below) so
-              // the vector features (and the route being drawn) stand out.
+              // The tile basemap. MapTiler's light tiles are the deliberate
+              // "proper map" look and go un-muted; the OSM fallback is dimmed
+              // (see _tileMute below) so the route being drawn stands out.
               if (widget.tileCache != null)
                 _RouteTiles(cache: widget.tileCache!),
-              // Surveyed topology when the archive is available, the painted
-              // reserve map otherwise — same contract as the field map.
-              if (_topologyPath != null)
-                PmTilesVectorLayer(
-                  archivePath: _topologyPath!,
-                  maxZoom: 14,
-                  layerStyles: defaultVectorLayerStyles,
-                )
-              else
-                _VectorLayer(colours: colours),
               // Route layer
               if (_waypoints.length >= 2)
                 PolylineLayer(
@@ -412,7 +373,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: colours.ash1,
-                      fontSize: 10,
+                      fontSize: Faces.micro,
                       letterSpacing: 0.2,
                     ),
                   ),
@@ -554,7 +515,7 @@ class _WaypointMarker extends StatelessWidget {
         '$index',
         style: TextStyle(
           fontFamily: Faces.book.first,
-          fontSize: 12,
+          fontSize: Faces.stamp,
           fontWeight: FontWeight.w700,
           color: isSelected ? colours.bone : colours.canopy,
         ),

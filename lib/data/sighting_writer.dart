@@ -159,6 +159,88 @@ class SightingWriter {
     });
   }
 
+  /// File one sighting recorded without an outing against [driveId].
+  ///
+  /// [fileAgainst] sweeps every unfiled row; this files a single record, for
+  /// the pin-detail action that only knows its own id. It writes the outing id
+  /// and queues the create in one transaction, so there is no moment where a
+  /// row is filed but unsent. Idempotent: a row that already has an outing no
+  /// longer matches, and a row already filed under the same drive is not
+  /// queued twice.
+  ///
+  /// Returns how many were filed (0 or 1).
+  Future<int> fileOne(String localId, String driveId) async {
+    if (driveId.isEmpty) return 0;
+    return _db.transaction(() async {
+      final unfiled =
+          await (_db.select(_db.sightings)
+                ..where((t) => t.localId.equals(localId))
+                ..where((t) => t.driveId.equals('')))
+              .get();
+      for (final row in unfiled) {
+        await (_db.update(_db.sightings)
+              ..where((t) => t.localId.equals(row.localId)))
+            .write(SightingsCompanion(driveId: Value(driveId)));
+        final state = sightingToState(row.toModel());
+        state['drive_id'] = driveId;
+        state['outing_id'] = driveId;
+        await _queue.enqueueNew(
+          entityId: row.localId,
+          entity: EntityKind.sighting,
+          kind: OperationKind.create,
+          baseRevision: 0,
+          capturedAt: row.capturedAt,
+          recordedAt: row.recordedAt,
+          payload: state,
+        );
+      }
+      return unfiled.length;
+    });
+  }
+
+  /// Marks a sighting deleted and queues the deletion, in one transaction.
+  ///
+  /// Rule 9: deletion is a soft delete, and a removal is a record rather than
+  /// an absence. The row stays — the map still draws it, hollow, so the trail
+  /// of the day reads — and the delete is queued so the service learns of it.
+  /// Doing the two separately would leave a window where the row reads as
+  /// deleted and the queue has never heard of the deletion.
+  ///
+  /// Returns the queued operation's id, or null when there is no such record or
+  /// it is already a tombstone: deleting twice would queue the same removal a
+  /// second time, and the second is not a second deletion, only a duplicate.
+  Future<String?> delete(String localId) {
+    return _db.transaction(() async {
+      final row = await (_db.select(
+        _db.sightings,
+      )..where((t) => t.localId.equals(localId))).getSingleOrNull();
+      if (row == null || row.isTombstone) {
+        return null;
+      }
+
+      final now = DateTime.now().toUtc();
+      await (_db.update(
+        _db.sightings,
+      )..where((t) => t.localId.equals(localId))).write(
+        SightingsCompanion(
+          isTombstone: const Value(true),
+          deletedAt: Value(now),
+          hasPendingChanges: const Value(true),
+        ),
+      );
+
+      return _queue.enqueueNew(
+        entityId: localId,
+        entity: EntityKind.sighting,
+        kind: OperationKind.delete,
+        baseRevision: row.revision,
+        capturedAt: row.capturedAt,
+        recordedAt: now,
+        payload: {'local_id': localId},
+      );
+    });
+  }
+
   /// The enum for a behaviour the card offered, or null when the string is not
   /// one of the provisional wire names. Null stores an absent column: an
   /// unrecognised value is not invented, it is left unstated.

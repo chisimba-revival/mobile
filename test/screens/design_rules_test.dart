@@ -1,5 +1,6 @@
 // SightingRow is generated into database.g.dart, which is a part of
 // database.dart, so the row type is only reachable through that library.
+import 'package:drift/drift.dart' show InsertMode, Value;
 import 'package:field_log/data/database.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
@@ -7,10 +8,13 @@ import 'package:field_log/field/card_state.dart';
 import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/map/pin_visual.dart';
 import 'package:field_log/models/sighting.dart';
+import 'package:field_log/models/sync_operation.dart';
 import 'package:field_log/screens/sync_ledger.dart';
 import 'package:field_log/screens/tally_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../data/pull_engine_test.dart' show memoryStore;
 
 /// Rules the screens must obey, asserted where a user can see them.
 ///
@@ -309,6 +313,42 @@ void main() {
       expect(find.textContaining('retries itself'), findsOneWidget);
       expect(find.text('Nothing is waiting'), findsOneWidget);
     });
+
+    testWidgets('lists refusals the engine settled, for a person to read', (
+      tester,
+    ) async {
+      // A refused operation is settled — it leaves the queue — so the only
+      // place it can still be found is the conflicts table. The ledger owes
+      // the trainee that read: a record that failed deserves a reason.
+      final db = memoryStore();
+      addTearDown(db.close);
+      await db
+          .into(db.conflicts)
+          .insert(
+            ConflictsCompanion.insert(
+              operationId: 'op-1',
+              entityId: 'local-1',
+              entity: EntityKind.sighting,
+              clientPayload: '{"species_code":"LEOP"}',
+              serverState: '{}',
+              serverRevision: 0,
+              baseRevision: 0,
+              errorCode: 'refused',
+              reason: const Value('A person must decide this one.'),
+              recordedAt: DateTime.utc(2026, 10, 4, 19, 0),
+            ),
+            mode: InsertMode.insertOrIgnore,
+          );
+
+      await pumpField(tester, SyncLedgerScreen(database: db, online: true));
+
+      expect(find.text('Needs attention'), findsOneWidget);
+      expect(find.text('A person must decide this one.'), findsOneWidget);
+      // The resolution is to keep what the service holds, not to retry a
+      // change that was refused — retrying would guess an operation the
+      // conflicts table no longer carries whole.
+      expect(find.text('Keep as is'), findsOneWidget);
+    });
   });
 
   testWidgets('a requirement that is not met says how much is left', (
@@ -459,6 +499,38 @@ void main() {
       expect(identified.glyph, 'L');
       expect(identified.isNote, isFalse);
     });
+
+    test('an unfiled record does not wear a "waiting to send" pin', () {
+      // Contract: the service refuses a sighting without an outing. A record
+      // captured with no outing keeps its pending flag locally, but it has
+      // nothing in the queue — so calling it "queued" would be the one lie the
+      // pin furthest from the truth. It reads as unverified: a record that has
+      // not been sent, which is exactly what it is.
+      final visual = pinVisualFor(
+        _aRow(
+          speciesCode: 'LEOP',
+          count: 1,
+          hasPendingChanges: true,
+          driveId: '',
+        ),
+        commonNameFor: _nameOf,
+      );
+      expect(visual.state, PinState.unverified);
+      expect(visual.spoken, isNot(contains('waiting to send')));
+    });
+
+    test('a filed record with work pending is the queue, honestly', () {
+      final visual = pinVisualFor(
+        _aRow(
+          speciesCode: 'LEOP',
+          count: 1,
+          hasPendingChanges: true,
+          driveId: 'drive-1',
+        ),
+        commonNameFor: _nameOf,
+      );
+      expect(visual.state, PinState.queued);
+    });
   });
 }
 
@@ -473,12 +545,14 @@ SightingRow _aRow({
   String? notes,
   SightingStatus status = SightingStatus.pending,
   bool tombstone = false,
+  bool hasPendingChanges = false,
+  String driveId = 'drive-1',
 }) {
   return SightingRow(
     localId: 'local-1',
     serverId: null,
     contextCode: 'kiswahili',
-    driveId: 'drive-1',
+    driveId: driveId,
     speciesCode: speciesCode,
     count: count,
     recordedSpeciesCode: null,
@@ -503,7 +577,7 @@ SightingRow _aRow({
     lateArrival: false,
     isTombstone: tombstone,
     deletedAt: tombstone ? DateTime.utc(2026, 10, 4, 19, 0) : null,
-    hasPendingChanges: false,
+    hasPendingChanges: hasPendingChanges,
   );
 }
 

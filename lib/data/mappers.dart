@@ -202,6 +202,8 @@ String wireEntityFor(EntityKind v) => switch (v) {
   EntityKind.sighting => 'log_book_entry',
   EntityKind.dangerousGame => 'dangerous_game_encounter',
   EntityKind.trailWaypoint => 'trail_waypoint',
+  EntityKind.plannedRoute => 'planned_route',
+  EntityKind.routeWaypoint => 'route_waypoint',
   EntityKind.signOff => 'sign_off',
   EntityKind.media => 'media',
   EntityKind.unknown => 'unknown',
@@ -219,12 +221,16 @@ EntityKind? entityFromWire(String wireType) => switch (wireType) {
   'log_book_entry' => EntityKind.sighting,
   'dangerous_game_encounter' => EntityKind.dangerousGame,
   'trail_waypoint' => EntityKind.trailWaypoint,
+  'planned_route' => EntityKind.plannedRoute,
+  'route_waypoint' => EntityKind.routeWaypoint,
   // Earlier feeds named these after the local tables, and a client that has
   // been offline since before the rename will still meet them.
   'drive' => EntityKind.drive,
   'trail_log' => EntityKind.trailLog,
   'sighting' => EntityKind.sighting,
+  // The server's signoff package emits 'signoff'; accept both wire names.
   'sign_off' => EntityKind.signOff,
+  'signoff' => EntityKind.signOff,
   'media' => EntityKind.media,
   _ => null,
 };

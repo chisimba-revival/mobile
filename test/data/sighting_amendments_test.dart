@@ -4,6 +4,7 @@ import 'package:field_log/data/mappers.dart';
 import 'package:field_log/data/operation_queue.dart';
 import 'package:field_log/data/sighting_amendments.dart';
 import 'package:field_log/data/tables.dart';
+import 'package:field_log/models/sync_operation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'pull_engine_test.dart' show memoryStore, pendingSighting;
@@ -188,10 +189,35 @@ void main() {
 
       final queued = await db.select(db.queuedOperations).getSingle();
       final payload = decodePayload(queued.payload)!;
-      expect(payload['amendment'], 'age_sex');
-      expect(payload['value'], 'juvenile');
+      // The key the service reads. It is the same one create() reads, which is
+      // the point: an operation that corrects a record has to speak the
+      // language that wrote it, or the service accepts the amendment and never
+      // writes it.
+      expect(payload['age_sex_class'], 'juvenile');
       // The whole record is not resent. An update carries the change.
       expect(payload.containsKey('species_code'), isFalse);
+      expect(payload.containsKey('count'), isFalse);
+    });
+
+    test('a note is sent as the whole sentence, not the addition', () async {
+      final id = await aStoredRecord();
+
+      await amender.amend(
+        id,
+        const SightingAmendment(
+          AmendmentKind.note,
+          'Fourth one, on the ridge.',
+        ),
+      );
+
+      final queued = await db.select(db.queuedOperations).getSingle();
+      final payload = decodePayload(queued.payload)!;
+      // The service replaces this column with what it is handed. Sending only
+      // the new sentence would drop the notes already on the record.
+      expect(
+        payload['notes'],
+        'Three across the road.\n\nFourth one, on the ridge.',
+      );
     });
 
     test('the record is marked as having unsent changes', () async {
@@ -253,6 +279,145 @@ void main() {
       expect(operationId, equals(null));
       expect(await db.select(db.sightings).get(), isEmpty);
       expect(await db.select(db.queuedOperations).get(), isEmpty);
+    });
+
+    test(
+      'reports that it could not correct rather than inventing one',
+      () async {
+        final operationId = await amender.correct(
+          'no-such-record',
+          const SightingCorrection(count: 9, reason: 'Recounted.'),
+        );
+
+        expect(operationId, equals(null));
+        expect(await db.select(db.sightings).get(), isEmpty);
+        expect(await db.select(db.queuedOperations).get(), isEmpty);
+      },
+    );
+  });
+
+  group('correcting a record', () {
+    /// The payload of the one queued operation, decoded.
+    Future<Map<String, dynamic>> thePayload() async {
+      final queued = await db.select(db.queuedOperations).getSingle();
+      return decodePayload(queued.payload)!;
+    }
+
+    test('only the fields it names are written', () async {
+      final id = await aStoredRecord();
+
+      await amender.correct(
+        id,
+        const SightingCorrection(count: 6, reason: 'Six, not three.'),
+      );
+
+      final row = await theRow();
+      expect(row.count, 6);
+      // A field the correction did not name. A write that blanked everything
+      // would erase the record.
+      expect(row.notes, 'Three across the road.');
+      expect(row.speciesCode, 'ANTH');
+    });
+
+    test('a reason is sent but not stored against the local row', () async {
+      final id = await aStoredRecord();
+
+      await amender.correct(
+        id,
+        const SightingCorrection(
+          count: 6,
+          reason: 'Six, not three — I could see the whole group.',
+        ),
+      );
+
+      final payload = await thePayload();
+      expect(payload['correction_reason'], contains('Six, not three'));
+      // The reason belongs to the service, beside the originals it also holds.
+      // A copy on this device would be a second thing to keep in step.
+      expect(
+        (await theRow()).correctionReason,
+        isNot(contains('Six, not three')),
+      );
+    });
+
+    test('an unmentioned field is absent from the payload, not null', () async {
+      final id = await aStoredRecord();
+
+      await amender.correct(
+        id,
+        const SightingCorrection(notes: 'A cleaner sentence.'),
+      );
+
+      final payload = await thePayload();
+      // Present and null would tell the service the field was mentioned and
+      // left empty, which is a different statement from not mentioning it.
+      expect(payload.containsKey('count'), isFalse);
+      expect(payload.containsKey('species_code'), isFalse);
+      expect(payload['notes'], 'A cleaner sentence.');
+    });
+
+    test('a correction that moves the claim says so', () async {
+      final id = await aStoredRecord();
+
+      await amender.correct(
+        id,
+        const SightingCorrection(
+          speciesCode: 'LEOA',
+          count: 2,
+          reason: 'Forest elephant.',
+        ),
+      );
+
+      final payload = await thePayload();
+      // Both keys, because both were named. The service decides which of them
+      // actually moves the claim; this client must not decide for it and drop
+      // one.
+      expect(payload['species_code'], 'LEOA');
+      expect(payload['count'], 2);
+    });
+
+    test('notes are replaced as the reader typed them', () async {
+      final id = await aStoredRecord();
+
+      await amender.correct(
+        id,
+        const SightingCorrection(notes: 'Just this one sentence.'),
+      );
+
+      expect((await theRow()).notes, 'Just this one sentence.');
+    });
+
+    test('nothing to write is not reported as an operation', () async {
+      final id = await aStoredRecord();
+
+      final operationId = await amender.correct(id, const SightingCorrection());
+
+      expect(operationId, equals(null));
+      expect(await db.select(db.queuedOperations).get(), isEmpty);
+    });
+
+    test('a correction carries the revision the client holds', () async {
+      final id = await aStoredRecord();
+
+      await amender.correct(
+        id,
+        const SightingCorrection(count: 6, reason: 'Recounted at dusk.'),
+      );
+
+      final queued = await db.select(db.queuedOperations).getSingle();
+      // The base revision is what tells the service an edit made on top of
+      // what we knew from one made on top of something else entirely.
+      expect(queued.baseRevision, 4);
+      expect(queued.entity, EntityKind.sighting);
+      expect(queued.kind, OperationKind.update);
+    });
+
+    test('the row is marked as having unsent changes', () async {
+      final id = await aStoredRecord();
+
+      await amender.correct(id, const SightingCorrection(behaviour: 'feeding'));
+
+      expect((await theRow()).hasPendingChanges, isTrue);
     });
   });
 }

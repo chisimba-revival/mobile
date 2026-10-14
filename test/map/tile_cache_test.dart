@@ -27,7 +27,12 @@ void main() {
   });
 
   TileCache cache({int maxBytes = 0, http.Client? client}) =>
-      TileCache.inDirectory(directory.path, maxBytes: maxBytes, client: client);
+      TileCache.inDirectory(
+        directory.path,
+        maxBytes: maxBytes,
+        client: client,
+        requestSpacing: Duration.zero,
+      );
 
   group('a tile that is cached', () {
     test('is served from disk without asking the network again', () async {
@@ -101,6 +106,58 @@ void main() {
         );
       },
     );
+  });
+
+  group('a source the server refuses', () {
+    test('rests instead of being asked again', () async {
+      var requests = 0;
+      final client = MockClient((request) async {
+        requests++;
+        return http.Response('access blocked', 403);
+      });
+      final subject = cache(client: client);
+      Uri urlFor(int z, int x, int y) =>
+          Uri.parse('https://tiles.test/7/8/9.png');
+
+      await subject.tile(7, 8, 9, urlFor: urlFor, source: 'osm');
+      expect(requests, 1);
+      expect(
+        subject.blocked('osm'),
+        isTrue,
+        reason: 'a 403 marks the source as resting',
+      );
+      expect(
+        subject.blocked('maptiler-streets-v2'),
+        isFalse,
+        reason: 'a refusal on one source says nothing about another',
+      );
+
+      await subject.tile(7, 8, 9, urlFor: urlFor, source: 'osm');
+      expect(
+        requests,
+        1,
+        reason: 'a resting source is not hit again during the backoff',
+      );
+    });
+
+    test('a rate limit rests the source as well', () async {
+      var requests = 0;
+      final client = MockClient((request) async {
+        requests++;
+        return http.Response('too many', 429);
+      });
+      final subject = cache(client: client);
+      Uri urlFor(int z, int x, int y) =>
+          Uri.parse('https://tiles.test/7/8/9.png');
+
+      await subject.tile(7, 8, 9, urlFor: urlFor);
+      expect(requests, 1);
+      expect(
+        subject.blocked(''),
+        isTrue,
+        reason: 'a 429 is a rate limit, and a limited source should rest',
+      );
+    });
   });
 
   group('the cache is keyed by tile, not by url', () {

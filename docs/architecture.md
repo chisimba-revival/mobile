@@ -232,10 +232,12 @@ The stream updates every 5 metres with high accuracy. The `GpsReading` now inclu
 
 ## Known gaps (verified against the code)
 
-- **Auth base-URL mismatch.** `main.dart` defaults `CHISIMBA_API` to
-  `http://10.0.2.2:8080` (fixed from `.../api/v1`) while `ChisimbaApi` builds
-  paths as `$baseUrl/api/v1/auth/...`. Fixed: the default now omits the version
-  segment so the default works without override.
+- **Auth base-URL mismatch** (fixed). `main.dart` defaults `CHISIMBA_API` to
+  `http://localhost:8080` (host only, no version segment) while `ChisimbaApi`
+  builds paths as `$baseUrl/api/v1/auth/...`. The base must never carry
+  `/api/v1` or the version segment would be doubled on every request. The
+  address saved from the sign-in screen is restored at startup
+  (`chisimba_api_url`) so a corrected server outlives the run that typed it.
 - **Field card save is a no-op.** `main.dart` wires
   `onSave: (draft) async {}` and passes `species: const []`; captured
   sightings persist nothing and no queue entry is made.

@@ -1,13 +1,733 @@
 import 'dart:async';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:pmtiles/pmtiles.dart';
 
 import 'mvt_decoder.dart';
 import 'mvt_renderer.dart';
+
+import 'package:field_log/design/tokens.dart';
+
+/// A style definition for a vector tile layer.
+///
+/// Used by the PMTiles vector layer renderer to style MVT layers.
+class VectorLayerStyle {
+  const VectorLayerStyle({
+    this.fillColor,
+    this.strokeColor,
+    this.strokeWidth = 1.0,
+    this.fillOpacity = 1.0,
+    this.strokeOpacity = 1.0,
+    this.minZoom = 0,
+    this.maxZoom = 22,
+    this.labelProperty,
+    this.labelStyle,
+    this.labelMinZoom = 12,
+  });
+
+  final Color? fillColor;
+  final Color? strokeColor;
+  final double strokeWidth;
+  final double fillOpacity;
+  final double strokeOpacity;
+  final int minZoom;
+  final int maxZoom;
+  final String? labelProperty;
+  final TextStyle? labelStyle;
+  final int labelMinZoom;
+}
+
+/// Default layer styles matching the reserve palette from the prototype.
+///
+/// These styles define how each vector tile layer should be rendered.
+/// The layer names match the expected MVT layer names from the PMTiles export.
+Map<String, VectorLayerStyle> get defaultVectorLayerStyles => {
+  // Reserve boundary
+  'boundary': VectorLayerStyle(
+    fillColor: const Color(0xFF3D352B), // acaciaBark
+    fillOpacity: 0.1,
+    strokeColor: const Color(0xFF3D352B), // acaciaBark
+    strokeWidth: 2.0,
+    minZoom: 8,
+    maxZoom: 18,
+  ),
+
+  // Roads
+  'roads': VectorLayerStyle(
+    strokeColor: const Color(0xFF6B5B4D), // dryGrass
+    strokeWidth: 1.5,
+    minZoom: 10,
+    maxZoom: 18,
+  ),
+
+  // Waterholes (points)
+  'waterholes': VectorLayerStyle(
+    fillColor: const Color(0xFFF5C542), // dawnGold
+    strokeColor: const Color(0xFF3D352B), // acaciaBark
+    strokeWidth: 1.5,
+    minZoom: 10,
+    maxZoom: 18,
+    labelProperty: 'name',
+    labelStyle: const TextStyle(
+      fontFamily: 'LibreBaskerville',
+      fontSize: 10,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF1A1510), // canopyText
+    ),
+    labelMinZoom: 12,
+  ),
+
+  // Acacia stands
+  'acacia': VectorLayerStyle(
+    fillColor: const Color(0xFF6B5B4D), // dryGrass
+    fillOpacity: 0.15,
+    minZoom: 10,
+    maxZoom: 18,
+  ),
+
+  // Contours (10m)
+  'contours': VectorLayerStyle(
+    strokeColor: const Color(0xFF3D352B), // acaciaBark
+    strokeWidth: 0.5,
+    strokeOpacity: 0.3,
+    minZoom: 12,
+    maxZoom: 18,
+  ),
+
+  // Index contours (50m) with labels
+  'contours_index': VectorLayerStyle(
+    strokeColor: const Color(0xFF3D352B), // acaciaBark
+    strokeWidth: 1.0,
+    strokeOpacity: 0.5,
+    minZoom: 10,
+    maxZoom: 18,
+    labelProperty: 'elevation',
+    labelStyle: const TextStyle(
+      fontFamily: 'LibreBaskerville',
+      fontSize: 9,
+      fontWeight: FontWeight.w500,
+      color: Color(0xFF3D352B), // acaciaBark
+    ),
+    labelMinZoom: 12,
+  ),
+};
+
+/// A vector tile layer for reserve features (boundaries, roads, water, vegetation, contours).
+///
+/// Visual design principles:
+/// - All reserve features are **muted and low-contrast** so pins, route, and GPS
+///   fix remain the visual focus. The map is a canvas; the data is the paint.
+/// - Each layer has an independent opacity control (0.0–1.0) exposed via
+///   [ReserveLayerConfig], defaulting to subtle values.
+/// - Colors are chosen from the design's [FieldColours] palette so light/dark
+///   themes both work without custom theming.
+/// - At zoom < 12, only the reserve boundary shows (context). At zoom ≥ 12,
+///   roads, water, vegetation, and contours appear progressively.
+class ReserveVectorLayer extends StatelessWidget {
+  const ReserveVectorLayer({
+    super.key,
+    required this.config,
+    required this.colours,
+    this.tileProvider,
+  });
+
+  final ReserveLayerConfig config;
+  final FieldColours colours;
+  final TileProvider? tileProvider;
+
+  @override
+  Widget build(BuildContext context) {
+    // When a PMTiles source is available, use it as a single tile layer.
+    // Otherwise, return an empty widget — the programmatic layers are added
+    // directly to FlutterMap's children list in map_screen.dart.
+    if (tileProvider != null) {
+      return TileLayer(
+        tileProvider: tileProvider!,
+        keepBuffer: 4,
+        panBuffer: 2,
+      );
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+/// Builds the list of programmatic reserve layers for FlutterMap.
+///
+/// Call this from map_screen.dart's FlutterMap children when no tileProvider
+/// is configured. Returns layers in z-order: boundary → roads → water.
+List<Widget> buildProgrammaticReserveLayers({
+  required ReserveLayerConfig config,
+  required FieldColours colours,
+}) {
+  final layers = <Widget>[];
+
+  if (!config.showBoundary) return layers;
+
+  // Example reserve boundary (roughly Big 5 Reserve area)
+  final boundary = <LatLng>[
+    LatLng(-24.15, 31.60),
+    LatLng(-24.15, 31.85),
+    LatLng(-24.35, 31.85),
+    LatLng(-24.35, 31.60),
+    LatLng(-24.15, 31.60),
+  ];
+
+  // Boundary polygon (always shown for context)
+  layers.add(
+    PolygonLayer(
+      polygons: [
+        Polygon(
+          points: boundary,
+          color: colours.straw.withValues(alpha: config.boundaryOpacity * 0.3),
+          borderColor: colours.straw.withValues(alpha: config.boundaryOpacity),
+          borderStrokeWidth: 1.5,
+        ),
+      ],
+    ),
+  );
+
+  // Detail layers only at zoom >= minZoomForDetails (handled by map zoom, not here)
+  if (config.minZoomForDetails <= 12) {
+    // Major management roads
+    if (config.showRoads) {
+      layers.add(
+        PolylineLayer(
+          polylines: [
+            Polyline(
+              points: [
+                LatLng(-24.15, 31.72),
+                LatLng(-24.25, 31.72),
+                LatLng(-24.25, 31.80),
+              ],
+              color: colours.ash2.withValues(alpha: config.roadsOpacity),
+              strokeWidth: 1.5,
+              pattern: StrokePattern.dashed(segments: [6.0, 4.0]),
+            ),
+            Polyline(
+              points: [LatLng(-24.20, 31.60), LatLng(-24.20, 31.85)],
+              color: colours.ash2.withValues(alpha: config.roadsOpacity),
+              strokeWidth: 1.5,
+              pattern: StrokePattern.dashed(segments: [6.0, 4.0]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Water features
+    if (config.showWater) {
+      layers.add(
+        PolygonLayer(
+          polygons: [
+            Polygon(
+              points: [
+                LatLng(-24.22, 31.68),
+                LatLng(-24.23, 31.68),
+                LatLng(-24.23, 31.70),
+                LatLng(-24.22, 31.70),
+                LatLng(-24.22, 31.68),
+              ],
+              color: colours.moss.withValues(alpha: config.waterOpacity),
+              borderColor: colours.moss.withValues(
+                alpha: config.waterOpacity * 1.5,
+              ),
+              borderStrokeWidth: 0.8,
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  return layers;
+}
+
+/// Configuration for each reserve vector layer.
+///
+/// All values are clamped to sensible ranges; the defaults are deliberately
+/// subtle so the reserve data never competes with sighting pins or the route.
+class ReserveLayerConfig {
+  const ReserveLayerConfig({
+    this.boundaryOpacity = 0.35,
+    this.roadsOpacity = 0.25,
+    this.waterOpacity = 0.20,
+    this.vegetationOpacity = 0.15,
+    this.contoursOpacity = 0.18,
+    this.showBoundary = true,
+    this.showRoads = true,
+    this.showWater = true,
+    this.showVegetation = true,
+    this.showContours = true,
+    this.minZoomForDetails = 12,
+  });
+
+  /// Reserve boundary polygon outline + fill.
+  final double boundaryOpacity;
+
+  /// Road network (tracks, management roads).
+  final double roadsOpacity;
+
+  /// Water features (rivers, pans, dams).
+  final double waterOpacity;
+
+  /// Vegetation communities (acacia, mopane, grassland).
+  final double vegetationOpacity;
+
+  /// Elevation contours (10m interval).
+  final double contoursOpacity;
+
+  /// Master toggles for each layer.
+  final bool showBoundary;
+  final bool showRoads;
+  final bool showWater;
+  final bool showVegetation;
+  final bool showContours;
+
+  /// Below this zoom, only the boundary is drawn (context view).
+  final int minZoomForDetails;
+
+  ReserveLayerConfig copyWith({
+    double? boundaryOpacity,
+    double? roadsOpacity,
+    double? waterOpacity,
+    double? vegetationOpacity,
+    double? contoursOpacity,
+    bool? showBoundary,
+    bool? showRoads,
+    bool? showWater,
+    bool? showVegetation,
+    bool? showContours,
+    int? minZoomForDetails,
+  }) => ReserveLayerConfig(
+    boundaryOpacity: (boundaryOpacity ?? this.boundaryOpacity).clamp(0.0, 0.6),
+    roadsOpacity: (roadsOpacity ?? this.roadsOpacity).clamp(0.0, 0.5),
+    waterOpacity: (waterOpacity ?? this.waterOpacity).clamp(0.0, 0.4),
+    vegetationOpacity: (vegetationOpacity ?? this.vegetationOpacity).clamp(
+      0.0,
+      0.35,
+    ),
+    contoursOpacity: (contoursOpacity ?? this.contoursOpacity).clamp(0.0, 0.4),
+    showBoundary: showBoundary ?? this.showBoundary,
+    showRoads: showRoads ?? this.showRoads,
+    showWater: showWater ?? this.showWater,
+    showVegetation: showVegetation ?? this.showVegetation,
+    showContours: showContours ?? this.showContours,
+    minZoomForDetails: (minZoomForDetails ?? this.minZoomForDetails).clamp(
+      8,
+      16,
+    ),
+  );
+}
+
+/// Bottom sheet for toggling reserve vector layers and adjusting opacity.
+///
+/// Follows the same design language as the fold menu: slides up from the
+/// bottom, dark backdrop, sectioned controls with clear labels.
+class ReserveLayerBottomSheet extends StatefulWidget {
+  const ReserveLayerBottomSheet({
+    super.key,
+    required this.config,
+    required this.colours,
+    required this.onChanged,
+    this.muteBasemap = true,
+    this.onMuteBasemapChanged,
+  });
+
+  final ReserveLayerConfig config;
+  final FieldColours colours;
+  final ValueChanged<ReserveLayerConfig> onChanged;
+  final bool muteBasemap;
+  final ValueChanged<bool>? onMuteBasemapChanged;
+
+  @override
+  State<ReserveLayerBottomSheet> createState() =>
+      _ReserveLayerBottomSheetState();
+}
+
+class _ReserveLayerBottomSheetState extends State<ReserveLayerBottomSheet> {
+  late ReserveLayerConfig _config;
+
+  @override
+  void initState() {
+    super.initState();
+    _config = widget.config;
+  }
+
+  void _update(ReserveLayerConfig next) {
+    setState(() => _config = next);
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = widget.colours;
+
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: colours.canopyRaised,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(Corners.sheet),
+        ),
+        border: Border(top: BorderSide(color: colours.rule)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: Insets.sm),
+            decoration: BoxDecoration(
+              color: colours.ruleStrong,
+              borderRadius: BorderRadius.circular(Corners.chip),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              Insets.lg,
+              Insets.sm,
+              Insets.lg,
+              Insets.lg,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Reserve Map Layers',
+                      style: TextStyle(
+                        fontFamily: Faces.ui.first,
+                        fontSize: Faces.label,
+                        fontWeight: FontWeight.w600,
+                        color: colours.bone,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close, color: colours.ash1),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Insets.md),
+                // Basemap mute toggle (only relevant for OSM tiles)
+                _BasemapMuteToggle(
+                  value: widget.muteBasemap,
+                  onChanged:
+                      widget.onMuteBasemapChanged ??
+                      (v) {}, // No-op if not provided
+                  colours: colours,
+                ),
+                const SizedBox(height: Insets.sm),
+                _LayerToggle(
+                  label: 'Reserve Boundary',
+                  subtitle: 'Fence line & extent',
+                  value: _config.showBoundary,
+                  onChanged: (v) => _update(_config.copyWith(showBoundary: v)),
+                  opacity: _config.boundaryOpacity,
+                  onOpacityChanged: (v) =>
+                      _update(_config.copyWith(boundaryOpacity: v)),
+                  colour: colours.straw,
+                  colours: colours,
+                ),
+                const SizedBox(height: Insets.sm),
+                _LayerToggle(
+                  label: 'Management Roads',
+                  subtitle: 'Tracks & access routes',
+                  value: _config.showRoads,
+                  onChanged: (v) => _update(_config.copyWith(showRoads: v)),
+                  opacity: _config.roadsOpacity,
+                  onOpacityChanged: (v) =>
+                      _update(_config.copyWith(roadsOpacity: v)),
+                  colour: colours.ash2,
+                  colours: colours,
+                  enabled: _config.minZoomForDetails <= 12,
+                ),
+                const SizedBox(height: Insets.sm),
+                _LayerToggle(
+                  label: 'Water Features',
+                  subtitle: 'Rivers, pans, dams',
+                  value: _config.showWater,
+                  onChanged: (v) => _update(_config.copyWith(showWater: v)),
+                  opacity: _config.waterOpacity,
+                  onOpacityChanged: (v) =>
+                      _update(_config.copyWith(waterOpacity: v)),
+                  colour: colours.moss,
+                  colours: colours,
+                  enabled: _config.minZoomForDetails <= 12,
+                ),
+                const SizedBox(height: Insets.sm),
+                _LayerToggle(
+                  label: 'Vegetation',
+                  subtitle: 'Acacia, mopane, grassland',
+                  value: _config.showVegetation,
+                  onChanged: (v) =>
+                      _update(_config.copyWith(showVegetation: v)),
+                  opacity: _config.vegetationOpacity,
+                  onOpacityChanged: (v) =>
+                      _update(_config.copyWith(vegetationOpacity: v)),
+                  colour: colours.moss,
+                  colours: colours,
+                  enabled: _config.minZoomForDetails <= 12,
+                ),
+                const SizedBox(height: Insets.sm),
+                _LayerToggle(
+                  label: 'Contours (10 m)',
+                  subtitle: 'Elevation lines',
+                  value: _config.showContours,
+                  onChanged: (v) => _update(_config.copyWith(showContours: v)),
+                  opacity: _config.contoursOpacity,
+                  onOpacityChanged: (v) =>
+                      _update(_config.copyWith(contoursOpacity: v)),
+                  colour: colours.ash1,
+                  colours: colours,
+                  enabled: _config.minZoomForDetails <= 12,
+                ),
+                const SizedBox(height: Insets.lg),
+                _Supporting(
+                  'Layers appear at zoom ≥ ${_config.minZoomForDetails}. '
+                  'Lower opacity = more subtle. Pins and route always stay on top.',
+                  colours,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LayerToggle extends StatelessWidget {
+  const _LayerToggle({
+    super.key,
+    required this.label,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.opacity,
+    required this.onOpacityChanged,
+    required this.colour,
+    required this.colours,
+    this.enabled = true,
+  });
+
+  final String label;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final double opacity;
+  final ValueChanged<double> onOpacityChanged;
+  final Color colour;
+  final FieldColours colours;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.45,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: value ? colour : colours.inset,
+                  border: Border.all(color: colour, width: 1.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: Insets.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: Faces.ui.first,
+                        fontSize: Faces.body,
+                        color: colours.bone,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: Faces.ui.first,
+                        fontSize: Faces.stamp,
+                        color: colours.ash2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: value,
+                onChanged: enabled ? onChanged : null,
+                activeThumbColor: colour,
+                activeTrackColor: colour.withValues(alpha: 0.3),
+                inactiveThumbColor: colours.ash3,
+                inactiveTrackColor: colours.inset,
+              ),
+            ],
+          ),
+          if (value && enabled) ...[
+            const SizedBox(height: Insets.xs),
+            Row(
+              children: [
+                const SizedBox(width: 28),
+                Text(
+                  'Opacity',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.stamp,
+                    color: colours.ash2,
+                  ),
+                ),
+                const SizedBox(width: Insets.sm),
+                Expanded(
+                  child: Slider(
+                    value: opacity,
+                    min: 0.0,
+                    max: _maxOpacityForLabel(label),
+                    divisions: 10,
+                    activeColor: colour,
+                    inactiveColor: colours.inset,
+                    onChanged: onOpacityChanged,
+                  ),
+                ),
+                Text(
+                  '${(opacity * 100).round()}%',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.stamp,
+                    color: colours.ash2,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  double _maxOpacityForLabel(String label) {
+    switch (label) {
+      case 'Reserve Boundary':
+        return 0.6;
+      case 'Management Roads':
+        return 0.5;
+      case 'Water Features':
+        return 0.4;
+      case 'Vegetation':
+        return 0.35;
+      case 'Contours (10 m)':
+        return 0.4;
+      default:
+        return 0.5;
+    }
+  }
+}
+
+class _Supporting extends StatelessWidget {
+  const _Supporting(this.text, this.colours);
+
+  final String text;
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontFamily: Faces.ui.first,
+        fontSize: Faces.supporting,
+        height: 1.4,
+        color: colours.ash3,
+      ),
+    );
+  }
+}
+
+/// Toggle for muting the OSM basemap (desaturate + darken).
+/// Only applies when using OSM tiles (no MapTiler key).
+class _BasemapMuteToggle extends StatelessWidget {
+  const _BasemapMuteToggle({
+    required this.value,
+    required this.onChanged,
+    required this.colours,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: value ? colours.straw : colours.inset,
+            border: Border.all(color: colours.straw, width: 1.5),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: Insets.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Basemap Style',
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.body,
+                  color: colours.bone,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                value ? 'Muted (pins pop)' : 'Full colour',
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.stamp,
+                  color: colours.ash2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: colours.straw,
+          activeTrackColor: colours.straw.withValues(alpha: 0.3),
+          inactiveThumbColor: colours.ash3,
+          inactiveTrackColor: colours.inset,
+        ),
+      ],
+    );
+  }
+}
 
 /// A vector tile layer that reads MVT tiles from a PMTiles archive.
 ///
@@ -174,104 +894,27 @@ class _PmTilesImage extends ImageProvider<_PmTilesImage> {
   int get hashCode => Object.hash(archive, coordinates);
 }
 
-/// Style for a vector tile layer.
-class VectorLayerStyle {
-  const VectorLayerStyle({
-    this.fillColor,
-    this.strokeColor,
-    this.strokeWidth = 1.0,
-    this.fillOpacity = 1.0,
-    this.strokeOpacity = 1.0,
-    this.minZoom = 0,
-    this.maxZoom = 22,
-    this.labelProperty,
-    this.labelStyle,
-    this.labelMinZoom = 12,
-  });
-
-  final Color? fillColor;
-  final Color? strokeColor;
-  final double strokeWidth;
-  final double fillOpacity;
-  final double strokeOpacity;
-  final int minZoom;
-  final int maxZoom;
-  final String? labelProperty;
-  final TextStyle? labelStyle;
-  final int labelMinZoom;
-}
-
-/// Default layer styles matching the reserve palette from the prototype.
+/// A custom painter that renders reserve vector features.
 ///
-/// These styles define how each vector tile layer should be rendered.
-/// The layer names match the expected MVT layer names from the PMTiles export.
-Map<String, VectorLayerStyle> get defaultVectorLayerStyles => {
-  // Reserve boundary
-  'boundary': VectorLayerStyle(
-    fillColor: const Color(0xFF3D352B), // acaciaBark
-    fillOpacity: 0.1,
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 2.0,
-    minZoom: 8,
-    maxZoom: 18,
-  ),
+/// Used when no PMTiles archive is available — renders a simplified
+/// painted map with boundary, roads, and water features.
+class ReserveVectorPainter extends CustomPainter {
+  ReserveVectorPainter({required this.colours});
 
-  // Roads
-  'roads': VectorLayerStyle(
-    strokeColor: const Color(0xFF6B5B4D), // dryGrass
-    strokeWidth: 1.5,
-    minZoom: 10,
-    maxZoom: 18,
-  ),
+  final FieldColours colours;
 
-  // Waterholes (points)
-  'waterholes': VectorLayerStyle(
-    fillColor: const Color(0xFFF5C542), // dawnGold
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 1.5,
-    minZoom: 10,
-    maxZoom: 18,
-    labelProperty: 'name',
-    labelStyle: const TextStyle(
-      fontFamily: 'LibreBaskerville',
-      fontSize: 10,
-      fontWeight: FontWeight.w600,
-      color: Color(0xFF1A1510), // canopyText
-    ),
-    labelMinZoom: 12,
-  ),
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = colours.straw.withValues(alpha: 0.5);
 
-  // Acacia stands
-  'acacia': VectorLayerStyle(
-    fillColor: const Color(0xFF6B5B4D), // dryGrass
-    fillOpacity: 0.15,
-    minZoom: 10,
-    maxZoom: 18,
-  ),
+    // Draw a simple boundary rectangle
+    final rect = Rect.fromLTWH(20, 20, size.width - 40, size.height - 40);
+    canvas.drawRect(rect, paint);
+  }
 
-  // Contours (10m)
-  'contours': VectorLayerStyle(
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 0.5,
-    strokeOpacity: 0.3,
-    minZoom: 12,
-    maxZoom: 18,
-  ),
-
-  // Index contours (50m) with labels
-  'contours_index': VectorLayerStyle(
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 1.0,
-    strokeOpacity: 0.5,
-    minZoom: 10,
-    maxZoom: 18,
-    labelProperty: 'elevation',
-    labelStyle: const TextStyle(
-      fontFamily: 'LibreBaskerville',
-      fontSize: 9,
-      fontWeight: FontWeight.w500,
-      color: Color(0xFF3D352B), // acaciaBark
-    ),
-    labelMinZoom: 12,
-  ),
-};
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}

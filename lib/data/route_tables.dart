@@ -28,12 +28,18 @@ class PlannedRoutes extends Table {
   /// When the route was last modified locally.
   DateTimeColumn get updatedAt => dateTime()();
 
+  /// The revision of this route. Incremented on every server write.
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
   /// Whether this route has local changes not yet sent to the server.
   BoolColumn get hasPendingChanges =>
       boolean().withDefault(const Constant(false))();
 
   /// Whether this route has been deleted (soft delete).
   BoolColumn get isTombstone => boolean().withDefault(const Constant(false))();
+
+  /// When the route was deleted (soft delete).
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {localId};
@@ -67,6 +73,15 @@ class RouteWaypoints extends Table {
 
   /// Optional note for this waypoint.
   TextColumn get note => text().nullable()();
+
+  /// The revision of this waypoint. Incremented on every server write.
+  IntColumn get revision => integer().withDefault(const Constant(0))();
+
+  /// Whether this waypoint has been deleted (soft delete).
+  BoolColumn get isTombstone => boolean().withDefault(const Constant(false))();
+
+  /// When the waypoint was deleted (soft delete).
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {routeId, ordinal};

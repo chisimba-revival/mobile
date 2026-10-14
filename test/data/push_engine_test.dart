@@ -13,6 +13,20 @@ import 'pull_engine_test.dart' show memoryStore, pendingSighting;
 final captured = DateTime.utc(2026, 10, 4, 6, 30);
 final recorded = DateTime.utc(2026, 10, 4, 18, 5);
 
+/// What a failed send throws.
+///
+/// The engine is indifferent to the kind: a transport error, a server that
+/// answered 404, an expired token — all arrive as a throw. Naming one here
+/// keeps the test honest about that without asserting a particular failure.
+class _SendFailed implements Exception {
+  const _SendFailed(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'SendFailed: $message';
+}
+
 PendingOperation anOperation({
   String operationId = 'op-1',
   String entityId = 'local-1',
@@ -264,7 +278,10 @@ void main() {
       expect(wire['entity_id'], 'local-1');
       expect(wire['kind'], 'create');
       expect(wire['base_revision'], 2);
-      expect(wire['depends_on'], 'op-drive');
+      // The service expects depends_on as a list of operation ids; the local
+      // queue stores at most one prerequisite per operation, and the wire
+      // builder wraps it.
+      expect(wire['depends_on'], ['op-drive']);
       expect(wire['captured_at'], captured.toIso8601String());
       expect(wire['recorded_at'], recorded.toIso8601String());
       expect(wire['payload'], {'notes': 'three on the track'});
@@ -305,6 +322,105 @@ void main() {
         'coordinates': [36.8219, -1.2921],
       });
     });
+  });
+
+  group('a batch whose send fails', () {
+    test('returns to pending and stays eligible for the next attempt', () async {
+      final db = memoryStore();
+      addTearDown(db.close);
+      final queue = OperationQueue(db);
+      await queue.enqueue(anOperation(operationId: 'op-1'));
+      await queue.enqueue(
+        anOperation(operationId: 'op-2', entityId: 'local-2'),
+      );
+
+      // The failure reaches the caller: a push that failed silently is a worse
+      // contract than one that did not pretend to have sent anything.
+      await expectLater(
+        PushEngine(
+          db,
+          queue,
+        ).push(send: (batch) async => throw const _SendFailed('no signal')),
+        throwsA(isA<_SendFailed>()),
+      );
+
+      final row = await queue.byId('op-1');
+      expect(row!.state, OperationState.pending);
+      // The attempt did happen, and the count still says so.
+      expect(row.attempts, 1);
+
+      // Re-eligible immediately, rather than at the next cold start. Both
+      // readers must agree now: what is outstanding, and what may be sent.
+      expect((await queue.pending()).length, 2);
+      expect((await queue.nextBatch()).length, 2);
+    });
+
+    test('does not reopen a row that settled in the meantime', () async {
+      final db = memoryStore();
+      addTearDown(db.close);
+      final queue = OperationQueue(db);
+      await queue.enqueue(anOperation(operationId: 'op-1'));
+      await queue.markInflight(['op-1']);
+
+      // Settled behind the engine's back — the only way a row is settled while
+      // still marked inflight is a write from elsewhere.
+      await queue.recordResult(
+        const PushResult(
+          operationId: 'op-1',
+          outcome: PushOutcome.applied,
+          newRevision: 3,
+        ),
+      );
+
+      await queue.returnToPending(['op-1']);
+
+      expect((await queue.byId('op-1'))!.state, OperationState.settled);
+    });
+  });
+
+  group('the queue as reported to a person', () {
+    test('an inflight row is still outstanding', () async {
+      final db = memoryStore();
+      addTearDown(db.close);
+      final queue = OperationQueue(db);
+      await queue.enqueue(anOperation(operationId: 'op-1'));
+
+      await queue.markInflight(['op-1']);
+
+      // Two questions, two answers, and both are right. `pending` is what is
+      // outstanding — what the ledger and the badge read. `nextBatch` is what
+      // may be offered next, which withholds a row that was handed to a batch
+      // whose answer never arrived.
+      //
+      // The bug this pins down: the ledger used to read the second, so a row
+      // stranded inflight by a failed send vanished from the queue screen
+      // while the map badge kept counting it.
+      expect((await queue.pending()).length, 1);
+      expect((await queue.nextBatch()), isEmpty);
+    });
+
+    test(
+      'a row waiting on an unsettled prerequisite is still outstanding',
+      () async {
+        final db = memoryStore();
+        addTearDown(db.close);
+        final queue = OperationQueue(db);
+        await queue.enqueue(anOperation(operationId: 'op-drive'));
+        await queue.enqueue(
+          anOperation(
+            operationId: 'op-encounter',
+            entityId: 'local-2',
+            dependsOn: 'op-drive',
+          ),
+        );
+
+        // The batch withholds the dependent row, correctly — sending it would
+        // only provoke a deferral. The ledger must not: the encounter is a
+        // record the device is holding and cannot send yet.
+        expect((await queue.nextBatch()).length, 1);
+        expect((await queue.pending()).length, 2);
+      },
+    );
   });
 
   group('a settled refusal', () {

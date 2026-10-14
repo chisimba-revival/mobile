@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:field_log/design/components.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // ----------------------------------------------------------------- pieces
 //
@@ -25,7 +29,7 @@ class LogGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colours = context.reserve;
+    final colours = context.colours;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -64,6 +68,57 @@ class LogSupporting extends StatelessWidget {
         fontSize: Faces.supporting,
         height: 1.4,
         color: colours.ash3,
+      ),
+    );
+  }
+}
+
+/// A form-level error: the reason a record cannot be saved yet.
+///
+/// Distinct from [LogSupporting], which is a quiet hint. A disabled control
+/// with only a muted hint beside it reads as a dead end, so an error is drawn
+/// in the rejected ink on a raised surface with a mark, and announced as a
+/// live region for screen readers.
+class LogErrorBanner extends StatelessWidget {
+  const LogErrorBanner(this.text, this.colours, {super.key});
+
+  final String text;
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(Insets.md),
+        decoration: BoxDecoration(
+          color: colours.canopyRaised,
+          borderRadius: BorderRadius.circular(Corners.control),
+          border: Border.all(color: colours.blood),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: Faces.cardTitle,
+              color: colours.blood,
+            ),
+            const SizedBox(width: Insets.sm),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.supporting,
+                  height: 1.4,
+                  color: colours.bone,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -114,7 +169,7 @@ class LogMeasure extends StatelessWidget {
                 value,
                 style: TextStyle(
                   fontFamily: Faces.book.first,
-                  fontSize: 26,
+                  fontSize: Faces.measure,
                   color: colours.bone,
                 ),
               ),
@@ -136,54 +191,85 @@ class LogMeasure extends StatelessWidget {
   }
 }
 
-class LogTextField extends StatelessWidget {
+class LogTextField extends StatefulWidget {
   const LogTextField({
     super.key,
     required this.controller,
     required this.colours,
     this.hint,
     this.lines = 1,
+    this.validator,
+    this.debounceMs = 500,
+    this.autofillHints,
+    this.textInputAction,
+    this.keyboardType,
+    this.onSubmitted,
   });
 
   final TextEditingController controller;
   final FieldColours colours;
   final String? hint;
   final int lines;
+  final String? Function(String?)? validator;
+  final int debounceMs;
+  final List<String>? autofillHints;
+  final TextInputAction? textInputAction;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  State<LogTextField> createState() => _LogTextFieldState();
+}
+
+class _LogTextFieldState extends State<LogTextField> {
+  Timer? _debounceTimer;
+  String? _errorText;
+  bool _hasFocus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onTextChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onTextChanged);
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    if (!_hasFocus) return;
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(Duration(milliseconds: widget.debounceMs), () {
+      if (mounted && widget.validator != null) {
+        final error = widget.validator!(widget.controller.text);
+        setState(() => _errorText = error);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      maxLines: lines,
-      minLines: lines,
-      style: TextStyle(
-        fontFamily: Faces.book.first,
-        fontSize: Faces.body,
-        height: 1.45,
-        color: colours.bone,
-      ),
-      cursorColor: colours.straw,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-          fontFamily: Faces.book.first,
-          fontSize: Faces.body,
-          color: colours.ash3,
-        ),
-        filled: true,
-        fillColor: colours.inset,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(Corners.control),
-          borderSide: BorderSide(color: colours.rule),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(Corners.control),
-          borderSide: BorderSide(color: colours.rule),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(Corners.control),
-          borderSide: BorderSide(color: colours.straw),
-        ),
+    final hasError = _errorText != null;
+    final colours = widget.colours;
+    return Focus(
+      onFocusChange: (hasFocus) => setState(() => _hasFocus = hasFocus),
+      child: FieldFormField(
+        controller: widget.controller,
+        label: '',
+        hint: widget.hint,
+        maxLines: widget.lines,
+        minLines: widget.lines,
+        autofillHints: widget.autofillHints,
+        textInputAction: widget.textInputAction ?? TextInputAction.next,
+        keyboardType: widget.keyboardType ?? TextInputType.text,
+        onSubmitted: widget.onSubmitted,
+        errorText: _errorText,
+        enabled: true,
+        autocorrect: false,
+        enableSuggestions: true,
       ),
     );
   }
@@ -205,64 +291,15 @@ class LogNumberField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.label,
-                color: colours.bone,
-              ),
-            ),
-            if (optional)
-              Text(
-                '  optional',
-                style: TextStyle(
-                  fontFamily: Faces.ui.first,
-                  fontSize: Faces.supporting,
-                  color: colours.ash3,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: Insets.xs),
-        TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: TextStyle(
-            fontFamily: Faces.book.first,
-            fontSize: Faces.body,
-            color: colours.bone,
-          ),
-          cursorColor: colours.straw,
-          decoration: InputDecoration(
-            hintText: '—',
-            hintStyle: TextStyle(
-              fontFamily: Faces.book.first,
-              fontSize: Faces.body,
-              color: colours.ash3,
-            ),
-            filled: true,
-            fillColor: colours.inset,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(Corners.control),
-              borderSide: BorderSide(color: colours.rule),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(Corners.control),
-              borderSide: BorderSide(color: colours.rule),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(Corners.control),
-              borderSide: BorderSide(color: colours.straw),
-            ),
-          ),
-        ),
-      ],
+    return FieldFormField(
+      controller: controller,
+      label: label,
+      hint: '—',
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      autofillHints: const [
+        AutofillHints.creditCardNumber,
+      ], // closest match for numeric
+      helperText: optional ? 'optional' : null,
     );
   }
 }
@@ -297,11 +334,12 @@ class LogStepper extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        LogStepButton(
-          icon: Icons.remove,
-          onTap: value == null || value! <= 0
+        FieldIconButton(
+          icon: const Icon(Icons.remove),
+          onPressed: value == null || value! <= 0
               ? null
               : () => onChanged(value! - 1),
+          size: 44,
         ),
         SizedBox(
           width: 56,
@@ -315,57 +353,14 @@ class LogStepper extends StatelessWidget {
             ),
           ),
         ),
-        LogStepButton(
-          icon: Icons.add,
-          // Zero is the first honest answer, not one: the driver may be
-          // alone, and starting the count at a passenger who was never in
-          // the vehicle would put a person in the record who was not there.
-          onTap: () => onChanged(value ?? 0),
+        FieldIconButton(
+          icon: const Icon(Icons.add),
+          onPressed: () => onChanged((value ?? -1) + 1),
+          size: 44,
         ),
         if (value != null)
-          TextButton(
-            onPressed: () => onChanged(null),
-            child: Text(
-              'clear',
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.supporting,
-                color: colours.ash3,
-              ),
-            ),
-          ),
+          FieldGhostButton(label: 'clear', onPressed: () => onChanged(null)),
       ],
-    );
-  }
-}
-
-class LogStepButton extends StatelessWidget {
-  const LogStepButton({super.key, required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colours = context.reserve;
-    final enabled = onTap != null;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(Corners.chip),
-      child: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Corners.chip),
-          border: Border.all(color: colours.ruleStrong),
-        ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: enabled ? colours.bone : colours.ash3,
-        ),
-      ),
     );
   }
 }
@@ -403,18 +398,11 @@ class LogOkRow extends StatelessWidget {
             ),
           ),
         ),
-        LogAnswer(
-          label: 'OK',
-          selected: value == true,
-          colours: colours,
-          onTap: () => onChanged(value == true ? null : true),
-        ),
-        const SizedBox(width: Insets.sm),
-        LogAnswer(
-          label: 'Not OK',
-          selected: value == false,
-          colours: colours,
-          onTap: () => onChanged(value == false ? null : false),
+        FieldSegmentedControl<bool?>(
+          segments: {true: const Text('OK'), false: const Text('Not OK')},
+          selectedValue: value,
+          onChanged: (v) => onChanged(v),
+          padding: const EdgeInsets.symmetric(horizontal: Insets.xs),
         ),
       ],
     );
@@ -449,18 +437,11 @@ class LogYesNo extends StatelessWidget {
             ),
           ),
         ),
-        LogAnswer(
-          label: 'Yes',
-          selected: value == true,
-          colours: colours,
-          onTap: () => onChanged(value == true ? null : true),
-        ),
-        const SizedBox(width: Insets.sm),
-        LogAnswer(
-          label: 'No',
-          selected: value == false,
-          colours: colours,
-          onTap: () => onChanged(value == false ? null : false),
+        FieldSegmentedControl<bool?>(
+          segments: {true: const Text('Yes'), false: const Text('No')},
+          selectedValue: value,
+          onChanged: (v) => onChanged(v),
+          padding: const EdgeInsets.symmetric(horizontal: Insets.xs),
         ),
       ],
     );
@@ -516,11 +497,12 @@ class LogChoices extends StatelessWidget {
           runSpacing: Insets.sm,
           children: [
             for (final (value, caption) in options)
-              LogAnswer(
+              FieldChoiceChip(
                 label: caption,
-                selected: selected == value,
-                colours: colours,
-                onTap: () => onChanged(selected == value ? null : value),
+                isSelected: selected == value,
+                onSelected: (selected) {
+                  onChanged(selected ? value : null);
+                },
               ),
           ],
         ),
@@ -550,33 +532,10 @@ class LogAnswer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fill = selected ? colours.straw : colours.canopyRaised;
-    return Semantics(
-      selected: selected,
-      button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(Corners.chip),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Insets.md,
-            vertical: Insets.sm,
-          ),
-          decoration: BoxDecoration(
-            color: fill,
-            borderRadius: BorderRadius.circular(Corners.chip),
-            border: Border.all(color: selected ? colours.straw : colours.rule),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: Faces.ui.first,
-              fontSize: Faces.supporting,
-              color: colours.inkOn(fill),
-            ),
-          ),
-        ),
-      ),
+    return FieldChoiceChip(
+      label: label,
+      isSelected: selected,
+      onSelected: (_) => onTap(),
     );
   }
 }

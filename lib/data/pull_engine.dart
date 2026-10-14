@@ -195,6 +195,10 @@ class PullEngine {
         return _applyEncounter(change, serverTime);
       case EntityKind.trailWaypoint:
         return _applyWaypoint(change, serverTime);
+      case EntityKind.plannedRoute:
+        return _applyPlannedRoute(change, serverTime);
+      case EntityKind.routeWaypoint:
+        return _applyRouteWaypoint(change, serverTime);
       case EntityKind.signOff:
       case EntityKind.media:
       case EntityKind.unknown:
@@ -588,6 +592,139 @@ class PullEngine {
     }
 
     await _db.into(_db.trailWaypoints).insert(waypointPatchFromState(state));
+    return true;
+  }
+
+  /// Apply a planned route change from the server.
+  Future<bool> _applyPlannedRoute(
+    PullChange change,
+    DateTime serverTime,
+  ) async {
+    final seen = await (_db.select(
+      _db.plannedRoutes,
+    )..where((t) => t.localId.equals(change.entityId))).getSingleOrNull();
+    if (seen != null) return true;
+
+    if (change.isTombstone) {
+      // Route was deleted on server - tombstone locally
+      await (_db.update(
+        _db.plannedRoutes,
+      )..where((t) => t.localId.equals(change.entityId))).write(
+        PlannedRoutesCompanion(
+          isTombstone: const Value(true),
+          deletedAt: Value(DateTime.now().toUtc()),
+          hasPendingChanges: const Value(false),
+        ),
+      );
+      return true;
+    }
+
+    final state = change.state;
+    if (state == null) {
+      await _hold(change, 'planned route change carried no state');
+      return false;
+    }
+
+    // A planned route requires an outing_id and waypoints will come as separate route_waypoint changes
+    final outingId = state['outing_id'] as String?;
+    if (outingId == null || outingId.isEmpty) {
+      await _hold(change, 'planned route missing outing_id');
+      return false;
+    }
+
+    await _db
+        .into(_db.plannedRoutes)
+        .insert(
+          PlannedRoutesCompanion.insert(
+            localId: change.entityId,
+            outingId: outingId,
+            createdAt: DateTime.now().toUtc(),
+            updatedAt: DateTime.now().toUtc(),
+            hasPendingChanges: const Value(false),
+            revision: Value(change.revision),
+          ),
+        );
+    return true;
+  }
+
+  /// Apply a route waypoint change from the server.
+  Future<bool> _applyRouteWaypoint(
+    PullChange change,
+    DateTime serverTime,
+  ) async {
+    final seen =
+        await (_db.select(_db.routeWaypoints)..where(
+              (t) =>
+                  t.routeId.equals(change.entityId.split(':')[0]) &
+                  t.ordinal.equals(
+                    int.tryParse(change.entityId.split(':')[1]) ?? 0,
+                  ),
+            ))
+            .getSingleOrNull();
+    if (seen != null) return true;
+
+    if (change.isTombstone) {
+      // Waypoint was deleted - tombstone locally
+      final parts = change.entityId.split(':');
+      if (parts.length != 2) {
+        await _hold(
+          change,
+          'invalid route_waypoint entity_id: ${change.entityId}',
+        );
+        return false;
+      }
+      await (_db.update(_db.routeWaypoints)..where(
+            (t) =>
+                t.routeId.equals(parts[0]) &
+                t.ordinal.equals(int.tryParse(parts[1]) ?? 0),
+          ))
+          .write(RouteWaypointsCompanion(isTombstone: const Value(true)));
+      return true;
+    }
+
+    final state = change.state;
+    if (state == null) {
+      await _hold(change, 'route waypoint change carried no state');
+      return false;
+    }
+
+    final routeId = state['route_id'] as String?;
+    final ordinal = wireInt(state['ordinal']);
+    if (routeId == null || routeId.isEmpty || ordinal == null) {
+      await _hold(change, 'route waypoint missing route_id or ordinal');
+      return false;
+    }
+
+    // Ensure route exists
+    final route = await (_db.select(
+      _db.plannedRoutes,
+    )..where((t) => t.localId.equals(routeId))).getSingleOrNull();
+    if (route == null) {
+      await _hold(change, 'route waypoint references unknown route $routeId');
+      return false;
+    }
+
+    final lat = wireDouble(state['latitude']);
+    final lng = wireDouble(state['longitude']);
+    if (lat == null || lng == null) {
+      await _hold(change, 'route waypoint missing latitude or longitude');
+      return false;
+    }
+
+    await _db
+        .into(_db.routeWaypoints)
+        .insert(
+          RouteWaypointsCompanion.insert(
+            routeId: routeId,
+            ordinal: wireInt(state['ordinal']) ?? 0,
+            latitude: wireDouble(state['latitude']) ?? 0.0,
+            longitude: wireDouble(state['longitude']) ?? 0.0,
+            label: Value(state['label'] as String?),
+            kind: Value(state['kind'] as String? ?? 'vertex'),
+            note: Value(state['note'] as String?),
+            revision: Value(change.revision),
+          ),
+        );
     return true;
   }
 

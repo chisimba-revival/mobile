@@ -16,6 +16,8 @@ Future<void> pumpSettings(
   Future<void> Function(String server)? onSaveServer,
   Future<ReferenceLoadResult> Function({required bool forceRefresh})?
   onLoadReference,
+  ThemeMode currentThemeMode = ThemeMode.dark,
+  void Function(ThemeMode)? onThemeModeChanged,
 }) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
@@ -24,7 +26,9 @@ Future<void> pumpSettings(
 
   await tester.pumpWidget(
     MaterialApp(
-      theme: fieldTheme(FieldColours.dark),
+      theme: fieldTheme(FieldColours.sunlight),
+      darkTheme: fieldTheme(FieldColours.dark),
+      themeMode: currentThemeMode,
       home: SettingsScreen(
         initialServer: initialServer,
         signedInAs: signedInAs,
@@ -32,6 +36,8 @@ Future<void> pumpSettings(
         onSignOut: onSignOut,
         onSaveServer: onSaveServer,
         onLoadReference: onLoadReference,
+        currentThemeMode: currentThemeMode,
+        onThemeModeChanged: onThemeModeChanged,
       ),
     ),
   );
@@ -198,4 +204,145 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('theme selector shows three chips and highlights current', (
+    tester,
+  ) async {
+    await pumpSettings(
+      tester,
+      currentThemeMode: ThemeMode.dark,
+      onThemeModeChanged: (mode) {},
+    );
+
+    // All three chips present
+    expect(find.text('Canopy'), findsOneWidget);
+    expect(find.text('Sunlight'), findsOneWidget);
+    expect(find.text('Auto'), findsOneWidget);
+    expect(find.text('Dark'), findsOneWidget);
+    expect(find.text('Light'), findsOneWidget);
+    expect(find.text('System'), findsOneWidget);
+
+    // Canopy (dark) chip is selected - verify the selected chip has the dust
+    // background by finding all AnimatedContainers with that color and
+    // confirming at least one exists (the selected one)
+    final selectedContainers = find.byWidgetPredicate(
+      (w) =>
+          w is AnimatedContainer &&
+          w.decoration is BoxDecoration &&
+          (w.decoration! as BoxDecoration).color == FieldColours.dark.dust,
+    );
+    expect(selectedContainers, findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('tapping a theme chip calls onThemeModeChanged', (tester) async {
+    // Use a stateful wrapper so the widget's currentThemeMode updates
+    // when the callback is called, simulating real app behavior.
+    ThemeMode currentMode = ThemeMode.dark;
+    final calls = <ThemeMode>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => SettingsScreen(
+            initialServer: 'http://test',
+            currentThemeMode: currentMode,
+            onThemeModeChanged: (mode) {
+              calls.add(mode);
+              currentMode = mode;
+              // Need to rebuild to update the widget's currentThemeMode
+              // This is handled by the parent in real usage.
+            },
+          ),
+        ),
+      ),
+    );
+
+    // Tap Sunlight chip (changes from dark -> light)
+    await tester.tap(find.text('Sunlight'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [ThemeMode.light]);
+
+    // Update the mode for the next interaction
+    currentMode = ThemeMode.light;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => SettingsScreen(
+            initialServer: 'http://test',
+            currentThemeMode: currentMode,
+            onThemeModeChanged: (mode) {
+              calls.add(mode);
+              currentMode = mode;
+            },
+          ),
+        ),
+      ),
+    );
+
+    // Tap Auto chip (changes from light -> system)
+    await tester.tap(find.text('Auto'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [ThemeMode.light, ThemeMode.system]);
+
+    currentMode = ThemeMode.system;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => SettingsScreen(
+            initialServer: 'http://test',
+            currentThemeMode: currentMode,
+            onThemeModeChanged: (mode) {
+              calls.add(mode);
+              currentMode = mode;
+            },
+          ),
+        ),
+      ),
+    );
+
+    // Tap Canopy chip (changes from system -> dark)
+    await tester.tap(find.text('Canopy'));
+    await tester.pumpAndSettle();
+
+    expect(calls, [ThemeMode.light, ThemeMode.system, ThemeMode.dark]);
+
+    // Tap Canopy again (already dark, should not call callback)
+    currentMode = ThemeMode.dark;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => SettingsScreen(
+            initialServer: 'http://test',
+            currentThemeMode: currentMode,
+            onThemeModeChanged: (mode) {
+              calls.add(mode);
+              currentMode = mode;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Canopy'));
+    await tester.pumpAndSettle();
+
+    // Callback should not be called again since value hasn't changed
+    expect(calls, [ThemeMode.light, ThemeMode.system, ThemeMode.dark]);
+  });
+
+  testWidgets(
+    'theme selector unavailable when onThemeModeChanged not provided',
+    (tester) async {
+      // Don't pass onThemeModeChanged
+      await pumpSettings(
+        tester,
+        currentThemeMode: ThemeMode.dark,
+        onThemeModeChanged: null,
+      );
+
+      expect(find.text('Theme control unavailable.'), findsOneWidget);
+      expect(find.text('Canopy'), findsNothing);
+    },
+  );
 }

@@ -1,17 +1,22 @@
+import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:field_log/data/database.dart';
 import 'package:field_log/data/operation_queue.dart';
 import 'package:field_log/data/tables.dart' show OperationState;
 import 'package:field_log/models/sync_operation.dart';
-import 'package:field_log/design/field_scaffold.dart';
+import 'package:field_log/design/components.dart';
+import 'package:field_log/design/field_scaffold.dart'
+    show FieldScaffold; // Only need FieldScaffold, not the old tokens import
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/design/theme.dart';
 import 'package:flutter/material.dart';
 
 /// What the queue is waiting to do.
 ///
-/// This screen exists to tell the truth about a machine rather than to be a
-/// control panel. Nothing here can be pressed to make a queued change send
-/// sooner, so nothing here is presented as a button.
+/// Most of this screen exists to tell the truth about a machine: what is
+/// queued, when it last tried, and which refusals need a person. One button is
+/// offered — sync now — because an empty-queued-but-failing phone is exactly
+/// the moment pressing it tells the reader something they would not otherwise
+/// know.
 class SyncLedgerScreen extends StatefulWidget {
   const SyncLedgerScreen({
     super.key,
@@ -19,12 +24,22 @@ class SyncLedgerScreen extends StatefulWidget {
     this.entries,
     required this.online,
     this.onClose,
+    this.onSyncNow,
+    this.lastSyncedAt,
   });
 
   final FieldLogDatabase? database;
   final List<LedgerEntry>? entries;
   final bool online;
   final VoidCallback? onClose;
+
+  /// Starts a sync from the queue screen. The queue itself is never touched
+  /// here; the host is handed the button and does the sending.
+  final VoidCallback? onSyncNow;
+
+  /// When the last sync finished cleanly, for the stamp under the title.
+  /// Null until the first successful sync.
+  final DateTime? lastSyncedAt;
 
   @override
   State<SyncLedgerScreen> createState() => _SyncLedgerScreenState();
@@ -34,6 +49,11 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
   late final OperationQueue _queue;
   List<LedgerEntry> _entries = const [];
   bool _loading = true;
+
+  /// Settled operations the service refused, waiting for a person to read
+  /// them. A refusal is not a queue row any more — the engine settled it —
+  /// so it can only be found in the conflicts table.
+  List<ConflictRow> _conflicts = const [];
 
   @override
   void initState() {
@@ -45,13 +65,52 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
     } else if (widget.database != null) {
       _queue = OperationQueue(widget.database!);
       _loadEntries();
+      _loadConflicts();
     } else {
       _loading = false;
     }
   }
 
+  Future<void> _loadConflicts() async {
+    final db = widget.database;
+    if (db == null) {
+      return;
+    }
+    final rows =
+        await (db.select(db.conflicts)
+              ..where((t) => t.resolvedAt.isNull())
+              ..orderBy([(t) => OrderingTerm.desc(t.recordedAt)])
+              ..limit(50))
+            .get();
+    if (mounted) {
+      setState(() => _conflicts = rows);
+    }
+  }
+
+  /// Marks a refusal as read. The row stays in the table for the record —
+  /// this is a logbook — but a "needs attention" list that shows the same
+  /// refusal forever would stop meaning anything.
+  Future<void> _resolveConflict(ConflictRow row) async {
+    final db = widget.database;
+    if (db == null) {
+      return;
+    }
+    await (db.update(db.conflicts)
+          ..where((t) => t.operationId.equals(row.operationId)))
+        .write(ConflictsCompanion(resolvedAt: Value(DateTime.now().toUtc())));
+    await _loadConflicts();
+  }
+
   Future<void> _loadEntries() async {
-    final rows = await _queue.nextBatch(limit: 100);
+    // `pending()` and not `nextBatch()`. `nextBatch` is a send-prep reader: it
+    // withholds an inflight row, and it withholds a row whose prerequisite has
+    // not settled. Both are correct for the batch it exists to assemble, and
+    // both are wrong here — this screen reports what is outstanding, and a
+    // record waiting behind a prerequisite that has not sent is still a record
+    // waiting. Reading the batch instead hid exactly those rows, which is how
+    // this screen could say "everything has been sent" while the map badge
+    // beside it counted two.
+    final rows = await _queue.pending(limit: 100);
     final entries = rows.map(_toLedgerEntry).toList();
     if (mounted) {
       setState(() {
@@ -92,6 +151,10 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
         return 'Outing';
       case EntityKind.dangerousGame:
         return 'Dangerous game';
+      case EntityKind.plannedRoute:
+        return 'Planned route';
+      case EntityKind.routeWaypoint:
+        return 'Route waypoint';
       case EntityKind.trailWaypoint:
         return 'Waypoint';
       case EntityKind.unknown:
@@ -134,21 +197,34 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colours = context.reserve;
+    final colours = context.colours;
 
     if (_loading) {
       return FieldScaffold(
         eyebrow: 'Offline queue',
         title: 'What is waiting to upload',
-        body: Center(child: CircularProgressIndicator(color: colours.moss)),
+        body: Center(child: FieldCircularProgress(valueColor: colours.moss)),
       );
     }
 
-    if (_entries.isEmpty) {
+    if (_entries.isEmpty && _conflicts.isEmpty) {
       return FieldScaffold(
         eyebrow: 'Offline queue',
         title: 'What is waiting to upload',
-        body: _EmptyLedger(online: widget.online, onClose: widget.onClose),
+        actions: [
+          if (widget.onClose != null)
+            FieldIconButton(
+              icon: const Icon(Icons.close),
+              onPressed: widget.onClose!,
+              tooltip: 'Close',
+            ),
+        ],
+        body: _EmptyLedger(
+          online: widget.online,
+          onClose: widget.onClose,
+          onSyncNow: widget.onSyncNow,
+          lastSyncedAt: widget.lastSyncedAt,
+        ),
       );
     }
 
@@ -157,21 +233,22 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
       title: 'What is waiting to upload',
       actions: [
         if (widget.onClose != null)
-          IconButton(
-            onPressed: widget.onClose,
-            icon: Icon(Icons.close, color: colours.ash2),
+          FieldIconButton(
+            icon: const Icon(Icons.close),
+            onPressed: widget.onClose!,
             tooltip: 'Close',
           ),
       ],
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          Insets.lg,
+          0,
+          Insets.lg,
+          Insets.xxxl,
+        ),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Insets.lg,
-              0,
-              Insets.lg,
-              Insets.md,
-            ),
+            padding: const EdgeInsets.only(bottom: Insets.md),
             child: Text(
               widget.online
                   ? 'This queue retries itself. Nothing here needs pressing '
@@ -186,18 +263,66 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
               ),
             ),
           ),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(
-                Insets.lg,
-                0,
-                Insets.lg,
-                Insets.xxxl,
+          if (_conflicts.isNotEmpty) ...[
+            FieldSectionHeader(label: 'Needs attention', uppercase: false),
+            ..._conflicts.map(
+              (row) => Padding(
+                padding: const EdgeInsets.only(bottom: Insets.sm),
+                child: _ConflictRow(
+                  row: row,
+                  colours: colours,
+                  onKeep: () => _resolveConflict(row),
+                ),
               ),
-              itemCount: _entries.length,
-              separatorBuilder: (_, _) => const SizedBox(height: Insets.sm),
-              itemBuilder: (context, index) =>
-                  _LedgerRow(entry: _entries[index]),
+            ),
+            const SizedBox(height: Insets.lg),
+          ],
+          if (_entries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Insets.xl),
+              child: _NothingWaiting(colours: colours),
+            )
+          else ...[
+            FieldSectionHeader(label: 'Waiting to upload', uppercase: false),
+            ..._entries.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: Insets.sm),
+                child: _LedgerRow(entry: entry),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A ruled heading inside the ledger's list.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.label, this.icon, super.key});
+
+  final String label;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = context.colours;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Insets.sm),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 16, color: colours.ash2),
+            const SizedBox(width: Insets.xs),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: Faces.ui.first,
+              fontSize: Faces.stamp,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+              color: colours.ash3,
             ),
           ),
         ],
@@ -206,17 +331,143 @@ class _SyncLedgerScreenState extends State<SyncLedgerScreen> {
   }
 }
 
-class _EmptyLedger extends StatelessWidget {
-  const _EmptyLedger({required this.online, required this.onClose});
+/// A settled operation the service refused, with its reason and a resolution.
+class _ConflictRow extends StatelessWidget {
+  const _ConflictRow({
+    required this.row,
+    required this.colours,
+    required this.onKeep,
+    super.key,
+  });
 
-  final bool online;
-  final VoidCallback? onClose;
+  final ConflictRow row;
+  final FieldColours colours;
+  final VoidCallback onKeep;
 
   @override
   Widget build(BuildContext context) {
-    final colours = context.reserve;
-    // No Scaffold of its own: the caller wraps this in a FieldScaffold so
-    // every state of the queue — empty or full — has the same back arrow.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Insets.sm),
+      child: FieldCard(
+        elevation: FieldCardElevation.raised,
+        borderColor: colours.dust,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.sync_problem, size: 16, color: colours.dust),
+            const SizedBox(width: Insets.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _entityName(row.entity),
+                    style: TextStyle(
+                      fontFamily: Faces.ui.first,
+                      fontSize: Faces.label,
+                      color: colours.bone,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    row.reason ?? row.errorCode,
+                    style: TextStyle(
+                      fontFamily: Faces.book.first,
+                      fontSize: Faces.supporting,
+                      height: 1.35,
+                      color: colours.ash2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            FieldGhostButton(label: 'Keep as is', onPressed: onKeep),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _entityName(EntityKind entity) {
+    switch (entity) {
+      case EntityKind.sighting:
+        return 'Sighting';
+      case EntityKind.drive:
+        return 'Drive';
+      case EntityKind.trailLog:
+        return 'Trail log';
+      case EntityKind.signOff:
+        return 'Sign-off';
+      case EntityKind.media:
+        return 'Media';
+      case EntityKind.outing:
+        return 'Outing';
+      case EntityKind.dangerousGame:
+        return 'Dangerous game';
+      case EntityKind.plannedRoute:
+        return 'Planned route';
+      case EntityKind.routeWaypoint:
+        return 'Route waypoint';
+      case EntityKind.trailWaypoint:
+        return 'Waypoint';
+      case EntityKind.unknown:
+        return 'Unknown record';
+    }
+  }
+}
+
+/// What the empty ledger says when there's no queue but maybe a last sync.
+class _NothingWaiting extends StatelessWidget {
+  const _NothingWaiting({required this.colours, super.key});
+
+  final FieldColours colours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(Icons.cloud_done_outlined, size: 32, color: colours.moss),
+        const SizedBox(height: Insets.md),
+        Text(
+          'Nothing is waiting',
+          style: TextStyle(
+            fontFamily: Faces.book.first,
+            fontSize: Faces.cardTitle,
+            color: colours.bone,
+          ),
+        ),
+        const SizedBox(height: Insets.sm),
+        Text(
+          'Everything recorded has been sent.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: Faces.ui.first,
+            fontSize: Faces.supporting,
+            color: colours.ash2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyLedger extends StatelessWidget {
+  const _EmptyLedger({
+    required this.online,
+    required this.onClose,
+    required this.onSyncNow,
+    required this.lastSyncedAt,
+    super.key,
+  });
+
+  final bool online;
+  final VoidCallback? onClose;
+  final VoidCallback? onSyncNow;
+  final DateTime? lastSyncedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final colours = context.colours;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(Insets.xxxl),
@@ -260,104 +511,82 @@ class _EmptyLedger extends StatelessWidget {
                 color: colours.ash3,
               ),
             ),
-            if (onClose != null) ...[
-              const SizedBox(height: Insets.xl),
-              TextButton(
-                onPressed: onClose,
-                child: Text(
-                  'Back to the map',
-                  style: TextStyle(
-                    fontFamily: Faces.ui.first,
-                    fontSize: Faces.label,
-                    color: colours.bone,
-                  ),
+            if (lastSyncedAt != null) ...[
+              const SizedBox(height: Insets.xs),
+              Text(
+                'Last synced ${_stamp(lastSyncedAt!)}',
+                style: TextStyle(
+                  fontFamily: Faces.ui.first,
+                  fontSize: Faces.stamp,
+                  color: colours.ash3,
                 ),
               ),
+            ],
+            if (onSyncNow != null && online) ...[
+              const SizedBox(height: Insets.xl),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.cloud_upload_outlined,
+                    size: 18,
+                    color: colours.bone,
+                  ),
+                  const SizedBox(width: Insets.sm),
+                  FieldSecondaryButton(label: 'Sync now', onPressed: onSyncNow),
+                ],
+              ),
+            ],
+            if (onClose != null) ...[
+              const SizedBox(height: Insets.md),
+              FieldGhostButton(label: 'Back to the map', onPressed: onClose!),
             ],
           ],
         ),
       ),
     );
   }
+
+  /// The clock as the local time reads: "14:32".
+  static String _stamp(DateTime utc) {
+    final local = utc.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
 }
 
 class _LedgerRow extends StatelessWidget {
-  const _LedgerRow({required this.entry});
+  const _LedgerRow({required this.entry, super.key});
 
   final LedgerEntry entry;
 
   @override
   Widget build(BuildContext context) {
-    final colours = context.reserve;
+    final colours = context.colours;
     final stamp = entry.state.stampFor(colours);
 
-    return Semantics(
-      label: '${entry.title}. ${entry.detail}. ${entry.state.wired}',
-      child: Container(
-        padding: const EdgeInsets.all(Insets.md),
-        decoration: BoxDecoration(
-          color: colours.canopyRaised,
-          borderRadius: BorderRadius.circular(Corners.control),
-          border: Border.all(color: colours.rule),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(top: 5),
-              decoration: BoxDecoration(color: stamp, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: Insets.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.title,
-                    style: TextStyle(
-                      fontFamily: Faces.ui.first,
-                      fontSize: Faces.label,
-                      color: colours.bone,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    entry.detail,
-                    style: TextStyle(
-                      fontFamily: Faces.book.first,
-                      fontSize: Faces.supporting,
-                      height: 1.35,
-                      color: colours.ash2,
-                    ),
-                  ),
-                  if (entry.attemptNote != null) ...[
-                    const SizedBox(height: Insets.xs),
-                    Text(
-                      entry.attemptNote!,
-                      style: TextStyle(
-                        fontFamily: Faces.ui.first,
-                        fontSize: Faces.stamp,
-                        color: colours.ash3,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: Insets.sm),
-            Text(
-              entry.state.wired,
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.stamp,
-                color: colours.ash3,
-              ),
-            ),
-          ],
+    return FieldListTile(
+      leading: Container(
+        width: 8,
+        height: 8,
+        margin: const EdgeInsets.only(top: 5),
+        decoration: BoxDecoration(color: stamp, shape: BoxShape.circle),
+      ),
+      title: entry.title,
+      subtitle: [
+        entry.detail,
+        if (entry.attemptNote != null) entry.attemptNote!,
+      ].join('\n'),
+      trailing: Text(
+        entry.state.wired,
+        style: TextStyle(
+          fontFamily: Faces.ui.first,
+          fontSize: Faces.stamp,
+          color: colours.ash3,
         ),
       ),
+      onTap: () {},
     );
   }
 }

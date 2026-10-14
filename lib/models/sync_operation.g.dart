@@ -41,6 +41,8 @@ const _$EntityKindEnumMap = {
   EntityKind.outing: 'outing',
   EntityKind.dangerousGame: 'dangerous_game',
   EntityKind.trailWaypoint: 'trail_waypoint',
+  EntityKind.plannedRoute: 'planned_route',
+  EntityKind.routeWaypoint: 'route_waypoint',
   EntityKind.unknown: 'unknown',
 };
 

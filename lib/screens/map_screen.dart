@@ -11,7 +11,9 @@ import 'package:field_log/map/route_layer.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/pin_visual.dart';
+import 'package:field_log/map/progress_overlay.dart';
 import 'package:field_log/map/vector_tile_layer.dart';
+import 'package:field_log/progress/progress_summary.dart';
 import 'package:field_log/screens/map_legend_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
@@ -30,6 +32,14 @@ final reserveCentre = LatLng(-1.2921, 36.8219);
 /// disagree about how far the map can go.
 const double _minZoom = 8;
 const double _maxZoom = 18;
+
+/// Where the map opens before the device has a position fix: the reserve seen
+/// at country scale, so the first frame is always a real place rather than a
+/// hole. Once a fix lands the camera moves in to the walker.
+final fallbackCentre = LatLng(-25.7461, 28.1881);
+
+/// The zoom the map opens at before there is a fix. Six shows a country.
+const double countryZoom = 6;
 
 /// How accurate the position fix is, and when it was taken.
 ///
@@ -50,6 +60,14 @@ class GpsReading {
   final DateTime fixedAt;
   final double latitude;
   final double longitude;
+
+  /// Whether this reading is a real fix rather than the empty placeholder the
+  /// home screen starts with. A device with no satellites, or one that has not
+  /// reported since boot (an epoch timestamp), has no position to move to.
+  bool get hasFix =>
+      satellites > 0 &&
+      fixedAt.millisecondsSinceEpoch != 0 &&
+      !(latitude == 0 && longitude == 0);
 }
 
 /// One observation as the map shows it.
@@ -100,6 +118,16 @@ class MapScreen extends StatefulWidget {
     this.route,
     this.routeWaypoints,
     this.currentPosition,
+    this.mapStylePreset = MapStylePreset.field,
+    this.onMapStylePresetChanged,
+    this.progress,
+    this.activeOuting,
+    this.subtitle,
+    this.onDeleteSighting,
+    this.onOpenObservations,
+    this.syncing = false,
+    this.lastSyncedAt,
+    this.syncError,
   });
 
   final List<MapPin> pins;
@@ -167,13 +195,51 @@ class MapScreen extends StatefulWidget {
   /// Current GPS position for active segment highlighting.
   final LatLng? currentPosition;
 
+  /// Current map style preset (Field, Navigation, Survey).
+  final MapStylePreset mapStylePreset;
+
+  /// Called when the user selects a new map style preset.
+  final void Function(MapStylePreset)? onMapStylePresetChanged;
+
+  /// The time this device has walked and driven, for the progress card. Null
+  /// when the caller has nothing to show yet, which keeps the card off screen.
+  final OutingProgress? progress;
+
+  /// An outing currently running on this phone, drawn on the progress card so
+  /// it can be watched — and stopped — without opening its logbook.
+  final ActiveOuting? activeOuting;
+
+  /// The line above the map's title: the outing in hand, or the reserve the
+  /// device is working in. Null falls back to the default place name.
+  final String? subtitle;
+
+  /// Removes a sighting, by local id, from whatever store owns it.
+  final Future<void> Function(String localId)? onDeleteSighting;
+
+  /// Opens the observations logbook: every record and what happened to it.
+  final VoidCallback? onOpenObservations;
+
+  /// Whether a sync pass is running right now.
+  final bool syncing;
+
+  /// When the last sync pass finished, or null if it never has.
+  final DateTime? lastSyncedAt;
+
+  /// The last sync error, or null when the last pass was clean.
+  final String? syncError;
+
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State<MapScreen> createState() => MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen>
+class MapScreenState extends State<MapScreen>
     with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
+
+  /// Frames the camera to contain [bounds] with optional [padding].
+  bool fitCamera(CameraFit cameraFit) {
+    return _mapController.fitCamera(cameraFit);
+  }
 
   LatLng? _ghostPin;
   late final AnimationController _pulseController;
@@ -187,6 +253,13 @@ class _MapScreenState extends State<MapScreen>
   /// owns these values; this is only a read-only copy for the chrome.
   double _zoom = 14;
   LatLng _center = reserveCentre;
+
+  /// Whether the user has moved the camera by hand. Once true, a position fix
+  /// that lands late must not yank the map back to the walker.
+  bool _userMoved = false;
+
+  /// Whether the fold-out menu is open.
+  bool _menuOpen = false;
 
   /// Whether the map legend is on screen.
   bool _showLegend = false;
@@ -202,11 +275,30 @@ class _MapScreenState extends State<MapScreen>
   /// no per-layer switch of its own.
   final Set<String> _hiddenTopologyLayers = {};
 
+  late MapStylePreset _mapStylePreset;
+  late Map<String, bool> _layerVisibility;
+
   StreamSubscription<CompassEvent>? _compassSub;
 
   @override
   void initState() {
     super.initState();
+
+    // Initialize map style preset and layer visibility.
+    _mapStylePreset = widget.mapStylePreset;
+    _layerVisibility = _defaultLayerVisibility(_mapStylePreset);
+
+    // Open where the device is if it already knows, otherwise show the reserve
+    // at country scale rather than a hole. The first real fix moves the camera
+    // in (see didUpdateWidget) unless the user has already chosen otherwise.
+    if (widget.gps.hasFix) {
+      _center = LatLng(widget.gps.latitude, widget.gps.longitude);
+      _zoom = 14;
+    } else {
+      _center = fallbackCentre;
+      _zoom = countryZoom;
+    }
+
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -235,6 +327,72 @@ class _MapScreenState extends State<MapScreen>
       if (!mounted || path == null || path == _topologyPath) return;
       setState(() => _topologyPath = path);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant MapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // A fix that lands after the screen was built moves the camera in, once,
+    // unless the user has already moved the map themselves.
+    final gainedFix = !oldWidget.gps.hasFix && widget.gps.hasFix;
+    if (gainedFix && !_userMoved) {
+      _mapController.move(
+        LatLng(widget.gps.latitude, widget.gps.longitude),
+        14,
+      );
+    }
+  }
+
+  /// Returns the default layer visibility for a given map style preset.
+  Map<String, bool> _defaultLayerVisibility(MapStylePreset preset) {
+    switch (preset) {
+      case MapStylePreset.field:
+        return {
+          'basemap': true,
+          'topology': true,
+          'observations': true,
+          'routes': false,
+          'waypoints': false,
+          'tracks': false,
+          'bearing': false,
+          'compass': false,
+          'boundaries': false,
+          'transects': false,
+          'quadrats': false,
+          'scale': false,
+        };
+      case MapStylePreset.navigation:
+        return {
+          'basemap': true,
+          'topology': true,
+          'observations': false,
+          'routes': true,
+          'waypoints': true,
+          'tracks': true,
+          'bearing': true,
+          'compass': true,
+          'boundaries': false,
+          'transects': false,
+          'quadrats': false,
+          'scale': false,
+        };
+      case MapStylePreset.survey:
+        return {
+          'basemap': true,
+          'topology': true,
+          'observations': false,
+          'routes': false,
+          'waypoints': false,
+          'tracks': false,
+          'bearing': false,
+          'compass': false,
+          'boundaries': true,
+          'transects': true,
+          'quadrats': true,
+          'scale': true,
+        };
+    }
   }
 
   @override
@@ -270,6 +428,7 @@ class _MapScreenState extends State<MapScreen>
   void _zoomBy(double delta) {
     final target = (_zoom + delta).clamp(_minZoom, _maxZoom).toDouble();
     if (target == _zoom) return;
+    _userMoved = true;
     _mapController.move(_center, target);
   }
 
@@ -351,12 +510,16 @@ class _MapScreenState extends State<MapScreen>
               // vector layer below draws on, so a missing tile shows the ground
               // rather than a hole.
               backgroundColor: widget.colours.inset,
-              initialCenter: reserveCentre,
-              initialZoom: 14,
+              initialCenter: _center,
+              initialZoom: _zoom,
               minZoom: _minZoom,
               maxZoom: _maxZoom,
-              onPositionChanged: (camera, hasGesture) =>
-                  _onCameraChanged(camera),
+              onPositionChanged: (camera, hasGesture) {
+                // A hand on the map is the user's choice of where to look; a
+                // late fix from didUpdateWidget must then leave them be.
+                if (hasGesture) _userMoved = true;
+                _onCameraChanged(camera);
+              },
               onTap: widget.onMapTap == null
                   ? null
                   : (tapPosition, point) => widget.onMapTap!(point),
@@ -369,21 +532,22 @@ class _MapScreenState extends State<MapScreen>
               // basemap paints first and the reserve's own features on top of
               // it: the legend explains features that are actually on the
               // ground, not ones hidden under a loaded tile.
+              // Basemap layer
               _TileLayer(cache: widget.tileCache, online: widget.online),
-              // The surveyed topology wins when the archive is present: real
-              // contours and boundary. Without one the painted map is the
-              // truth and there is nothing to fall back to except itself.
-              if (_topologyPath != null)
+              // Topology layer (surveyed contours/boundaries)
+              if ((_layerVisibility['topology'] ?? true) &&
+                  _topologyPath != null)
                 PmTilesVectorLayer(
                   archivePath: _topologyPath!,
                   // The archive is built to z14; beyond that its tiles stop.
                   maxZoom: 14,
                   layerStyles: _visibleTopologyStyles,
                 )
-              else
+              else if (_layerVisibility['topology'] ?? true)
                 _VectorLayer(colours: widget.colours),
               // Planned route layer (if available)
-              if (widget.route != null &&
+              if ((_layerVisibility['routes'] ?? false) &&
+                  widget.route != null &&
                   widget.routeWaypoints != null &&
                   widget.routeWaypoints!.isNotEmpty)
                 RouteLayer(
@@ -392,41 +556,41 @@ class _MapScreenState extends State<MapScreen>
                   colours: widget.colours,
                   currentPosition: widget.currentPosition ?? LatLng(0, 0),
                 ),
-              MarkerLayer(
-                markers: [
-                  for (final pin in widget.pins)
-                    Marker(
-                      key: ValueKey(pin.localId),
-                      point: pin.point,
-                      // Big enough for the tab plus its badge, and anchored
-                      // bottom-centre so the tab's point sits on the position.
-                      width: 46,
-                      height: 46,
-                      alignment: Alignment.bottomCenter,
-                      child: _Pin(
-                        pin: pin,
-                        colours: widget.colours,
-                        onTap: widget.onOpenSighting == null
-                            ? null
-                            : () => widget.onOpenSighting!(pin.localId),
+              // Observations layer (pins)
+              if (_layerVisibility['observations'] ?? true)
+                MarkerLayer(
+                  markers: [
+                    for (final pin in widget.pins)
+                      Marker(
+                        key: ValueKey(pin.localId),
+                        point: pin.point,
+                        width: 46,
+                        height: 46,
+                        alignment: Alignment.bottomCenter,
+                        child: _Pin(
+                          pin: pin,
+                          colours: widget.colours,
+                          onTap: widget.onOpenSighting == null
+                              ? null
+                              : () => widget.onOpenSighting!(pin.localId),
+                        ),
                       ),
-                    ),
-                  // Ghost pin marker (appears on long-press)
-                  if (_ghostPin != null)
-                    Marker(
-                      key: const ValueKey('ghost-pin'),
-                      point: _ghostPin!,
-                      width: 46,
-                      height: 46,
-                      alignment: Alignment.bottomCenter,
-                      child: _GhostPin(
-                        colours: widget.colours,
-                        animation: _pulseAnimation,
-                        onTap: _confirmGhostPin,
+                    // Ghost pin marker (appears on long-press)
+                    if (_ghostPin != null)
+                      Marker(
+                        key: const ValueKey('ghost-pin'),
+                        point: _ghostPin!,
+                        width: 46,
+                        height: 46,
+                        alignment: Alignment.bottomCenter,
+                        child: _GhostPin(
+                          colours: widget.colours,
+                          animation: _pulseAnimation,
+                          onTap: _confirmGhostPin,
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                ),
             ],
           ),
 
@@ -437,9 +601,11 @@ class _MapScreenState extends State<MapScreen>
             online: widget.online,
             signedInAs: widget.signedInAs,
             onTapSignedInAs: widget.onTapSignedInAs,
-            onOpenSettings: widget.onOpenSettings,
+            subtitle: widget.subtitle,
             legendOpen: _showLegend,
             onToggleLegend: _toggleLegend,
+            menuOpen: _menuOpen,
+            onToggleMenu: () => setState(() => _menuOpen = !_menuOpen),
           ),
           _GpsBar(
             gps: widget.gps,
@@ -478,9 +644,39 @@ class _MapScreenState extends State<MapScreen>
             queuedCount: widget.queuedCount,
             onRecordSighting: widget.onRecordSighting,
             onOpenLedger: widget.onOpenLedger,
-            onOpenTally: widget.onOpenTally,
+          ),
+          // The progress card: the time this device has walked and driven,
+          // and — while an outing is running — the live indicator for it.
+          if (widget.progress != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 168,
+              child: ProgressOverlay(
+                progress: widget.progress!,
+                colours: widget.colours,
+                activeOuting: widget.activeOuting,
+              ),
+            ),
+          if (widget.syncing || widget.syncError != null)
+            _SyncStatus(
+              colours: widget.colours,
+              syncing: widget.syncing,
+              syncError: widget.syncError,
+              lastSyncedAt: widget.lastSyncedAt,
+            ),
+          // Drawn last so an open menu sits above every other chip.
+          _MapMenu(
+            colours: widget.colours,
+            text: text,
+            open: _menuOpen,
+            onClose: () => setState(() => _menuOpen = false),
             onOpenDrive: widget.onOpenDrive,
             onOpenTrail: widget.onOpenTrail,
+            onOpenObservations: widget.onOpenObservations,
+            onOpenTally: widget.onOpenTally,
+            onOpenSettings: widget.onOpenSettings,
+            onToggleLegend: _toggleLegend,
           ),
         ],
       ),
@@ -684,16 +880,20 @@ class _AppBar extends StatelessWidget {
     required this.online,
     required this.signedInAs,
     required this.onTapSignedInAs,
-    required this.onOpenSettings,
+    required this.subtitle,
     required this.legendOpen,
     required this.onToggleLegend,
+    required this.menuOpen,
+    required this.onToggleMenu,
   });
 
   final String? signedInAs;
   final VoidCallback? onTapSignedInAs;
-  final VoidCallback? onOpenSettings;
+  final String? subtitle;
   final bool legendOpen;
   final VoidCallback onToggleLegend;
+  final bool menuOpen;
+  final VoidCallback onToggleMenu;
 
   final FieldColours colours;
   final TextTheme text;
@@ -721,7 +921,7 @@ class _AppBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Trail · Big 5 Reserve · 12 Sep',
+                    subtitle ?? 'Trail · Big 5 Reserve · 12 Sep',
                     style: text.labelSmall?.copyWith(color: colours.ash2),
                   ),
                   const SizedBox(height: Insets.xs),
@@ -749,14 +949,16 @@ class _AppBar extends StatelessWidget {
               padding: const EdgeInsets.all(Insets.xs),
               constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             ),
-            if (onOpenSettings != null)
-              IconButton(
-                onPressed: onOpenSettings,
-                icon: Icon(Icons.menu, color: colours.ash1),
-                tooltip: 'Settings',
-                padding: const EdgeInsets.all(Insets.xs),
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            IconButton(
+              onPressed: onToggleMenu,
+              icon: Icon(
+                menuOpen ? Icons.close : Icons.menu,
+                color: colours.ash1,
               ),
+              tooltip: 'Menu',
+              padding: const EdgeInsets.all(Insets.xs),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            ),
           ],
         ),
       ),
@@ -917,9 +1119,6 @@ class _Dock extends StatelessWidget {
     required this.queuedCount,
     required this.onRecordSighting,
     required this.onOpenLedger,
-    required this.onOpenTally,
-    required this.onOpenDrive,
-    this.onOpenTrail,
   });
 
   final FieldColours colours;
@@ -927,9 +1126,6 @@ class _Dock extends StatelessWidget {
   final int queuedCount;
   final VoidCallback? onRecordSighting;
   final VoidCallback? onOpenLedger;
-  final VoidCallback? onOpenTally;
-  final VoidCallback? onOpenDrive;
-  final VoidCallback? onOpenTrail;
 
   @override
   Widget build(BuildContext context) {
@@ -958,47 +1154,160 @@ class _Dock extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  flex: 3,
                   child: _PrimaryButton(
                     label: 'Record a sighting',
                     colours: colours,
                     onPressed: onRecordSighting,
                   ),
                 ),
-                const SizedBox(width: Insets.sm),
-                Expanded(
-                  flex: 2,
-                  child: _GhostButton(
-                    label: 'Drive',
-                    colours: colours,
-                    onPressed: onOpenDrive,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: Insets.sm),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _GhostButton(
-                    label: 'Trail',
-                    colours: colours,
-                    onPressed: onOpenTrail,
-                  ),
-                ),
-                const SizedBox(width: Insets.sm),
-                Expanded(
-                  flex: 3,
-                  child: _GhostButton(
-                    label: 'Progress',
-                    colours: colours,
-                    onPressed: onOpenTally,
-                  ),
-                ),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The fold-out menu: the way in to every other logbook from the map.
+///
+/// The rows stay mounted even when the menu is shut, so it can animate open
+/// without the text appearing a frame early, but they are clipped to no height
+/// and ignore pointers until it is open — a shut door, not an invisible one.
+class _MapMenu extends StatelessWidget {
+  const _MapMenu({
+    required this.colours,
+    required this.text,
+    required this.open,
+    required this.onClose,
+    required this.onOpenDrive,
+    required this.onOpenTrail,
+    required this.onOpenObservations,
+    required this.onOpenTally,
+    required this.onOpenSettings,
+    required this.onToggleLegend,
+  });
+
+  final FieldColours colours;
+  final TextTheme text;
+  final bool open;
+  final VoidCallback onClose;
+  final VoidCallback? onOpenDrive;
+  final VoidCallback? onOpenTrail;
+  final VoidCallback? onOpenObservations;
+  final VoidCallback? onOpenTally;
+  final VoidCallback? onOpenSettings;
+  final VoidCallback onToggleLegend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: Insets.huge + Insets.xxxl,
+      right: Insets.md,
+      child: IgnorePointer(
+        ignoring: !open,
+        child: ClipRect(
+          child: Align(
+            alignment: Alignment.topRight,
+            heightFactor: open ? 1.0 : 0.0,
+            // A Positioned with only `top` and `right` set hands its child
+            // unbounded constraints, so the Column's stretch would ask for an
+            // infinite width. IntrinsicWidth gives the card the width of its
+            // widest row, which the rows then stretch to fill.
+            child: IntrinsicWidth(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colours.canopyRaised,
+                  borderRadius: BorderRadius.circular(Corners.sheet),
+                  border: Border.all(color: colours.ruleStrong),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: Insets.xs),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _row('Drive', onOpenDrive),
+                    _row('Trail', onOpenTrail),
+                    _row('Observations', onOpenObservations),
+                    _row('Progress', onOpenTally),
+                    _row('Settings', onOpenSettings),
+                    _row('Legend', onToggleLegend),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String label, VoidCallback? onTap) {
+    return InkWell(
+      onTap: () {
+        onClose();
+        onTap?.call();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Insets.lg,
+          vertical: Insets.md,
+        ),
+        child: Text(
+          label,
+          style: text.bodyMedium?.copyWith(color: colours.bone),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small pill reporting the last sync pass, shown only while one is running
+/// or after one has failed. A clean, idle sync says nothing at all.
+class _SyncStatus extends StatelessWidget {
+  const _SyncStatus({
+    required this.colours,
+    required this.syncing,
+    required this.syncError,
+    required this.lastSyncedAt,
+  });
+
+  final FieldColours colours;
+  final bool syncing;
+  final String? syncError;
+  final DateTime? lastSyncedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label;
+    final Color colour;
+    if (syncError != null) {
+      label = 'Sync failed';
+      colour = colours.blood;
+    } else if (syncing) {
+      label = 'Syncing…';
+      colour = colours.straw;
+    } else {
+      label = lastSyncedAt == null ? 'Not yet synced' : 'Synced';
+      colour = colours.moss;
+    }
+    return Positioned(
+      top: Insets.huge + Insets.xxxl,
+      left: Insets.md,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Insets.md,
+          vertical: Insets.xs,
+        ),
+        decoration: BoxDecoration(
+          color: colours.canopyRaised,
+          borderRadius: BorderRadius.circular(Corners.chip),
+          border: Border.all(color: colour),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: colour),
         ),
       ),
     );

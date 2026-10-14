@@ -69,6 +69,14 @@ enum EntityKind {
   @JsonValue('trail_waypoint')
   trailWaypoint,
 
+  /// A planned route for an outing.
+  @JsonValue('planned_route')
+  plannedRoute,
+
+  /// One waypoint along a planned route.
+  @JsonValue('route_waypoint')
+  routeWaypoint,
+
   /// A wire type this client does not know.
   ///
   /// A pull maps an unrecognised `entity_type` here rather than silently to a

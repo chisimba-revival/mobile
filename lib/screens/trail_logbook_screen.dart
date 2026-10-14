@@ -5,11 +5,13 @@ import 'package:field_log/data/database.dart';
 import 'package:field_log/data/trail_log_writer.dart';
 import 'package:field_log/data/encounter_writer.dart';
 import 'package:field_log/design/field_scaffold.dart';
+import 'package:field_log/design/theme.dart';
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/field/card_state.dart';
 import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/screens/logbook_form.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 /// The trail logbook: start a walk, drop waypoints, record encounters,
@@ -37,6 +39,7 @@ class TrailLogbookScreen extends StatefulWidget {
     this.onSpeciesUsed,
     this.onTrailStarted,
     this.onTrailEnded,
+    this.editTrail,
   });
 
   final FieldLogDatabase database;
@@ -50,6 +53,12 @@ class TrailLogbookScreen extends StatefulWidget {
   final void Function(SpeciesChoice choice)? onSpeciesUsed;
   final void Function(String localId)? onTrailStarted;
   final VoidCallback? onTrailEnded;
+
+  /// An existing trail to correct, rather than a new one to start.
+  ///
+  /// A correction reopens the walk's closing form with its own values in
+  /// place, so the correction is made on the record that made it.
+  final TrailLogRow? editTrail;
 
   @override
   State<TrailLogbookScreen> createState() => _TrailLogbookScreenState();
@@ -87,14 +96,56 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
   Position? _position;
   StreamSubscription<Position>? _fixes;
 
+  /// How many waypoints the walk holds, re-read from the writer after every
+  /// drop so the count is the record's own answer rather than a guess.
+  int _waypointCount = 0;
+
+  /// Drives the walking clock; guarded so a pending timer after the walk
+  /// closes is a no-op rather than a frame for a panel that is gone.
+  Timer? _tick;
+
+  /// True when opened in correction mode for an existing trail.
+  bool _correcting = false;
+
   @override
   void initState() {
     super.initState();
-    _watchFixes();
+    if (widget.editTrail != null) {
+      _log = widget.editTrail!;
+      _correcting = true;
+      _trailName.text = _log!.trailCode ?? '';
+      _rifleRole = _log!.rifleRole;
+      _walkLengthKm.text = _log!.walkLengthKm?.toString() ?? '';
+      _guideRole = _log!.guideRole;
+      _rifleDetails.text = _log!.rifleDetails ?? '';
+      _hoursWalked.text = _log!.hoursWalked?.toString() ?? '';
+      _weather.text = _log!.weather ?? '';
+      _description.text = _log!.description ?? '';
+      _lessonsLearned.text = _log!.lessonsLearned ?? '';
+      _view = _TrailView.closing;
+      _loadEncounters();
+    } else {
+      _watchFixes();
+    }
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _log != null && !_correcting) setState(() {});
+    });
+  }
+
+  Future<void> _loadEncounters() async {
+    if (_log == null) return;
+    final rows =
+        await (widget.database.select(widget.database.dangerousGameEncounters)
+              ..where((t) => t.outingId.equals(_log!.localId))
+              ..orderBy([(t) => OrderingTerm.desc(t.capturedAt)]))
+            .get();
+    if (!mounted) return;
+    setState(() => _encounterLog = rows);
   }
 
   @override
   void dispose() {
+    _tick?.cancel();
     _fixes?.cancel();
     _trailName.dispose();
     _walkLengthKm.dispose();
@@ -157,6 +208,7 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
       widget.database.trailLogs,
     )..where((t) => t.localId.equals(id))).getSingle();
     setState(() => _view = _TrailView.walking);
+    await _reloadWaypoints();
     widget.onTrailStarted?.call(id);
   }
 
@@ -215,6 +267,16 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
     setState(() => _encounterLog = rows);
   }
 
+  /// Re-reads the walk's waypoint count from the writer, so the panel shows
+  /// what the record actually holds after every drop.
+  Future<void> _reloadWaypoints() async {
+    final log = _log;
+    if (log == null) return;
+    final count = await widget.writer.lengthOf(log.localId);
+    if (!mounted) return;
+    setState(() => _waypointCount = count);
+  }
+
   String? _closingGate() {
     final text = _hoursWalked.text.trim();
     if (text.isEmpty) return null;
@@ -228,10 +290,15 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
     final hours = _hoursWalked.text.trim().isEmpty
         ? null
         : double.parse(_hoursWalked.text.replaceAll(',', '.'));
+
+    final endedAt = _correcting && _log!.endedAt != null
+        ? _log!.endedAt!
+        : DateTime.now().toUtc();
+
     await widget.writer.save(
       _log!.localId,
       status: 'completed',
-      endedAt: DateTime.now().toUtc(),
+      endedAt: endedAt,
       hoursWalked: hours,
       weather: _weather.text.trim().isEmpty ? null : _weather.text.trim(),
       description: _description.text.trim().isEmpty
@@ -251,8 +318,15 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colours = FieldColours.dark;
+    // The theme extension rather than a fixed palette: the screen has to read
+    // light/brightness mode the way every other screen does.
+    final colours = context.reserve;
     final text = Theme.of(context).textTheme;
+
+    if (_correcting) {
+      return _correctForm(colours: colours, text: text);
+    }
+
     return FieldScaffold(
       eyebrow: 'Trail',
       title: _view == _TrailView.start
@@ -262,6 +336,19 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
           : _view == _TrailView.closing
           ? 'Close the trail'
           : 'Record an encounter',
+      floatingActionButton: _view == _TrailView.start
+          ? FloatingActionButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).maybePop();
+              },
+              tooltip: 'Return to map',
+              backgroundColor: colours.dust,
+              foregroundColor: colours.bone,
+              child: const Icon(Icons.map),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: ListView(
         padding: const EdgeInsets.all(Insets.md),
         children: [
@@ -273,6 +360,84 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
             _encounterForm(colours: colours, text: text),
           if (_view == _TrailView.closing)
             _closingForm(colours: colours, text: text),
+        ],
+      ),
+    );
+  }
+
+  Widget _correctForm({
+    required FieldColours colours,
+    required TextTheme text,
+  }) {
+    return FieldScaffold(
+      eyebrow: 'Trail',
+      title: 'Correct the walk',
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          Navigator.of(context).maybePop();
+        },
+        tooltip: 'Return to map',
+        backgroundColor: colours.dust,
+        foregroundColor: colours.bone,
+        child: const Icon(Icons.map),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      body: ListView(
+        padding: const EdgeInsets.all(Insets.md),
+        children: [
+          const SizedBox(height: Insets.md),
+          LogGroup(
+            label: 'Trail name',
+            child: LogTextField(
+              controller: _trailName,
+              colours: colours,
+              hint: 'e.g. Ridge traverse',
+            ),
+          ),
+          LogGroup(
+            label: 'Rifle role',
+            child: LogChoices(
+              label: 'Rifle role',
+              options: const [
+                ('first', 'First rifle'),
+                ('second', 'Second rifle'),
+                ('neither', 'No rifle'),
+              ],
+              selected: _rifleRole,
+              colours: colours,
+              onChanged: (v) => setState(() => _rifleRole = v),
+            ),
+          ),
+          LogGroup(
+            label: 'Walk length (km)',
+            child: LogNumberField(
+              label: 'km',
+              controller: _walkLengthKm,
+              colours: colours,
+            ),
+          ),
+          LogGroup(
+            label: 'Guide role',
+            child: LogChoices(
+              label: 'Guide role',
+              options: const [('lead', 'Lead'), ('backup', 'Backup')],
+              selected: _guideRole,
+              colours: colours,
+              onChanged: (v) => setState(() => _guideRole = v),
+              hint: 'Optional',
+            ),
+          ),
+          LogGroup(
+            label: 'Rifle details',
+            child: LogTextField(
+              controller: _rifleDetails,
+              colours: colours,
+              hint: 'Optional — calibre, model',
+            ),
+          ),
+          const SizedBox(height: Insets.md),
+          _closingForm(colours: colours, text: text),
         ],
       ),
     );
@@ -353,15 +518,24 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
     required TextTheme text,
   }) {
     final log = _log;
-    final waypointCount = log == null ? 0 : null; // async — will reload
+    final elapsed = log == null
+        ? 0
+        : DateTime.now().toUtc().difference(log.startedAt).inSeconds;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        LogMeasure(
+          label: 'Walking time',
+          value: _clock(elapsed),
+          note: 'Clock time since the walk started.',
+          colours: colours,
+        ),
+        const SizedBox(height: Insets.md),
         LogGroup(
           label: 'Waypoints',
           child: LogMeasure(
             label: 'recorded',
-            value: log == null ? '—' : '${waypointCount ?? 0}',
+            value: log == null ? '—' : '$_waypointCount',
             note: 'pending upload',
             colours: colours,
           ),
@@ -409,7 +583,7 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
                         ? null
                         : _position!.altitude,
                   );
-                  setState(() {});
+                  await _reloadWaypoints();
                 },
           style: OutlinedButton.styleFrom(
             foregroundColor: colours.bone,
@@ -555,6 +729,7 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
     required FieldColours colours,
     required TextTheme text,
   }) {
+    final gate = _closingGate();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -592,30 +767,13 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
             lines: 2,
           ),
         ),
-        LogGroup(
-          label: 'Guide role',
-          child: LogChoices(
-            label: 'Guide role',
-            options: const [('lead', 'Lead'), ('backup', 'Backup')],
-            selected: _guideRole,
-            colours: colours,
-            onChanged: (v) => setState(() => _guideRole = v),
-            hint: 'Optional',
-          ),
-        ),
-        LogGroup(
-          label: 'Rifle details',
-          child: LogTextField(
-            controller: _rifleDetails,
-            colours: colours,
-            hint: 'Optional — calibre, model',
-          ),
-        ),
-        const SizedBox(height: Insets.sm),
-        LogSupporting(_closingGate() ?? '', colours),
+        if (gate != null) ...[
+          const SizedBox(height: Insets.sm),
+          LogErrorBanner(gate, colours),
+        ],
         const SizedBox(height: Insets.sm),
         FilledButton(
-          onPressed: _closingGate() != null ? null : _close,
+          onPressed: gate != null ? null : _close,
           style: FilledButton.styleFrom(
             backgroundColor: colours.bone,
             foregroundColor: colours.canopy,
@@ -637,5 +795,15 @@ class _TrailLogbookScreenState extends State<TrailLogbookScreen> {
         ),
       ],
     );
+  }
+
+  /// `h:mm:ss` — the same shape the drive logbook's running panel uses, so a
+  /// time read off the walk and a time read off the drive are the same time.
+  static String _clock(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final rest = seconds % 60;
+    return '$hours:${minutes.toString().padLeft(2, '0')}:'
+        '${rest.toString().padLeft(2, '0')}';
   }
 }
