@@ -252,6 +252,9 @@ class MapScreenState extends State<MapScreen>
   /// Whether the map legend is on screen.
   bool _showLegend = false;
 
+  /// Currently selected pin for distance/azimuth display, or null if none.
+  MapPin? _selectedPin;
+
   /// Path to the reserve's surveyed topology archive, or null when the build
   /// shipped one that has not been copied yet — or never shipped one at all.
   /// null is a legitimate steady state: the painted vector map below it is
@@ -485,6 +488,37 @@ class MapScreenState extends State<MapScreen>
     });
   }
 
+  /// Computes distance (metres) and bearing (degrees from north) from current
+  /// GPS position to [target]. Returns null if no GPS fix.
+  (double distanceMetres, double bearingDegrees)? _computeDistanceAndBearing(
+    LatLng target,
+  ) {
+    if (!widget.gps.hasFix || widget.currentPosition == null) return null;
+    final current = widget.currentPosition!;
+    const earthRadius = 6371000.0; // metres
+    final dLat = (target.latitude - current.latitude) * math.pi / 180;
+    final dLon = (target.longitude - current.longitude) * math.pi / 180;
+    final lat1 = current.latitude * math.pi / 180;
+    final lat2 = target.latitude * math.pi / 180;
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    final distance = earthRadius * c;
+
+    // Bearing
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final bearing = (math.atan2(y, x) * 180 / math.pi + 360) % 360;
+
+    return (distance, bearing);
+  }
+
   void _confirmGhostPin() {
     final point = _ghostPin;
     if (point == null) return;
@@ -630,7 +664,10 @@ class MapScreenState extends State<MapScreen>
                           colours: widget.colours,
                           onTap: widget.onOpenSighting == null
                               ? null
-                              : () => widget.onOpenSighting!(pin.localId),
+                              : () {
+                                  setState(() => _selectedPin = pin);
+                                  widget.onOpenSighting?.call(pin.localId);
+                                },
                           onLongPress: () => _showPinMenu(pin),
                           onSecondaryTap: () => _showPinMenu(pin),
                         ),
@@ -716,6 +753,17 @@ class MapScreenState extends State<MapScreen>
             zoom: _zoom,
             latitude: _center.latitude,
           ),
+          if (_selectedPin != null &&
+              widget.gps.hasFix &&
+              widget.currentPosition != null)
+            _DistanceAzimuthPanel(
+              colours: widget.colours,
+              distanceMetres: _computeDistanceAndBearing(_selectedPin!.point)!
+                  .$1,
+              bearingDegrees: _computeDistanceAndBearing(_selectedPin!.point)!
+                  .$2,
+              targetName: _selectedPin!.visual.spoken,
+            ),
           _ZoomButtons(
             colours: widget.colours,
             onZoomIn: () => _zoomBy(1),
@@ -1840,6 +1888,135 @@ class _ZoomButtons extends StatelessWidget {
               tooltip: 'Recenter on GPS',
               padding: const EdgeInsets.all(Insets.xs),
               constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Distance and bearing panel to selected waypoint.
+class _DistanceAzimuthPanel extends StatelessWidget {
+  const _DistanceAzimuthPanel({
+    required this.colours,
+    required this.distanceMetres,
+    required this.bearingDegrees,
+    required this.targetName,
+  });
+
+  final FieldColours colours;
+  final double distanceMetres;
+  final double bearingDegrees;
+  final String targetName;
+
+  String _formatDistance(double metres) {
+    if (metres >= 1000) {
+      return '${(metres / 1000).toStringAsFixed(1)} km';
+    }
+    return '${metres.round()} m';
+  }
+
+  String _formatBearing(double degrees) {
+    final directions = [
+      'N',
+      'NNE',
+      'NE',
+      'ENE',
+      'E',
+      'ESE',
+      'SE',
+      'SSE',
+      'S',
+      'SSW',
+      'SW',
+      'WSW',
+      'W',
+      'WNW',
+      'NW',
+      'NNW',
+    ];
+    final index = ((degrees + 11.25) / 22.5).floor() % 16;
+    return '${degrees.round()}° ${directions[index]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: Insets.md,
+      bottom: 280,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 220),
+        padding: const EdgeInsets.all(Insets.md),
+        decoration: BoxDecoration(
+          color: colours.canopyRaised.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(Corners.sheet),
+          border: Border.all(color: colours.ruleStrong),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.navigation, size: Faces.label, color: colours.dust),
+                const SizedBox(width: Insets.sm),
+                Text(
+                  'To $targetName',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.label,
+                    fontWeight: FontWeight.w600,
+                    color: colours.bone,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: Insets.sm),
+            Row(
+              children: [
+                Icon(
+                  Icons.explore,
+                  size: Faces.supporting,
+                  color: colours.ash1,
+                ),
+                const SizedBox(width: Insets.xs),
+                Text(
+                  _formatBearing(0),
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.body,
+                    fontWeight: FontWeight.w600,
+                    color: colours.bone,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: Insets.xs),
+            Row(
+              children: [
+                Icon(
+                  Icons.straighten,
+                  size: Faces.supporting,
+                  color: colours.ash1,
+                ),
+                const SizedBox(width: Insets.xs),
+                Text(
+                  _formatDistance(0),
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.body,
+                    color: colours.bone,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
