@@ -417,6 +417,12 @@ class MapScreenState extends State<MapScreen>
     _mapController.rotate(0);
   }
 
+  void _recenterOnGps() {
+    if (!widget.gps.hasFix || widget.currentPosition == null) return;
+    _userMoved = true;
+    _mapController.move(widget.currentPosition!, 14);
+  }
+
   /// Steps the map zoom towards where the user wants it. The move reports
   /// back through [onPositionChanged], so the scale bar follows without this
   /// method touching the state directly.
@@ -643,6 +649,22 @@ class MapScreenState extends State<MapScreen>
                           onTap: _confirmGhostPin,
                         ),
                       ),
+                    // GPS position marker (when we have a fix)
+                    if (widget.gps.hasFix && widget.currentPosition != null)
+                      Marker(
+                        key: const ValueKey('gps-position'),
+                        point: widget.currentPosition!,
+                        width: 60,
+                        height: 60,
+                        alignment: Alignment.center,
+                        child: _GpsPositionMarker(
+                          colours: widget.colours,
+                          accuracyMetres: widget.gps.accuracyMetres,
+                          heading: widget.gps.satellites > 0
+                              ? widget.gps.latitude
+                              : 0.0,
+                        ),
+                      ),
                   ],
                 ),
             ],
@@ -698,6 +720,8 @@ class MapScreenState extends State<MapScreen>
             colours: widget.colours,
             onZoomIn: () => _zoomBy(1),
             onZoomOut: () => _zoomBy(-1),
+            onRecenter: _recenterOnGps,
+            gpsHasFix: widget.gps.hasFix,
           ),
           _Attribution(
             text: maptilerEnabled
@@ -953,6 +977,63 @@ class _GhostPin extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// GPS position marker with accuracy circle and heading indicator.
+class _GpsPositionMarker extends StatelessWidget {
+  const _GpsPositionMarker({
+    required this.colours,
+    required this.accuracyMetres,
+    required this.heading,
+  });
+
+  final FieldColours colours;
+  final double accuracyMetres;
+  final double heading;
+
+  @override
+  Widget build(BuildContext context) {
+    // 1 degree ≈ 111km at equator, so 1m ≈ 1/111000 degrees
+    // At zoom 14, 1 degree ≈ 111000/2^14 px ≈ 6.8 px per meter
+    // At zoom 18, 1 degree ≈ 111000/2^18 px ≈ 0.42 px per meter
+    // We'll just draw a circle with radius proportional to accuracy
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Accuracy circle
+        if (accuracyMetres > 0)
+          Container(
+            width: (accuracyMetres * 0.5).clamp(20.0, 100.0),
+            height: (accuracyMetres * 0.5).clamp(20.0, 100.0),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: colours.straw.withValues(alpha: 0.5),
+                width: 2,
+              ),
+              color: colours.straw.withValues(alpha: 0.1),
+            ),
+          ),
+        // GPS position marker (arrow pointing to heading)
+        Transform.rotate(
+          angle: heading * math.pi / 180,
+          child: Icon(
+            Icons.navigation,
+            size: 28,
+            color: colours.dust,
+            shadows: [
+              Shadow(
+                color: Colors.black54,
+                blurRadius: 2,
+                offset: Offset(1, 1),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1709,11 +1790,15 @@ class _ZoomButtons extends StatelessWidget {
     required this.colours,
     required this.onZoomIn,
     required this.onZoomOut,
+    required this.onRecenter,
+    required this.gpsHasFix,
   });
 
   final FieldColours colours;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
+  final VoidCallback onRecenter;
+  final bool gpsHasFix;
 
   @override
   Widget build(BuildContext context) {
@@ -1742,6 +1827,17 @@ class _ZoomButtons extends StatelessWidget {
               onPressed: onZoomIn,
               icon: Icon(Icons.add, color: colours.bone),
               tooltip: 'Zoom in',
+              padding: const EdgeInsets.all(Insets.xs),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            ),
+            Container(height: 1, color: colours.rule),
+            IconButton(
+              onPressed: gpsHasFix ? onRecenter : null,
+              icon: Icon(
+                Icons.my_location,
+                color: gpsHasFix ? colours.bone : colours.ash3,
+              ),
+              tooltip: 'Recenter on GPS',
               padding: const EdgeInsets.all(Insets.xs),
               constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             ),
