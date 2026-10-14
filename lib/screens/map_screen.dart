@@ -255,6 +255,9 @@ class MapScreenState extends State<MapScreen>
   /// Currently selected pin for distance/azimuth display, or null if none.
   MapPin? _selectedPin;
 
+  /// Next waypoint on the active route, or null if no route or at end.
+  RouteWaypoint? _nextWaypoint;
+
   /// Path to the reserve's surveyed topology archive, or null when the build
   /// shipped one that has not been copied yet — or never shipped one at all.
   /// null is a legitimate steady state: the painted vector map below it is
@@ -519,6 +522,46 @@ class MapScreenState extends State<MapScreen>
     return (distance, bearing);
   }
 
+  /// Finds the next waypoint on the active route, or null if no route,
+  /// no active segment, or at the end of the route.
+  RouteWaypoint? _getNextWaypoint() {
+    if (widget.route == null ||
+        widget.routeWaypoints == null ||
+        widget.routeWaypoints!.isEmpty) {
+      return null;
+    }
+
+    final sortedWaypoints = List<RouteWaypoint>.from(widget.routeWaypoints!)
+      ..sort((a, b) => a.ordinal.compareTo(b.ordinal));
+
+    if (sortedWaypoints.length < 2) return null;
+
+    if (!widget.gps.hasFix || widget.currentPosition == null) {
+      return sortedWaypoints.first;
+    }
+
+    // Find the closest waypoint to current position
+    double minDist = double.infinity;
+    int closestIdx = 0;
+
+    for (var i = 0; i < sortedWaypoints.length; i++) {
+      final wp = sortedWaypoints[i];
+      final dist = _computeDistanceAndBearing(
+        LatLng(wp.latitude, wp.longitude),
+      );
+      if (dist != null && dist.$1 < minDist) {
+        minDist = dist.$1;
+        closestIdx = i;
+      }
+    }
+
+    // Return the next waypoint after the closest one
+    if (closestIdx < sortedWaypoints.length - 1) {
+      return sortedWaypoints[closestIdx + 1];
+    }
+    return null;
+  }
+
   void _confirmGhostPin() {
     final point = _ghostPin;
     if (point == null) return;
@@ -763,6 +806,32 @@ class MapScreenState extends State<MapScreen>
               bearingDegrees: _computeDistanceAndBearing(_selectedPin!.point)!
                   .$2,
               targetName: _selectedPin!.visual.spoken,
+            ),
+
+          // Update next waypoint on active route and show bearing arrow
+          if (widget.route != null &&
+              widget.routeWaypoints != null &&
+              widget.routeWaypoints!.isNotEmpty &&
+              widget.gps.hasFix &&
+              widget.currentPosition != null)
+            _BearingArrow(
+              colours: widget.colours,
+              distanceMetres: _computeDistanceAndBearing(
+                LatLng(
+                  _getNextWaypoint()!.latitude,
+                  _getNextWaypoint()!.longitude,
+                ),
+              )!.$1,
+              bearingDegrees: _computeDistanceAndBearing(
+                LatLng(
+                  _getNextWaypoint()!.latitude,
+                  _getNextWaypoint()!.longitude,
+                ),
+              )!.$2,
+              targetName:
+                  _getNextWaypoint()!.label ??
+                  'Waypoint ${_getNextWaypoint()!.ordinal + 1}',
+              onDismiss: () => setState(() => _nextWaypoint = null),
             ),
           _ZoomButtons(
             colours: widget.colours,
@@ -2015,6 +2084,126 @@ class _DistanceAzimuthPanel extends StatelessWidget {
                     fontSize: Faces.body,
                     color: colours.bone,
                   ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bearing arrow indicator pointing to the next waypoint on the active route.
+class _BearingArrow extends StatelessWidget {
+  const _BearingArrow({
+    required this.colours,
+    required this.distanceMetres,
+    required this.bearingDegrees,
+    required this.targetName,
+    required this.onDismiss,
+  });
+
+  final FieldColours colours;
+  final double distanceMetres;
+  final double bearingDegrees;
+  final String targetName;
+  final VoidCallback onDismiss;
+
+  String _formatDistance(double metres) {
+    if (metres >= 1000) {
+      return '${(metres / 1000).toStringAsFixed(1)} km';
+    }
+    return '${metres.round()} m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      right: Insets.md,
+      bottom: 280,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 200),
+        padding: const EdgeInsets.all(Insets.md),
+        decoration: BoxDecoration(
+          color: colours.canopyRaised.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(Corners.sheet),
+          border: Border.all(color: colours.ruleStrong),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Next Waypoint',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.label,
+                    fontWeight: FontWeight.w600,
+                    color: colours.bone,
+                  ),
+                ),
+                const SizedBox(width: Insets.xs),
+                GestureDetector(
+                  onTap: onDismiss,
+                  child: Icon(
+                    Icons.close,
+                    size: Faces.supporting,
+                    color: colours.ash3,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: Insets.sm),
+            Text(
+              targetName,
+              style: TextStyle(
+                fontFamily: Faces.book.first,
+                fontSize: Faces.body,
+                fontWeight: FontWeight.w600,
+                color: colours.bone,
+              ),
+            ),
+            const SizedBox(height: Insets.xs),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Transform.rotate(
+                  angle: -bearingDegrees * math.pi / 180,
+                  child: Icon(Icons.navigation, size: 32, color: colours.dust),
+                ),
+                const SizedBox(width: Insets.sm),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${bearingDegrees.round()}°',
+                      style: TextStyle(
+                        fontFamily: Faces.book.first,
+                        fontSize: Faces.measure,
+                        fontWeight: FontWeight.w700,
+                        color: colours.dust,
+                      ),
+                    ),
+                    Text(
+                      _formatDistance(distanceMetres),
+                      style: TextStyle(
+                        fontFamily: Faces.ui.first,
+                        fontSize: Faces.label,
+                        color: colours.ash1,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
