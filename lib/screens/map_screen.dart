@@ -441,31 +441,27 @@ class MapScreenState extends State<MapScreen>
   /// map shape that understands layers. The painted map below keeps the old
   /// chip panel: its features have no switches, just colours.
   void _toggleLegend() {
-    if (_topologyPath != null) {
-      showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (context) => MapLegendSheet(
-          layerStyles: defaultVectorLayerStyles,
-          initialVisibility: {
-            for (final name in defaultVectorLayerStyles.keys)
-              name: !_hiddenTopologyLayers.contains(name),
-          },
-          onVisibilityChanged: (name, visible) {
-            if (!mounted) return;
-            setState(() {
-              if (visible) {
-                _hiddenTopologyLayers.remove(name);
-              } else {
-                _hiddenTopologyLayers.add(name);
-              }
-            });
-          },
-        ),
-      );
-      return;
-    }
-    setState(() => _showLegend = !_showLegend);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MapLegendSheet(
+        layerStyles: defaultVectorLayerStyles,
+        initialVisibility: {
+          for (final name in defaultVectorLayerStyles.keys)
+            name: !_hiddenTopologyLayers.contains(name),
+        },
+        onVisibilityChanged: (name, visible) {
+          if (!mounted) return;
+          setState(() {
+            if (visible) {
+              _hiddenTopologyLayers.remove(name);
+            } else {
+              _hiddenTopologyLayers.add(name);
+            }
+          });
+        },
+      ),
+    );
   }
 
   void _showGhostPin(LatLng point) {
@@ -597,7 +593,10 @@ class MapScreenState extends State<MapScreen>
                   layerStyles: _visibleTopologyStyles,
                 )
               else if (_layerVisibility['topology'] ?? true)
-                _VectorLayer(colours: widget.colours),
+                _VectorLayer(
+                  colours: widget.colours,
+                  hiddenLayers: _hiddenTopologyLayers,
+                ),
               // Planned route layer (if available)
               if ((_layerVisibility['routes'] ?? false) &&
                   widget.route != null &&
@@ -670,7 +669,20 @@ class MapScreenState extends State<MapScreen>
           // The compass is only shown when the device has reported a heading:
           // a compass rose that always points north is a decoration, not a
           // bearing.
-          if (_showLegend) _Legend(colours: widget.colours),
+          _MapLayersPanel(
+            colours: widget.colours,
+            hiddenLayers: _hiddenTopologyLayers,
+            onToggleLayer: (name, visible) {
+              if (!mounted) return;
+              setState(() {
+                if (visible) {
+                  _hiddenTopologyLayers.remove(name);
+                } else {
+                  _hiddenTopologyLayers.add(name);
+                }
+              });
+            },
+          ),
           if (_heading != null)
             _Compass(
               colours: widget.colours,
@@ -743,16 +755,20 @@ class MapScreenState extends State<MapScreen>
 }
 
 class _VectorLayer extends StatelessWidget {
-  const _VectorLayer({required this.colours});
+  const _VectorLayer({required this.colours, this.hiddenLayers = const {}});
 
   final FieldColours colours;
+  final Set<String> hiddenLayers;
 
   @override
   Widget build(BuildContext context) {
     return MobileLayerTransformer(
       child: IgnorePointer(
         child: CustomPaint(
-          painter: ReserveVectorPainter(colours: colours),
+          painter: ReserveVectorPainter(
+            colours: colours,
+            hiddenLayers: hiddenLayers,
+          ),
           size: Size.infinite,
         ),
       ),
@@ -1779,30 +1795,35 @@ class _Attribution extends StatelessWidget {
 ///
 /// Every glyph is drawn from the same token the map itself paints with, so
 /// the legend cannot drift from the ground it explains.
-class _Legend extends StatelessWidget {
-  const _Legend({required this.colours});
+/// Top-left map layers panel with toggle switches and icons.
+class _MapLayersPanel extends StatelessWidget {
+  const _MapLayersPanel({
+    required this.colours,
+    required this.hiddenLayers,
+    required this.onToggleLayer,
+  });
 
   final FieldColours colours;
+  final Set<String> hiddenLayers;
+  final void Function(String layerName, bool visible) onToggleLayer;
 
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      // One giant step below the app bar, level with the compass: the bar is
-      // not part of the map, and chrome must not sit on top of it.
       top: Insets.huge + Insets.xl + Insets.giant,
       left: Insets.md,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 220),
+        constraints: const BoxConstraints(maxWidth: 240),
         padding: const EdgeInsets.all(Insets.md),
         decoration: BoxDecoration(
-          color: colours.canopyRaised.withValues(alpha: 0.94),
+          color: colours.canopyRaised.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(Corners.sheet),
           border: Border.all(color: colours.ruleStrong),
           boxShadow: [
             BoxShadow(
               color: Colors.black54,
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -1810,57 +1831,135 @@ class _Legend extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Legend',
-              style: TextStyle(
-                fontFamily: Faces.ui.first,
-                fontSize: Faces.cardTitle,
-                color: colours.bone,
-              ),
+            Row(
+              children: [
+                Icon(Icons.layers, size: Faces.cardTitle, color: colours.bone),
+                const SizedBox(width: Insets.sm),
+                Text(
+                  'Map Layers',
+                  style: TextStyle(
+                    fontFamily: Faces.ui.first,
+                    fontSize: Faces.cardTitle,
+                    fontWeight: FontWeight.w600,
+                    color: colours.bone,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: Insets.sm),
-            _LegendRow(
+            const SizedBox(height: Insets.md),
+            _LayerToggleRow(
               colours: colours,
-              label: 'Sighting',
-              glyph: _LegendGlyph(
-                kind: _LegendGlyphKind.sighting,
-                colours: colours,
-              ),
+              label: 'Waterholes',
+              icon: Icons.water_drop,
+              layerName: 'waterholes',
+              isVisible: !hiddenLayers.contains('waterholes'),
+              onChanged: onToggleLayer,
             ),
-            _LegendRow(
+            _LayerToggleRow(
               colours: colours,
-              label: 'Water',
-              glyph: _LegendGlyph(
-                kind: _LegendGlyphKind.water,
-                colours: colours,
-              ),
+              label: 'Roads',
+              icon: Icons.alt_route,
+              layerName: 'roads',
+              isVisible: !hiddenLayers.contains('roads'),
+              onChanged: onToggleLayer,
             ),
-            _LegendRow(
+            _LayerToggleRow(
               colours: colours,
-              label: 'Drainage',
-              glyph: _LegendGlyph(
-                kind: _LegendGlyphKind.drainage,
-                colours: colours,
-              ),
+              label: 'Acacia Stands',
+              icon: Icons.forest,
+              layerName: 'acacia',
+              isVisible: !hiddenLayers.contains('acacia'),
+              onChanged: onToggleLayer,
             ),
-            _LegendRow(
+            _LayerToggleRow(
               colours: colours,
-              label: 'Scrub',
-              glyph: _LegendGlyph(
-                kind: _LegendGlyphKind.scrub,
-                colours: colours,
-              ),
+              label: 'Reserve Boundary',
+              icon: Icons.map,
+              layerName: 'boundary',
+              isVisible: !hiddenLayers.contains('boundary'),
+              onChanged: onToggleLayer,
             ),
-            _LegendRow(
+            const Divider(height: Insets.lg, thickness: 0.5),
+            _LayerToggleRow(
               colours: colours,
-              label: 'Contour',
-              glyph: _LegendGlyph(
-                kind: _LegendGlyphKind.contour,
-                colours: colours,
-              ),
+              label: 'Index Contours (50m)',
+              icon: Icons.show_chart,
+              layerName: 'contours_index',
+              isVisible: !hiddenLayers.contains('contours_index'),
+              onChanged: onToggleLayer,
+            ),
+            _LayerToggleRow(
+              colours: colours,
+              label: 'Contours (10m)',
+              icon: Icons.terrain,
+              layerName: 'contours',
+              isVisible: !hiddenLayers.contains('contours'),
+              onChanged: onToggleLayer,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A single layer toggle row with icon, label, and switch.
+class _LayerToggleRow extends StatelessWidget {
+  const _LayerToggleRow({
+    required this.colours,
+    required this.label,
+    required this.icon,
+    required this.layerName,
+    required this.isVisible,
+    required this.onChanged,
+  });
+
+  final FieldColours colours;
+  final String label;
+  final IconData icon;
+  final String layerName;
+  final bool isVisible;
+  final void Function(String layerName, bool visible) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Insets.xs),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: colours.canopyOverlay,
+              borderRadius: BorderRadius.circular(Corners.chip),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: colours.bone.withValues(alpha: 0.8),
+            ),
+          ),
+          const SizedBox(width: Insets.sm),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: Faces.ui.first,
+                fontSize: Faces.label,
+                color: colours.bone,
+              ),
+            ),
+          ),
+          Switch(
+            value: isVisible,
+            onChanged: (v) => onChanged(layerName, v),
+            activeColor: colours.moss,
+            inactiveThumbColor: colours.ash3,
+            inactiveTrackColor: colours.rule,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
       ),
     );
   }
