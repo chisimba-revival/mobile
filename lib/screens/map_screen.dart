@@ -1684,6 +1684,7 @@ class _ScaleBar extends StatelessWidget {
             Container(
               width: width,
               height: 6,
+              constraints: const BoxConstraints(minHeight: 44),
               decoration: BoxDecoration(
                 border: Border(
                   left: BorderSide(color: colours.bone, width: 2),
@@ -1954,7 +1955,8 @@ class _LayerToggleRow extends StatelessWidget {
           Switch(
             value: isVisible,
             onChanged: (v) => onChanged(layerName, v),
-            activeColor: colours.moss,
+            activeThumbColor: colours.moss,
+            activeTrackColor: colours.moss.withValues(alpha: 0.5),
             inactiveThumbColor: colours.ash3,
             inactiveTrackColor: colours.rule,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

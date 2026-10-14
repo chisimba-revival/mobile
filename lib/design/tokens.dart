@@ -101,6 +101,196 @@ abstract final class Corners {
   static const double sheet = 14;
 }
 
+/// Standardised icon sizes for consistent visual rhythm.
+///
+/// Use these constants instead of hardcoding icon sizes. The design
+/// specifies three tiers: small (inline/dense), medium (default controls),
+/// and large (prominent/hero).
+abstract final class IconSizes {
+  /// Tiny icons (12px) — badges, dense inline markers.
+  static const double xs = 12;
+
+  /// Small icons (16px) — dense controls, chips, list icons.
+  static const double sm = 16;
+
+  /// Medium icons (20px) — default controls, buttons, list items.
+  static const double md = 20;
+
+  /// Large icons (24px) — prominent actions, header icons.
+  static const double lg = 24;
+
+  /// Extra large icons (28px) — hero actions, empty states.
+  static const double xl = 28;
+
+  /// Hero icons (32px) — empty states, onboarding, splash.
+  static const double xxl = 32;
+}
+
+/// Centralised icon registry for semantic, consistent icon usage.
+///
+/// Replace ad-hoc Icons.* references with FieldIcons.* to ensure
+/// consistent stroke weight, size, and semantic meaning across the app.
+/// Add new icons here rather than using Icons.* directly in widgets.
+abstract final class FieldIcons {
+  /// Layers & map
+  static const IconData layers = Icons.layers_outlined;
+  static const IconData layersFilled = Icons.layers;
+  static const IconData map = Icons.map_outlined;
+  static const IconData mapFilled = Icons.map;
+  static const IconData gps = Icons.gps_fixed_outlined;
+  static const IconData gpsFilled = Icons.gps_fixed;
+  static const IconData myLocation = Icons.my_location_outlined;
+  static const IconData myLocationFilled = Icons.my_location;
+  static const IconData compass = Icons.explore_outlined;
+  static const IconData compassFilled = Icons.explore;
+  static const IconData route = Icons.route_outlined;
+  static const IconData routeFilled = Icons.route;
+  static const IconData waypoint = Icons.flag_outlined;
+  static const IconData waypointFilled = Icons.flag;
+
+  /// Layers (for map legend)
+  static const IconData waterholes = Icons.water_drop_outlined;
+  static const IconData waterholesFilled = Icons.water_drop;
+  static const IconData roads = Icons.alt_route_outlined;
+  static const IconData roadsFilled = Icons.alt_route;
+  static const IconData acacia = Icons.forest_outlined;
+  static const IconData acaciaFilled = Icons.forest;
+  static const IconData boundary = Icons.map_outlined;
+  static const IconData boundaryFilled = Icons.map;
+  static const IconData contours = Icons.show_chart_outlined;
+  static const IconData contoursFilled = Icons.show_chart;
+  static const IconData terrain = Icons.terrain_outlined;
+  static const IconData terrainFilled = Icons.terrain;
+
+  /// Actions
+  static const IconData add = Icons.add_outlined;
+  static const IconData addFilled = Icons.add;
+  static const IconData record = Icons.fiber_manual_record_outlined;
+  static const IconData recordFilled = Icons.fiber_manual_record;
+  static const IconData edit = Icons.edit_outlined;
+  static const IconData editFilled = Icons.edit;
+  static const IconData delete = Icons.delete_outline;
+  static const IconData deleteFilled = Icons.delete;
+  static const IconData search = Icons.search_outlined;
+  static const IconData searchFilled = Icons.search;
+  static const IconData filter = Icons.filter_list_outlined;
+  static const IconData filterFilled = Icons.filter_list;
+  static const IconData settings = Icons.settings_outlined;
+  static const IconData settingsFilled = Icons.settings;
+  static const IconData menu = Icons.menu_outlined;
+  static const IconData menuFilled = Icons.menu;
+  static const IconData close = Icons.close_outlined;
+  static const IconData closeFilled = Icons.close;
+  static const IconData check = Icons.check_outlined;
+  static const IconData checkFilled = Icons.check;
+  static const IconData cancel = Icons.cancel_outlined;
+  static const IconData cancelFilled = Icons.cancel;
+  static const IconData save = Icons.save_outlined;
+  static const IconData saveFilled = Icons.save;
+  static const IconData sync = Icons.sync_outlined;
+  static const IconData syncFilled = Icons.sync;
+  static const IconData refresh = Icons.refresh_outlined;
+  static const IconData refreshFilled = Icons.refresh;
+
+  /// Navigation
+  static const IconData chevronLeft = Icons.chevron_left;
+  static const IconData chevronRight = Icons.chevron_right;
+  static const IconData expandLess = Icons.expand_less;
+  static const IconData expandMore = Icons.expand_more;
+  static const IconData arrowBack = Icons.arrow_back_outlined;
+  static const IconData arrowBackFilled = Icons.arrow_back;
+  static const IconData arrowForward = Icons.arrow_forward_outlined;
+  static const IconData arrowForwardFilled = Icons.arrow_forward;
+
+  /// Status & feedback
+  static const IconData checkCircle = Icons.check_circle_outlined;
+  static const IconData checkCircleFilled = Icons.check_circle;
+  static const IconData error = Icons.error_outline;
+  static const IconData errorFilled = Icons.error;
+  static const IconData warning = Icons.warning_outlined;
+  static const IconData warningFilled = Icons.warning;
+  static const IconData info = Icons.info_outline;
+  static const IconData infoFilled = Icons.info;
+  static const IconData success = Icons.task_alt_outlined;
+  static const IconData successFilled = Icons.task_alt;
+
+  /// Content types
+  static const IconData sighting = Icons.pets_outlined;
+  static const IconData sightingFilled = Icons.pets;
+  static const IconData observation = Icons.visibility_outlined;
+  static const IconData observationFilled = Icons.visibility;
+  static const IconData photo = Icons.photo_camera_outlined;
+  static const IconData photoFilled = Icons.photo_camera;
+  static const IconData audio = Icons.mic_outlined;
+  static const IconData audioFilled = Icons.mic;
+  static const IconData note = Icons.note_outlined;
+  static const IconData noteFilled = Icons.note;
+  static const IconData document = Icons.description_outlined;
+  static const IconData documentFilled = Icons.description;
+
+  /// Species & wildlife
+  static const IconData animal = Icons.pets_outlined;
+  static const IconData animalFilled = Icons.pets;
+  static const IconData bird = Icons.flutter_dash_outlined;
+  static const IconData birdFilled = Icons.flutter_dash;
+  static const IconData tree = Icons.forest_outlined;
+  static const IconData treeFilled = Icons.forest;
+  static const IconData plant = Icons.grass_outlined;
+  static const IconData plantFilled = Icons.grass;
+
+  /// UI chrome
+  static const IconData menuOutlined = Icons.menu_outlined;
+  static const IconData menuFilled_ = Icons.menu;
+  static const IconData closeOutlined = Icons.close_outlined;
+  static const IconData closeFilled_ = Icons.close;
+  static const IconData moreVert = Icons.more_vert;
+  static const IconData moreHoriz = Icons.more_horiz;
+  static const IconData grid = Icons.grid_view_outlined;
+  static const IconData list = Icons.list_outlined;
+  static const IconData home = Icons.home_outlined;
+  static const IconData homeFilled = Icons.home;
+  static const IconData person = Icons.person_outlined;
+  static const IconData personFilled = Icons.person;
+  static const IconData logout = Icons.logout_outlined;
+  static const IconData logoutFilled = Icons.logout;
+
+  /// Map specific
+  static const IconData zoomIn = Icons.zoom_in_outlined;
+  static const IconData zoomInFilled = Icons.zoom_in;
+  static const IconData zoomOut = Icons.zoom_out_outlined;
+  static const IconData zoomOutFilled = Icons.zoom_out;
+  static const IconData fullscreen = Icons.fullscreen_outlined;
+  static const IconData fullscreenFilled = Icons.fullscreen;
+  static const IconData fullscreenExit = Icons.fullscreen_exit_outlined;
+  static const IconData fullscreenExitFilled = Icons.fullscreen_exit;
+  static const IconData satellite = Icons.satellite_outlined;
+  static const IconData satelliteFilled = Icons.satellite;
+  static const IconData traffic = Icons.traffic_outlined;
+  static const IconData trafficFilled = Icons.traffic;
+  static const IconData directions = Icons.directions_outlined;
+  static const IconData directionsFilled = Icons.directions;
+
+  /// Utility
+  static const IconData more = Icons.more_horiz;
+  static const IconData moreFilled = Icons.more_horiz;
+  static const IconData share = Icons.share_outlined;
+  static const IconData shareFilled = Icons.share;
+  static const IconData copy = Icons.content_copy_outlined;
+  static const IconData copyFilled = Icons.content_copy;
+  static const IconData download = Icons.download_outlined;
+  static const IconData downloadFilled = Icons.download;
+  static const IconData upload = Icons.upload_outlined;
+  static const IconData uploadFilled = Icons.upload;
+  static const IconData print = Icons.print_outlined;
+  static const IconData printFilled = Icons.print;
+  static const IconData favorite = Icons.favorite_outline;
+  static const IconData favoriteFilled = Icons.favorite;
+  static const IconData bookmark = Icons.bookmark_outline;
+  static const IconData bookmarkFilled = Icons.bookmark;
+  static const IconData shareAndroid = Icons.share_outlined;
+  static const IconData shareAndroidFilled = Icons.share;
+}
+
 /// Density scale — controls the visual weight and spacing density.
 ///
 /// Applied as a multiplier to [Insets] base values. The design tokens
