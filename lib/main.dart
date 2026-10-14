@@ -210,8 +210,8 @@ class _FieldLogAppState extends State<FieldLogApp> {
     return MaterialApp(
       title: 'Field log',
       debugShowCheckedModeBanner: false,
-      theme: fieldTheme(_currentColours()),
-      darkTheme: fieldTheme(_currentColours()),
+      theme: fieldTheme(_currentColours(), density: _density),
+      darkTheme: fieldTheme(_currentColours(), density: _density),
       themeMode: _themeMode,
       builder: (context, child) {
         // Disable animations globally when user prefers reduced motion
@@ -856,21 +856,32 @@ class _FieldLogHomeState extends State<FieldLogHome> {
               accuracy: LocationAccuracy.high,
               distanceFilter: 5,
             ),
-          ).listen((position) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _gps = GpsReading(
-                accuracyMetres: position.accuracy,
-                satellites: 0,
-                fixedAt: position.timestamp.toUtc(),
-                latitude: position.latitude,
-                longitude: position.longitude,
-              );
-              _currentPosition = LatLng(position.latitude, position.longitude);
-            });
-          });
+          ).listen(
+            (position) {
+              if (!mounted) {
+                return;
+              }
+              setState(() {
+                _gps = GpsReading(
+                  accuracyMetres: position.accuracy,
+                  satellites: 0,
+                  fixedAt: position.timestamp.toUtc(),
+                  latitude: position.latitude,
+                  longitude: position.longitude,
+                );
+                _currentPosition = LatLng(
+                  position.latitude,
+                  position.longitude,
+                );
+              });
+            },
+            onError: (Object error) {
+              // Platforms without a geolocator implementation (e.g. Linux desktop)
+              // throw MissingPluginException from the stream. Catch it here so
+              // the app continues to work without GPS.
+              debugPrint('position stream: $error');
+            },
+          );
     } on Object catch (error) {
       // No fix is not a broken screen: the bar shows the placeholder and the
       // rest of the logbook still works. The error is logged so a real fault

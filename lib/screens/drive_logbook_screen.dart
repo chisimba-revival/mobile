@@ -205,14 +205,21 @@ class _DriveLogbookScreenState extends State<DriveLogbookScreen> {
               accuracy: LocationAccuracy.high,
               distanceFilter: 10,
             ),
-          ).listen((position) {
-            _tracker?.addFix(
-              position.latitude,
-              position.longitude,
-              position.timestamp.toUtc(),
-            );
-            if (mounted && !_ending) setState(() {});
-          });
+          ).listen(
+            (position) {
+              _tracker?.addFix(
+                position.latitude,
+                position.longitude,
+                position.timestamp.toUtc(),
+              );
+              if (mounted && !_ending) setState(() {});
+            },
+            onError: (Object error) {
+              // Platforms without a geolocator implementation (e.g. Linux desktop)
+              // throw MissingPluginException from the stream.
+              debugPrint('drive position stream: $error');
+            },
+          );
     } on Object catch (error) {
       // A device with no location stack still drives. The clock and the form
       // do not depend on a fix.

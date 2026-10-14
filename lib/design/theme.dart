@@ -9,7 +9,10 @@ import 'tokens.dart';
 /// control cannot acquire a Material accent that has no counterpart in the
 /// design. `colorScheme` is derived rather than hand-written for the same
 /// reason, and is named from the reserve rather than from Material's scale.
-ThemeData fieldTheme(FieldColours colours) {
+ThemeData fieldTheme(
+  FieldColours colours, {
+  Density density = Density.comfortable,
+}) {
   return ThemeData(
     useMaterial3: true,
     brightness: colours.brightness,
@@ -31,7 +34,7 @@ ThemeData fieldTheme(FieldColours colours) {
       outlineVariant: colours.rule,
     ),
     textTheme: _textTheme(colours),
-    extensions: <ThemeExtension<dynamic>>[colours],
+    extensions: <ThemeExtension<dynamic>>[colours, density],
   );
 }
 

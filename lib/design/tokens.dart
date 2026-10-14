@@ -106,7 +106,7 @@ abstract final class Corners {
 /// Applied as a multiplier to [Insets] base values. The design tokens
 /// themselves are unchanged; density is a runtime preference that scales
 /// the effective spacing and touch targets.
-enum Density {
+enum Density implements ThemeExtension<Density> {
   /// Compact — 85% scale. More content, smaller touch targets (still >= 44px).
   compact(0.85),
 
@@ -119,6 +119,26 @@ enum Density {
   const Density(this.scale);
 
   final double scale;
+
+  @override
+  Type get type => Density;
+
+  @override
+  Density copyWith({double? scale}) => Density.values.firstWhere(
+    (d) => d.scale == (scale ?? this.scale),
+    orElse: () => this,
+  );
+
+  @override
+  Density lerp(ThemeExtension<Density>? other, double t) {
+    if (other == null || other is! Density) return this;
+    final otherScale = other.scale;
+    final lerped = scale + (otherScale - scale) * t;
+    return Density.values.firstWhere(
+      (d) => (d.scale - lerped).abs() < 0.01,
+      orElse: () => this,
+    );
+  }
 
   /// Effective base spacing unit for this density.
   double get baseSpacing => Insets.base * scale;
