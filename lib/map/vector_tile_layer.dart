@@ -899,22 +899,80 @@ class _PmTilesImage extends ImageProvider<_PmTilesImage> {
 /// Used when no PMTiles archive is available — renders a simplified
 /// painted map with boundary, roads, and water features.
 class ReserveVectorPainter extends CustomPainter {
-  ReserveVectorPainter({required this.colours});
+  ReserveVectorPainter({required this.colours, this.hiddenLayers = const {}});
 
   final FieldColours colours;
+  final Set<String> hiddenLayers;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = colours.straw.withValues(alpha: 0.5);
+    // Boundary
+    if (!hiddenLayers.contains('boundary')) {
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..color = colours.straw.withValues(alpha: 0.5);
+      final rect = Rect.fromLTWH(20, 20, size.width - 40, size.height - 40);
+      canvas.drawRect(rect, paint);
+    }
 
-    // Draw a simple boundary rectangle
-    final rect = Rect.fromLTWH(20, 20, size.width - 40, size.height - 40);
-    canvas.drawRect(rect, paint);
+    // Contours
+    if (!hiddenLayers.contains('contours')) {
+      final contourPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0
+        ..color = colours.contour.withValues(alpha: 0.3);
+      for (var i = 0; i < 5; i++) {
+        final y = size.height * (0.2 + i * 0.15);
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), contourPaint);
+      }
+    }
+
+    // Roads
+    if (!hiddenLayers.contains('roads')) {
+      final roadPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0
+        ..color = colours.ash2.withValues(alpha: 0.4);
+      canvas.drawLine(
+        Offset(size.width * 0.1, size.height * 0.1),
+        Offset(size.width * 0.9, size.height * 0.9),
+        roadPaint,
+      );
+    }
+
+    // Waterholes
+    if (!hiddenLayers.contains('waterholes')) {
+      final waterPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = colours.water.withValues(alpha: 0.3);
+      canvas.drawCircle(
+        Offset(size.width * 0.3, size.height * 0.4),
+        12,
+        waterPaint,
+      );
+      canvas.drawCircle(
+        Offset(size.width * 0.7, size.height * 0.6),
+        8,
+        waterPaint,
+      );
+    }
+
+    // Acacia stands
+    if (!hiddenLayers.contains('acacia')) {
+      final acaciaPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = colours.moss.withValues(alpha: 0.2);
+      canvas.drawCircle(
+        Offset(size.width * 0.5, size.height * 0.3),
+        20,
+        acaciaPaint,
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant ReserveVectorPainter oldDelegate) =>
+      oldDelegate.colours != colours ||
+      oldDelegate.hiddenLayers != hiddenLayers;
 }
