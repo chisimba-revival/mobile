@@ -249,6 +249,9 @@ class MapScreenState extends State<MapScreen>
   /// Whether the fold-out menu is open.
   bool _menuOpen = false;
 
+  /// Whether the map layers panel is open.
+  bool _showLegend = false;
+
   /// Currently selected pin for distance/azimuth display, or null if none.
   MapPin? _selectedPin;
 
@@ -730,6 +733,8 @@ class MapScreenState extends State<MapScreen>
             subtitle: widget.subtitle,
             menuOpen: _menuOpen,
             onToggleMenu: () => setState(() => _menuOpen = !_menuOpen),
+            legendOpen: _showLegend,
+            onToggleLegend: () => setState(() => _showLegend = !_showLegend),
           ),
           _GpsBar(
             gps: widget.gps,
@@ -739,20 +744,21 @@ class MapScreenState extends State<MapScreen>
           // The compass is only shown when the device has reported a heading:
           // a compass rose that always points north is a decoration, not a
           // bearing.
-          _MapLayersPanel(
-            colours: widget.colours,
-            hiddenLayers: _hiddenTopologyLayers,
-            onToggleLayer: (name, visible) {
-              if (!mounted) return;
-              setState(() {
-                if (visible) {
-                  _hiddenTopologyLayers.remove(name);
-                } else {
-                  _hiddenTopologyLayers.add(name);
-                }
-              });
-            },
-          ),
+          if (_showLegend)
+            _MapLayersPanel(
+              colours: widget.colours,
+              hiddenLayers: _hiddenTopologyLayers,
+              onToggleLayer: (name, visible) {
+                if (!mounted) return;
+                setState(() {
+                  if (visible) {
+                    _hiddenTopologyLayers.remove(name);
+                  } else {
+                    _hiddenTopologyLayers.add(name);
+                  }
+                });
+              },
+            ),
           if (_heading != null)
             _Compass(
               colours: widget.colours,
@@ -1132,6 +1138,8 @@ class _AppBar extends StatelessWidget {
     required this.subtitle,
     required this.menuOpen,
     required this.onToggleMenu,
+    required this.legendOpen,
+    required this.onToggleLegend,
   });
 
   final String? signedInAs;
@@ -1139,6 +1147,8 @@ class _AppBar extends StatelessWidget {
   final String? subtitle;
   final bool menuOpen;
   final VoidCallback onToggleMenu;
+  final bool legendOpen;
+  final VoidCallback onToggleLegend;
 
   final FieldColours colours;
   final TextTheme text;
@@ -1184,6 +1194,16 @@ class _AppBar extends StatelessWidget {
                 onTap: onTapSignedInAs,
               ),
             _NetworkChip(online: online, colours: colours),
+            IconButton(
+              onPressed: onToggleLegend,
+              icon: Icon(
+                legendOpen ? Icons.layers_clear : Icons.layers,
+                color: legendOpen ? colours.straw : colours.ash1,
+              ),
+              tooltip: 'Layers',
+              padding: const EdgeInsets.all(Insets.xs),
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            ),
             IconButton(
               onPressed: onToggleMenu,
               icon: Icon(
