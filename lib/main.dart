@@ -1292,6 +1292,21 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     unawaited(_forgetActiveOuting());
   }
 
+  /// Takes the progress card off the map. The outing itself is untouched;
+  /// the card is only an indicator, and it can be brought back by
+  /// re-selecting the outing from its logbook.
+  void _dismissActiveOuting() {
+    if (_activeOutingId == null) {
+      return;
+    }
+    setState(() {
+      _activeOutingId = null;
+      _activeOutingKind = 'drive';
+      _activeOutingLabel = '';
+      _activeOutingStartedAt = null;
+    });
+  }
+
   Future<void> _rememberActiveOuting() async {
     final prefs = await SharedPreferences.getInstance();
     final id = _activeOutingId;
@@ -1777,6 +1792,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       onOpenTrail: _openTrail,
       onOpenSighting: _openSighting,
       onDeleteSighting: _deleteSighting,
+      onDismissProgress: _dismissActiveOuting,
       onOpenObservations: _openObservations,
       onRecordSighting: _recordSighting,
       syncing: _syncing,

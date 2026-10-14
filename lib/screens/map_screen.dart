@@ -8,6 +8,7 @@ import 'package:field_log/map/osm_tiles.dart';
 import 'package:field_log/map/maptiler_tiles.dart';
 import 'package:field_log/map/reserve_topology.dart';
 import 'package:field_log/map/route_layer.dart';
+import 'package:field_log/map/south_africa.dart';
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/map/pin_painter.dart';
 import 'package:field_log/map/pin_visual.dart';
@@ -21,27 +22,10 @@ import 'package:flutter_map/flutter_map.dart';
 // flutter_map's barrel does not re-export this, though its own source uses it.
 import 'package:latlong2/latlong.dart';
 
-/// The reserve this build knows about.
-///
-/// A placeholder until the reserve's real bounds are configured. The app must
-/// not guess a centre from the sightings it happens to hold, because a map that
-/// opens somewhere arbitrary is worse than one that opens somewhere named.
-final reserveCentre = LatLng(-1.2921, 36.8219);
-
-/// The map's zoom bounds, in one place so the controls and the options cannot
-/// disagree about how far the map can go.
-const double _minZoom = 8;
-const double _maxZoom = 18;
-
-/// Where the map opens before the device has a position fix: the reserve seen
-/// at country scale, so the first frame is always a real place rather than a
-/// hole. Once a fix lands the camera moves in to the walker.
-final fallbackCentre = LatLng(-25.7461, 28.1881);
-
-/// The zoom the map opens at before there is a fix. Six shows a country.
-const double countryZoom = 6;
-
 /// How accurate the position fix is, and when it was taken.
+
+final southAfricaCentre = LatLng(-28.5, 24.6);
+
 ///
 /// Accuracy is part of the record, so it is never hidden: a trainee who
 /// recorded something at "plus or minus 40 metres" needs to see that, not
@@ -124,6 +108,7 @@ class MapScreen extends StatefulWidget {
     this.activeOuting,
     this.subtitle,
     this.onDeleteSighting,
+    this.onDismissProgress,
     this.onOpenObservations,
     this.syncing = false,
     this.lastSyncedAt,
@@ -216,6 +201,9 @@ class MapScreen extends StatefulWidget {
   /// Removes a sighting, by local id, from whatever store owns it.
   final Future<void> Function(String localId)? onDeleteSighting;
 
+  /// Dismisses the progress card from the map without stopping the outing.
+  final VoidCallback? onDismissProgress;
+
   /// Opens the observations logbook: every record and what happened to it.
   final VoidCallback? onOpenObservations;
 
@@ -252,7 +240,7 @@ class MapScreenState extends State<MapScreen>
   /// The map camera, mirrored into state so the scale bar can redraw. The map
   /// owns these values; this is only a read-only copy for the chrome.
   double _zoom = 14;
-  LatLng _center = reserveCentre;
+  LatLng _center = southAfricaCentre;
 
   /// Whether the user has moved the camera by hand. Once true, a position fix
   /// that lands late must not yank the map back to the walker.
@@ -295,7 +283,7 @@ class MapScreenState extends State<MapScreen>
       _center = LatLng(widget.gps.latitude, widget.gps.longitude);
       _zoom = 14;
     } else {
-      _center = fallbackCentre;
+      _center = southAfricaCentre;
       _zoom = countryZoom;
     }
 
@@ -426,7 +414,7 @@ class MapScreenState extends State<MapScreen>
   /// back through [onPositionChanged], so the scale bar follows without this
   /// method touching the state directly.
   void _zoomBy(double delta) {
-    final target = (_zoom + delta).clamp(_minZoom, _maxZoom).toDouble();
+    final target = (_zoom + delta).clamp(minZoom, maxZoom).toDouble();
     if (target == _zoom) return;
     _userMoved = true;
     _mapController.move(_center, target);
@@ -495,6 +483,64 @@ class MapScreenState extends State<MapScreen>
     widget.onDropPin?.call(point);
   }
 
+  void _showPinMenu(MapPin pin) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(Insets.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.open_in_new),
+                title: const Text('Open'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  widget.onOpenSighting?.call(pin.localId);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete),
+                title: const Text('Delete'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final didConfirm = await showDialog<bool>(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Delete sighting?'),
+                        content: const Text(
+                          'This will mark the sighting as deleted. It will still appear as part of the day\'s trail.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                  if (didConfirm != true) return;
+                  widget.onDeleteSighting?.call(pin.localId);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sighting deleted')),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
@@ -512,8 +558,8 @@ class MapScreenState extends State<MapScreen>
               backgroundColor: widget.colours.inset,
               initialCenter: _center,
               initialZoom: _zoom,
-              minZoom: _minZoom,
-              maxZoom: _maxZoom,
+              minZoom: minZoom,
+              maxZoom: maxZoom,
               onPositionChanged: (camera, hasGesture) {
                 // A hand on the map is the user's choice of where to look; a
                 // late fix from didUpdateWidget must then leave them be.
@@ -573,6 +619,8 @@ class MapScreenState extends State<MapScreen>
                           onTap: widget.onOpenSighting == null
                               ? null
                               : () => widget.onOpenSighting!(pin.localId),
+                          onLongPress: () => _showPinMenu(pin),
+                          onSecondaryTap: () => _showPinMenu(pin),
                         ),
                       ),
                     // Ghost pin marker (appears on long-press)
@@ -647,7 +695,9 @@ class MapScreenState extends State<MapScreen>
           ),
           // The progress card: the time this device has walked and driven,
           // and — while an outing is running — the live indicator for it.
-          if (widget.progress != null)
+          // Only shown when an outing is actually active, so it never
+          // distracts when the user is just looking at the map.
+          if (widget.progress != null && widget.activeOuting != null)
             Positioned(
               left: 0,
               right: 0,
@@ -656,6 +706,7 @@ class MapScreenState extends State<MapScreen>
                 progress: widget.progress!,
                 colours: widget.colours,
                 activeOuting: widget.activeOuting,
+                onDismiss: widget.onDismissProgress,
               ),
             ),
           if (widget.syncing || widget.syncError != null)
@@ -784,16 +835,26 @@ class _TileLayer extends StatelessWidget {
 }
 
 class _Pin extends StatelessWidget {
-  const _Pin({required this.pin, required this.colours, this.onTap});
+  const _Pin({
+    required this.pin,
+    required this.colours,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onSecondaryTap,
+  });
 
   final MapPin pin;
   final FieldColours colours;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onSecondaryTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
+      onSecondaryTap: onSecondaryTap,
       // The tab is a shape, not an icon, so it carries its own label for a
       // screen reader rather than relying on the glyph.
       child: Semantics(
