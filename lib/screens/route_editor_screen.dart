@@ -10,8 +10,8 @@ import 'package:field_log/net/chisimba_api.dart' as chisimba;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:field_log/screens/map_screen.dart'
-    show countryZoom, fallbackCentre;
+import 'package:field_log/map/south_africa.dart'
+    show countryZoom, southAfricaCentre;
 import 'package:uuid/uuid.dart';
 
 /// Mutes a remote raster basemap so the reserve's own features read over it.
@@ -231,7 +231,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen>
         // No waypoints yet, and this editor is not told where the device is:
         // the same country view the field map opens on, rather than a preset
         // location in another country altogether.
-        : fallbackCentre;
+        : southAfricaCentre;
     final double initialZoom = _waypoints.isNotEmpty ? 14 : countryZoom;
 
     return FieldScaffold(

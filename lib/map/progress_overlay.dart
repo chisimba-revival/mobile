@@ -51,11 +51,13 @@ class ProgressOverlay extends StatefulWidget {
     required this.progress,
     required this.colours,
     this.activeOuting,
+    this.onDismiss,
   });
 
   final OutingProgress progress;
   final FieldColours colours;
   final ActiveOuting? activeOuting;
+  final VoidCallback? onDismiss;
 
   @override
   State<ProgressOverlay> createState() => _ProgressOverlayState();
@@ -213,6 +215,12 @@ class _ProgressOverlayState extends State<ProgressOverlay> {
             ),
           ),
           _stopButton(outing),
+          TextButton(
+            onPressed: () {
+              widget.onDismiss?.call();
+            },
+            child: const Text('Dismiss'),
+          ),
         ],
       ),
     );
