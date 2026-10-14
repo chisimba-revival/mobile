@@ -15,7 +15,7 @@ import 'package:field_log/map/pin_visual.dart';
 import 'package:field_log/map/progress_overlay.dart';
 import 'package:field_log/map/vector_tile_layer.dart';
 import 'package:field_log/progress/progress_summary.dart';
-import 'package:field_log/screens/map_legend_sheet.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -249,14 +249,8 @@ class MapScreenState extends State<MapScreen>
   /// Whether the fold-out menu is open.
   bool _menuOpen = false;
 
-  /// Whether the map legend is on screen.
-  bool _showLegend = false;
-
   /// Currently selected pin for distance/azimuth display, or null if none.
   MapPin? _selectedPin;
-
-  /// Next waypoint on the active route, or null if no route or at end.
-  RouteWaypoint? _nextWaypoint;
 
   /// Path to the reserve's surveyed topology archive, or null when the build
   /// shipped one that has not been copied yet — or never shipped one at all.
@@ -452,30 +446,6 @@ class MapScreenState extends State<MapScreen>
   /// Opens the legend as a sheet with per-layer switches, since that is the
   /// map shape that understands layers. The painted map below keeps the old
   /// chip panel: its features have no switches, just colours.
-  void _toggleLegend() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => MapLegendSheet(
-        layerStyles: defaultVectorLayerStyles,
-        initialVisibility: {
-          for (final name in defaultVectorLayerStyles.keys)
-            name: !_hiddenTopologyLayers.contains(name),
-        },
-        onVisibilityChanged: (name, visible) {
-          if (!mounted) return;
-          setState(() {
-            if (visible) {
-              _hiddenTopologyLayers.remove(name);
-            } else {
-              _hiddenTopologyLayers.add(name);
-            }
-          });
-        },
-      ),
-    );
-  }
-
   void _showGhostPin(LatLng point) {
     setState(() {
       _ghostPin = point;
@@ -758,8 +728,6 @@ class MapScreenState extends State<MapScreen>
             signedInAs: widget.signedInAs,
             onTapSignedInAs: widget.onTapSignedInAs,
             subtitle: widget.subtitle,
-            legendOpen: _showLegend,
-            onToggleLegend: _toggleLegend,
             menuOpen: _menuOpen,
             onToggleMenu: () => setState(() => _menuOpen = !_menuOpen),
           ),
@@ -831,7 +799,7 @@ class MapScreenState extends State<MapScreen>
               targetName:
                   _getNextWaypoint()!.label ??
                   'Waypoint ${_getNextWaypoint()!.ordinal + 1}',
-              onDismiss: () => setState(() => _nextWaypoint = null),
+              onDismiss: () {},
             ),
           _ZoomButtons(
             colours: widget.colours,
@@ -887,7 +855,6 @@ class MapScreenState extends State<MapScreen>
             onOpenObservations: widget.onOpenObservations,
             onOpenTally: widget.onOpenTally,
             onOpenSettings: widget.onOpenSettings,
-            onToggleLegend: _toggleLegend,
           ),
         ],
       ),
@@ -1163,8 +1130,6 @@ class _AppBar extends StatelessWidget {
     required this.signedInAs,
     required this.onTapSignedInAs,
     required this.subtitle,
-    required this.legendOpen,
-    required this.onToggleLegend,
     required this.menuOpen,
     required this.onToggleMenu,
   });
@@ -1172,8 +1137,6 @@ class _AppBar extends StatelessWidget {
   final String? signedInAs;
   final VoidCallback? onTapSignedInAs;
   final String? subtitle;
-  final bool legendOpen;
-  final VoidCallback onToggleLegend;
   final bool menuOpen;
   final VoidCallback onToggleMenu;
 
@@ -1221,16 +1184,6 @@ class _AppBar extends StatelessWidget {
                 onTap: onTapSignedInAs,
               ),
             _NetworkChip(online: online, colours: colours),
-            IconButton(
-              onPressed: onToggleLegend,
-              icon: Icon(
-                legendOpen ? Icons.layers_clear : Icons.layers,
-                color: legendOpen ? colours.straw : colours.ash1,
-              ),
-              tooltip: 'Legend',
-              padding: const EdgeInsets.all(Insets.xs),
-              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-            ),
             IconButton(
               onPressed: onToggleMenu,
               icon: Icon(
@@ -1467,7 +1420,6 @@ class _MapMenu extends StatelessWidget {
     required this.onOpenObservations,
     required this.onOpenTally,
     required this.onOpenSettings,
-    required this.onToggleLegend,
   });
 
   final FieldColours colours;
@@ -1479,7 +1431,6 @@ class _MapMenu extends StatelessWidget {
   final VoidCallback? onOpenObservations;
   final VoidCallback? onOpenTally;
   final VoidCallback? onOpenSettings;
-  final VoidCallback onToggleLegend;
 
   @override
   Widget build(BuildContext context) {
@@ -1513,7 +1464,6 @@ class _MapMenu extends StatelessWidget {
                     _row('Observations', onOpenObservations),
                     _row('Progress', onOpenTally),
                     _row('Settings', onOpenSettings),
-                    _row('Legend', onToggleLegend),
                   ],
                 ),
               ),

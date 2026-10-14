@@ -99,7 +99,6 @@ void main() {
       'Observations',
       'Progress',
       'Settings',
-      'Legend',
     ]) {
       expect(
         find.text(entry).hitTestable(),
