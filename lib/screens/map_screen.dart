@@ -330,6 +330,13 @@ class MapScreenState extends State<MapScreen>
         14,
       );
     }
+
+    // When the map style preset changes (from settings), sync the internal
+    // state so the layer visibility and tile provider update immediately.
+    if (oldWidget.mapStylePreset != widget.mapStylePreset) {
+      _mapStylePreset = widget.mapStylePreset;
+      _layerVisibility = _defaultLayerVisibility(_mapStylePreset);
+    }
   }
 
   /// Returns the default layer visibility for a given map style preset.
