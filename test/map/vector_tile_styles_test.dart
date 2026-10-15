@@ -1,5 +1,6 @@
 import 'package:field_log/design/tokens.dart';
 import 'package:field_log/map/vector_tile_layer.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The kinds the reserve archive actually tags its features with. The style
@@ -158,6 +159,22 @@ void main() {
       expect(
         pmTilesStyleSignature(all),
         isNot(pmTilesStyleSignature(withoutRoads)),
+      );
+    });
+
+    test('changes when only a label font field changes', () {
+      // The renderer paints the label with the whole TextStyle, so a change
+      // that leaves the colour and size alone must still invalidate the tile.
+      VectorLayerStyle withWeight(FontWeight weight) => VectorLayerStyle(
+        labelProperty: 'name',
+        labelStyle: TextStyle(fontWeight: weight),
+      );
+
+      expect(
+        pmTilesStyleSignature({'waterholes': withWeight(FontWeight.w400)}),
+        isNot(
+          pmTilesStyleSignature({'waterholes': withWeight(FontWeight.w900)}),
+        ),
       );
     });
   });

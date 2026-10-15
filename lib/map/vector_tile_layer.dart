@@ -871,9 +871,10 @@ String pmTilesStyleSignature(Map<String, VectorLayerStyle> styles) {
       ..write('\u0000')
       ..write(s.labelMinZoom)
       ..write('\u0000')
-      ..write(s.labelStyle?.color?.toARGB32() ?? '')
-      ..write('\u0000')
-      ..write(s.labelStyle?.fontSize ?? '')
+      // The whole label style, not just its colour and size: the renderer
+      // paints with every field (family, weight, spacing ...), so any of them
+      // changing has to invalidate the cached tile.
+      ..write(s.labelStyle?.toString() ?? '')
       ..write('\u0000');
   }
   return buffer.toString();
