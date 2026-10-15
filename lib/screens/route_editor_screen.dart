@@ -14,10 +14,11 @@ import 'package:field_log/map/south_africa.dart'
     show countryZoom, southAfricaCentre;
 import 'package:uuid/uuid.dart';
 
-/// Mutes a remote raster basemap so the reserve's own features read over it.
-/// Same filter and rationale as `_TileLayer._mute` in map_screen.dart: each
-/// channel is pulled 70% toward its luminance (Rec.709) then darkened to 62%.
-/// Caches are untouched; only the view is changed.
+/// Mutes the OpenStreetMap fallback so the reserve's own features — and the
+/// route drawn on top of them — read over a busy light basemap. Each channel is
+/// pulled 70% toward its luminance (Rec.709) then darkened to 62%. Caches are
+/// untouched; only the view is changed. (The field map does not dim its
+/// fallback; the route editor keeps this darker ground deliberately.)
 const ColorFilter _tileMute = ColorFilter.matrix(<double>[
   0.2783,
   0.3104,
@@ -41,9 +42,9 @@ const ColorFilter _tileMute = ColorFilter.matrix(<double>[
   0,
 ]);
 
-/// The route editor's tile layer, kept in step with the field map's: MapTiler
-/// light tiles when a key is compiled in, OpenStreetMap otherwise (dimmed so
-/// the route reads over it).
+/// The route editor's tile layer. It shares the field map's tile sources —
+/// MapTiler light tiles when a key is compiled in, OpenStreetMap otherwise —
+/// but dims the fallback ([_tileMute]) so the drawn route reads over it.
 class _RouteTiles extends StatelessWidget {
   const _RouteTiles({required this.cache});
 

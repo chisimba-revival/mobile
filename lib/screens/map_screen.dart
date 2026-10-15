@@ -110,6 +110,8 @@ class MapScreen extends StatefulWidget {
     this.onDeleteSighting,
     this.onDismissProgress,
     this.onOpenObservations,
+    this.onOpenTriage,
+    this.onSyncNow,
     this.syncing = false,
     this.lastSyncedAt,
     this.syncError,
@@ -206,6 +208,12 @@ class MapScreen extends StatefulWidget {
 
   /// Opens the observations logbook: every record and what happened to it.
   final VoidCallback? onOpenObservations;
+
+  /// Opens the triage screen, summarising what is waiting on the trainee.
+  final VoidCallback? onOpenTriage;
+
+  /// Sync now action. Starts a sync pass from the status rail.
+  final VoidCallback? onSyncNow;
 
   /// Whether a sync pass is running right now.
   final bool syncing;
@@ -1444,6 +1452,7 @@ class _MapMenu extends StatelessWidget {
     required this.onOpenDrive,
     required this.onOpenTrail,
     required this.onOpenObservations,
+    this.onOpenTriage,
     required this.onOpenTally,
     required this.onOpenSettings,
   });
@@ -1455,6 +1464,7 @@ class _MapMenu extends StatelessWidget {
   final VoidCallback? onOpenDrive;
   final VoidCallback? onOpenTrail;
   final VoidCallback? onOpenObservations;
+  final VoidCallback? onOpenTriage;
   final VoidCallback? onOpenTally;
   final VoidCallback? onOpenSettings;
 
@@ -1488,6 +1498,7 @@ class _MapMenu extends StatelessWidget {
                     _row('Drive', onOpenDrive),
                     _row('Trail', onOpenTrail),
                     _row('Observations', onOpenObservations),
+                    _row('Triage', onOpenTriage),
                     _row('Progress', onOpenTally),
                     _row('Settings', onOpenSettings),
                   ],

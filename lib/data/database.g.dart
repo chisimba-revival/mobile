@@ -5962,9 +5962,6 @@ class $PlannedRoutesTable extends PlannedRoutes
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES drives (local_id) ON DELETE CASCADE',
-    ),
   );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
@@ -6195,6 +6192,12 @@ class PlannedRoute extends DataClass implements Insertable<PlannedRoute> {
   final String? serverId;
 
   /// The outing this route belongs to.
+  ///
+  /// This is an outing id, not a drives foreign key: an outing the service
+  /// lists lives only in reference data, with no [Drives] row on the client,
+  /// and a route needs an owner id to hang on rather than the owner's row to
+  /// exist locally. Keying it to [Drives] rejected every route planned for a
+  /// service-listed outing.
   final String outingId;
 
   /// When the route was created locally.
@@ -9617,13 +9620,6 @@ abstract class _$FieldLogDatabase extends GeneratedDatabase {
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
-        'drives',
-        limitUpdateKind: UpdateKind.delete,
-      ),
-      result: [TableUpdate('planned_routes', kind: UpdateKind.delete)],
-    ),
-    WritePropagation(
-      on: TableUpdateQuery.onTableName(
         'planned_routes',
         limitUpdateKind: UpdateKind.delete,
       ),
@@ -10387,31 +10383,6 @@ typedef $$DrivesTableUpdateCompanionBuilder = DrivesCompanion Function({
   Value<int> rowid,
 });
 
-final class $$DrivesTableReferences
-    extends BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow> {
-  $$DrivesTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static MultiTypedResultKey<$PlannedRoutesTable, List<PlannedRoute>>
-  _plannedRoutesRefsTable(_$FieldLogDatabase db) =>
-      MultiTypedResultKey.fromTable(
-        db.plannedRoutes,
-        aliasName: 'drives__local_id__planned_routes__outing_id',
-      );
-
-  $$PlannedRoutesTableProcessedTableManager get plannedRoutesRefs {
-    final manager = $$PlannedRoutesTableTableManager($_db, $_db.plannedRoutes)
-        .filter(
-          (f) =>
-              f.outingId.localId.sqlEquals($_itemColumn<String>('local_id')!),
-        );
-
-    final cache = $_typedResult.readTableOrNull(_plannedRoutesRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-}
-
 class $$DrivesTableFilterComposer
     extends Composer<_$FieldLogDatabase, $DrivesTable> {
   $$DrivesTableFilterComposer({
@@ -10540,31 +10511,6 @@ class $$DrivesTableFilterComposer
     column: $table.notes,
     builder: (column) => ColumnFilters(column),
   );
-
-  Expression<bool> plannedRoutesRefs(
-    Expression<bool> Function($$PlannedRoutesTableFilterComposer f) f,
-  ) {
-    final $$PlannedRoutesTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.localId,
-      referencedTable: $db.plannedRoutes,
-      getReferencedColumn: (t) => t.outingId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PlannedRoutesTableFilterComposer(
-            $db: $db,
-            $table: $db.plannedRoutes,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 }
 
 class $$DrivesTableOrderingComposer
@@ -10801,31 +10747,6 @@ class $$DrivesTableAnnotationComposer
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
-
-  Expression<T> plannedRoutesRefs<T extends Object>(
-    Expression<T> Function($$PlannedRoutesTableAnnotationComposer a) f,
-  ) {
-    final $$PlannedRoutesTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.localId,
-      referencedTable: $db.plannedRoutes,
-      getReferencedColumn: (t) => t.outingId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$PlannedRoutesTableAnnotationComposer(
-            $db: $db,
-            $table: $db.plannedRoutes,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
 }
 
 class $$DrivesTableTableManager
@@ -10839,9 +10760,12 @@ class $$DrivesTableTableManager
           $$DrivesTableAnnotationComposer,
           $$DrivesTableCreateCompanionBuilder,
           $$DrivesTableUpdateCompanionBuilder,
-          (DriveRow, $$DrivesTableReferences),
+          (
+            DriveRow,
+            BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow>,
+          ),
           DriveRow,
-          PrefetchHooks Function({bool plannedRoutesRefs})
+          PrefetchHooks Function()
         > {
   $$DrivesTableTableManager(_$FieldLogDatabase db, $DrivesTable table)
     : super(
@@ -10966,43 +10890,15 @@ class $$DrivesTableTableManager
               .map(
                 (e) => (
                   e.readTable<$DrivesTable, DriveRow>(table),
-                  $$DrivesTableReferences(db, table, e),
+                  BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow>(
+                    db,
+                    table,
+                    e,
+                  ),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({plannedRoutesRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (plannedRoutesRefs) db.plannedRoutes,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (plannedRoutesRefs)
-                    await $_getPrefetchedData<
-                      DriveRow,
-                      $DrivesTable,
-                      PlannedRoute
-                    >(
-                      currentTable: table,
-                      referencedTable: $$DrivesTableReferences
-                          ._plannedRoutesRefsTable(db),
-                      managerFromTypedResult: (p0) => $$DrivesTableReferences(
-                        db,
-                        table,
-                        p0,
-                      ).plannedRoutesRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where(
-                            (e) => e.outingId == item.localId,
-                          ),
-                      typedResults: items,
-                    ),
-                ];
-              },
-            );
-          },
+          prefetchHooksCallback: null,
         ),
       );
 }
@@ -11017,9 +10913,9 @@ typedef $$DrivesTableProcessedTableManager =
       $$DrivesTableAnnotationComposer,
       $$DrivesTableCreateCompanionBuilder,
       $$DrivesTableUpdateCompanionBuilder,
-      (DriveRow, $$DrivesTableReferences),
+      (DriveRow, BaseReferences<_$FieldLogDatabase, $DrivesTable, DriveRow>),
       DriveRow,
-      PrefetchHooks Function({bool plannedRoutesRefs})
+      PrefetchHooks Function()
     >;
 typedef $$TrailLogsTableCreateCompanionBuilder = TrailLogsCompanion Function({
   required String localId,
@@ -12561,23 +12457,6 @@ final class $$PlannedRoutesTableReferences
     super.$_typedResult,
   );
 
-  static $DrivesTable _outingIdTable(_$FieldLogDatabase db) =>
-      db.drives.createAlias('planned_routes__outing_id__drives__local_id');
-
-  $$DrivesTableProcessedTableManager get outingId {
-    final $_column = $_itemColumn<String>('outing_id')!;
-
-    final manager = $$DrivesTableTableManager(
-      $_db,
-      $_db.drives,
-    ).filter((f) => f.localId.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_outingIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
   static MultiTypedResultKey<$RouteWaypointsTable, List<RouteWaypoint>>
   _routeWaypointsRefsTable(_$FieldLogDatabase db) =>
       MultiTypedResultKey.fromTable(
@@ -12617,6 +12496,11 @@ class $$PlannedRoutesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get outingId => $composableBuilder(
+    column: $table.outingId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
@@ -12646,29 +12530,6 @@ class $$PlannedRoutesTableFilterComposer
     column: $table.deletedAt,
     builder: (column) => ColumnFilters(column),
   );
-
-  $$DrivesTableFilterComposer get outingId {
-    final $$DrivesTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.outingId,
-      referencedTable: $db.drives,
-      getReferencedColumn: (t) => t.localId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$DrivesTableFilterComposer(
-            $db: $db,
-            $table: $db.drives,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 
   Expression<bool> routeWaypointsRefs(
     Expression<bool> Function($$RouteWaypointsTableFilterComposer f) f,
@@ -12715,6 +12576,11 @@ class $$PlannedRoutesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get outingId => $composableBuilder(
+    column: $table.outingId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -12744,29 +12610,6 @@ class $$PlannedRoutesTableOrderingComposer
     column: $table.deletedAt,
     builder: (column) => ColumnOrderings(column),
   );
-
-  $$DrivesTableOrderingComposer get outingId {
-    final $$DrivesTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.outingId,
-      referencedTable: $db.drives,
-      getReferencedColumn: (t) => t.localId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$DrivesTableOrderingComposer(
-            $db: $db,
-            $table: $db.drives,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 }
 
 class $$PlannedRoutesTableAnnotationComposer
@@ -12783,6 +12626,9 @@ class $$PlannedRoutesTableAnnotationComposer
 
   GeneratedColumn<String> get serverId =>
       $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<String> get outingId =>
+      $composableBuilder(column: $table.outingId, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -12805,29 +12651,6 @@ class $$PlannedRoutesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
-
-  $$DrivesTableAnnotationComposer get outingId {
-    final $$DrivesTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.outingId,
-      referencedTable: $db.drives,
-      getReferencedColumn: (t) => t.localId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$DrivesTableAnnotationComposer(
-            $db: $db,
-            $table: $db.drives,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
 
   Expression<T> routeWaypointsRefs<T extends Object>(
     Expression<T> Function($$RouteWaypointsTableAnnotationComposer a) f,
@@ -12868,7 +12691,7 @@ class $$PlannedRoutesTableTableManager
           $$PlannedRoutesTableUpdateCompanionBuilder,
           (PlannedRoute, $$PlannedRoutesTableReferences),
           PlannedRoute,
-          PrefetchHooks Function({bool outingId, bool routeWaypointsRefs})
+          PrefetchHooks Function({bool routeWaypointsRefs})
         > {
   $$PlannedRoutesTableTableManager(
     _$FieldLogDatabase db,
@@ -12939,70 +12762,40 @@ class $$PlannedRoutesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback:
-              ({outingId = false, routeWaypointsRefs = false}) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [
-                    if (routeWaypointsRefs) db.routeWaypoints,
-                  ],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (outingId) {
-                          state = state.withJoin(
-                            currentTable: table,
-                            currentColumn: table.outingId,
-                            referencedTable: $$PlannedRoutesTableReferences
-                                ._outingIdTable(db),
-                            referencedColumn: $$PlannedRoutesTableReferences
-                                ._outingIdTable(db)
-                                .localId,
-                          ) as T;
-                        }
-
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [
-                      if (routeWaypointsRefs)
-                        await $_getPrefetchedData<
-                          PlannedRoute,
-                          $PlannedRoutesTable,
-                          RouteWaypoint
-                        >(
-                          currentTable: table,
-                          referencedTable: $$PlannedRoutesTableReferences
-                              ._routeWaypointsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$PlannedRoutesTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).routeWaypointsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.routeId == item.localId,
-                              ),
-                          typedResults: items,
-                        ),
-                    ];
-                  },
-                );
+          prefetchHooksCallback: ({routeWaypointsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (routeWaypointsRefs) db.routeWaypoints,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (routeWaypointsRefs)
+                    await $_getPrefetchedData<
+                      PlannedRoute,
+                      $PlannedRoutesTable,
+                      RouteWaypoint
+                    >(
+                      currentTable: table,
+                      referencedTable: $$PlannedRoutesTableReferences
+                          ._routeWaypointsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$PlannedRoutesTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).routeWaypointsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.routeId == item.localId,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
               },
+            );
+          },
         ),
       );
 }
@@ -13019,7 +12812,7 @@ typedef $$PlannedRoutesTableProcessedTableManager =
       $$PlannedRoutesTableUpdateCompanionBuilder,
       (PlannedRoute, $$PlannedRoutesTableReferences),
       PlannedRoute,
-      PrefetchHooks Function({bool outingId, bool routeWaypointsRefs})
+      PrefetchHooks Function({bool routeWaypointsRefs})
     >;
 typedef $$RouteWaypointsTableCreateCompanionBuilder =
     RouteWaypointsCompanion Function({

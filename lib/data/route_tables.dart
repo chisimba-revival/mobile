@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:field_log/data/tables.dart';
 
 /// A planned route for an outing.
 ///
@@ -19,8 +18,13 @@ class PlannedRoutes extends Table {
   TextColumn get serverId => text().nullable()();
 
   /// The outing this route belongs to.
-  TextColumn get outingId =>
-      text().references(Drives, #localId, onDelete: KeyAction.cascade)();
+  ///
+  /// This is an outing id, not a drives foreign key: an outing the service
+  /// lists lives only in reference data, with no [Drives] row on the client,
+  /// and a route needs an owner id to hang on rather than the owner's row to
+  /// exist locally. Keying it to [Drives] rejected every route planned for a
+  /// service-listed outing.
+  TextColumn get outingId => text()();
 
   /// When the route was created locally.
   DateTimeColumn get createdAt => dateTime()();

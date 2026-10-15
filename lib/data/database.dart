@@ -54,7 +54,7 @@ class FieldLogDatabase extends _$FieldLogDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -108,6 +108,29 @@ class FieldLogDatabase extends _$FieldLogDatabase {
 
         await m.createTable(dangerousGameEncounters);
       }
+      // Schema 5 drops the foreign key on planned_routes.outing_id. A route can
+      // be planned for an outing the client has no drives row for — an outing
+      // the service lists lives only in reference data — and the key rejected
+      // every such save with a foreign-key failure. The route still needs an
+      // owner id; it does not need the owner's row to exist locally. The table
+      // is re-created without the constraint (SQLite cannot drop one in place).
+      if (from < 5) {
+        // 8a54c9b added revision/deleted_at (planned_routes) and
+        // revision/is_tombstone/deleted_at (route_waypoints) to the table
+        // classes without a schema bump, so databases created before that commit
+        // may be missing these columns entirely. Add whatever is missing before
+        // rebuilding planned_routes, which copies every current column.
+        await _ensureColumns(m, plannedRoutes, [
+          plannedRoutes.revision,
+          plannedRoutes.deletedAt,
+        ]);
+        await _ensureColumns(m, routeWaypoints, [
+          routeWaypoints.revision,
+          routeWaypoints.isTombstone,
+          routeWaypoints.deletedAt,
+        ]);
+        await m.alterTable(TableMigration(plannedRoutes));
+      }
     },
     beforeOpen: (details) async {
       // A client that has been offline long enough to receive a resync-required
@@ -131,5 +154,25 @@ class FieldLogDatabase extends _$FieldLogDatabase {
     return LazyDatabase(() async {
       return NativeDatabase.createInBackground(File(fileName));
     });
+  }
+
+  /// Adds each column that [table] is missing, comparing against PRAGMA
+  /// table_info. Drift's generated schema is the source of truth; this
+  /// reconciles databases created before a column was added to a table class
+  /// without a migration.
+  Future<void> _ensureColumns(
+    Migrator m,
+    TableInfo table,
+    Iterable<GeneratedColumn> columns,
+  ) async {
+    final existing = await customSelect(
+      'PRAGMA table_info(${table.actualTableName})',
+    ).get();
+    final names = existing.map((r) => r.read<String>('name')).toSet();
+    for (final column in columns) {
+      if (!names.contains(column.name)) {
+        await m.addColumn(table, column);
+      }
+    }
   }
 }

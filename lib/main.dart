@@ -23,7 +23,6 @@ import 'package:field_log/field/field_card_screen.dart';
 import 'package:field_log/map/pin_visual.dart';
 import 'package:field_log/map/progress_overlay.dart';
 import 'package:field_log/progress/progress_loader.dart';
-import 'package:field_log/map/maptiler_tiles.dart';
 import 'package:field_log/models/sync_operation.dart' as model;
 import 'package:field_log/map/tile_cache.dart';
 import 'package:field_log/models/geo_point.dart';
@@ -32,6 +31,7 @@ import 'package:field_log/net/connectivity_watcher.dart';
 import 'package:field_log/net/session_store.dart';
 import 'package:field_log/screens/map_screen.dart';
 import 'package:field_log/screens/observations_screen.dart';
+import 'package:field_log/screens/triage_screen.dart';
 import 'package:field_log/screens/trail_logbook_screen.dart';
 import 'package:field_log/screens/drive_logbook_screen.dart';
 import 'package:field_log/screens/pin_detail.dart';
@@ -1499,6 +1499,22 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     );
   }
 
+  /// Opens the triage screen, summarising what is waiting on the trainee.
+  Future<void> _openTriage() async {
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TriageScreen(
+          database: widget.database,
+          onOpenSighting: _openSighting,
+          onOpenLedger: _openLedger,
+        ),
+      ),
+    );
+  }
+
   /// Reads every record that still exists into the summaries the logbook lists.
   ///
   /// Deleted rows are dropped here so the logbook only ever speaks of records
@@ -1759,12 +1775,11 @@ class _FieldLogHomeState extends State<FieldLogHome> {
   /// The palette the map (chrome and reserve symbols) should use.
   ///
   /// Deliberately separate from the app theme: the map's ground colour is
-  /// decided by its basemap, not by the app's light/dark setting. A loaded
-  /// MapTiler basemap is a light, real-world map, so the map takes the
-  /// sunlight palette to stay readable on it; offline — or on the dark OSM
-  /// fallback — the ground is the dark reserve painting, so the map goes dark
-  /// again. The high-contrast and sepia variants override that in both cases,
-  /// so the map tracks the user's chosen appearance.
+  /// decided by its basemap, not by the app's light/dark setting. Both the
+  /// loaded MapTiler basemap and the keyless OSM fallback are light maps, so
+  /// the map takes the sunlight palette — darker ink over light tiles. The
+  /// high-contrast and sepia variants override that, so the map tracks the
+  /// user's chosen appearance.
   FieldColours _mapColours() {
     switch (widget.currentThemeVariant) {
       case ThemeVariant.highContrast:
@@ -1772,9 +1787,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       case ThemeVariant.sepia:
         return FieldColours.sepia;
       case ThemeVariant.standard:
-        return maptilerEnabled && _status.hasTransport
-            ? FieldColours.sunlight
-            : FieldColours.dark;
+        return FieldColours.sunlight;
     }
   }
 
@@ -1822,6 +1835,7 @@ class _FieldLogHomeState extends State<FieldLogHome> {
       onDeleteSighting: _deleteSighting,
       onDismissProgress: _dismissActiveOuting,
       onOpenObservations: _openObservations,
+      onOpenTriage: _openTriage,
       onRecordSighting: _recordSighting,
       syncing: _syncing,
       lastSyncedAt: _lastSyncedAt,
