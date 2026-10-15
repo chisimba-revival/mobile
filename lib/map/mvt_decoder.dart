@@ -137,12 +137,12 @@ MvtValue _decodeValue(Uint8List bytes) {
         if (sub.length >= 8) {
           d = ByteData.sublistView(sub, 0, 8).getFloat64(0, Endian.little);
         }
-      case 5: // int64
-      case 6: // uint64
+      case 4: // int64
+      case 5: // uint64
         i = value;
-      case 7: // sint64 (zigzag)
+      case 6: // sint64 (zigzag)
         i = _zigzag(value ?? 0);
-      case 8:
+      case 7: // bool
         b = value != 0;
     }
   });
