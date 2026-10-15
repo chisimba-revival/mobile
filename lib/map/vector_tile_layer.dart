@@ -42,80 +42,114 @@ class VectorLayerStyle {
   final int labelMinZoom;
 }
 
-/// Default layer styles matching the reserve palette from the prototype.
+/// The reserve's map symbols, built from the active design tokens.
 ///
-/// These styles define how each vector tile layer should be rendered.
-/// The layer names match the expected MVT layer names from the PMTiles export.
-Map<String, VectorLayerStyle> get defaultVectorLayerStyles => {
-  // Reserve boundary
-  'boundary': VectorLayerStyle(
-    fillColor: const Color(0xFF3D352B), // acaciaBark
-    fillOpacity: 0.1,
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 2.0,
-    minZoom: 8,
-    maxZoom: 18,
-  ),
+/// The archive tags every feature with a `kind` — boundary, contours, roads,
+/// waterholes, acacia — so the keys here are those kinds (plus the synthetic
+/// `contours_index` for the heavier index lines). Everything adapts to the
+/// app's settings rather than being fixed:
+///
+/// * [colours] supplies every colour, so the light/dark appearance and the
+///   high-contrast and sepia variants all carry through to the map.
+/// * [density] scales the stroke weights and point sizes.
+/// * [preset] decides what the map leans on: survey on the ground (boundary
+///   and contours), navigation on the ways through it (roads and water),
+///   field on the habitat (vegetation and water).
+Map<String, VectorLayerStyle> reserveVectorStyles({
+  required FieldColours colours,
+  Density density = Density.comfortable,
+  MapStylePreset preset = MapStylePreset.field,
+}) {
+  final scale = density.scale;
+  double w(double base) => base * scale;
 
-  // Roads
-  'roads': VectorLayerStyle(
-    strokeColor: const Color(0xFF6B5B4D), // dryGrass
-    strokeWidth: 1.5,
-    minZoom: 10,
-    maxZoom: 18,
-  ),
+  final survey = preset == MapStylePreset.survey;
+  final navigation = preset == MapStylePreset.navigation;
 
-  // Waterholes (points)
-  'waterholes': VectorLayerStyle(
-    fillColor: const Color(0xFFF5C542), // dawnGold
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 1.5,
-    minZoom: 10,
-    maxZoom: 18,
-    labelProperty: 'name',
-    labelStyle: const TextStyle(
-      fontFamily: 'LibreBaskerville',
-      fontSize: 10,
-      fontWeight: FontWeight.w600,
-      color: Color(0xFF1A1510), // canopyText
+  // Labels always use a dark ink: the renderer paints a light halo behind
+  // them, so the contrast comes from the halo and works on light or dark
+  // ground alike. `inkOn` would tie the ink to the palette and lose that.
+  const labelInk = Color(0xFF1A1510);
+
+  return {
+    // Reserve boundary — the reference outline, strongest under survey.
+    'boundary': VectorLayerStyle(
+      fillColor: colours.straw,
+      fillOpacity: 0.06,
+      strokeColor: survey ? colours.bone : colours.ash1,
+      strokeWidth: w(survey ? 3.0 : 2.4),
+      minZoom: 5,
+      maxZoom: 18,
     ),
-    labelMinZoom: 12,
-  ),
 
-  // Acacia stands
-  'acacia': VectorLayerStyle(
-    fillColor: const Color(0xFF6B5B4D), // dryGrass
-    fillOpacity: 0.15,
-    minZoom: 10,
-    maxZoom: 18,
-  ),
-
-  // Contours (10m)
-  'contours': VectorLayerStyle(
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 0.5,
-    strokeOpacity: 0.3,
-    minZoom: 12,
-    maxZoom: 18,
-  ),
-
-  // Index contours (50m) with labels
-  'contours_index': VectorLayerStyle(
-    strokeColor: const Color(0xFF3D352B), // acaciaBark
-    strokeWidth: 1.0,
-    strokeOpacity: 0.5,
-    minZoom: 10,
-    maxZoom: 18,
-    labelProperty: 'elevation',
-    labelStyle: const TextStyle(
-      fontFamily: 'LibreBaskerville',
-      fontSize: 9,
-      fontWeight: FontWeight.w500,
-      color: Color(0xFF3D352B), // acaciaBark
+    // Roads — the ways through the reserve, strongest under navigation.
+    'roads': VectorLayerStyle(
+      strokeColor: navigation ? colours.bone : colours.ash2,
+      strokeWidth: w(navigation ? 2.6 : 2.0),
+      minZoom: navigation ? 6 : 7,
+      maxZoom: 18,
     ),
-    labelMinZoom: 12,
-  ),
-};
+
+    // Waterholes (points) with their names.
+    'waterholes': VectorLayerStyle(
+      fillColor: colours.water,
+      strokeColor: colours.bone,
+      strokeWidth: w(1.5),
+      minZoom: 6,
+      maxZoom: 18,
+      labelProperty: 'name',
+      labelStyle: const TextStyle(
+        fontFamily: 'LibreBaskerville',
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: labelInk,
+      ),
+      labelMinZoom: 12,
+    ),
+
+    // Acacia stands — the habitat layer, strongest under field.
+    'acacia': VectorLayerStyle(
+      fillColor: colours.moss,
+      fillOpacity: preset == MapStylePreset.field ? 0.24 : 0.14,
+      strokeColor: colours.moss,
+      strokeWidth: w(1.0),
+      strokeOpacity: 0.7,
+      minZoom: 6,
+      maxZoom: 18,
+    ),
+
+    // Intermediate contours (10m).
+    'contours': VectorLayerStyle(
+      strokeColor: colours.contour,
+      strokeWidth: w(0.6),
+      strokeOpacity: survey ? 0.6 : 0.4,
+      minZoom: survey ? 9 : 11,
+      maxZoom: 18,
+    ),
+
+    // Index contours (50m) with elevation labels.
+    'contours_index': VectorLayerStyle(
+      strokeColor: colours.contour,
+      strokeWidth: w(1.2),
+      strokeOpacity: 0.85,
+      minZoom: 9,
+      maxZoom: 18,
+      labelProperty: 'elevation',
+      labelStyle: const TextStyle(
+        fontFamily: 'LibreBaskerville',
+        fontSize: 9,
+        fontWeight: FontWeight.w500,
+        color: labelInk,
+      ),
+      labelMinZoom: 12,
+    ),
+  };
+}
+
+/// The reserve's default symbols for callers with no theme context (the
+/// painted fallback and legend swatches), expressed in the dark palette.
+Map<String, VectorLayerStyle> get defaultVectorLayerStyles =>
+    reserveVectorStyles(colours: FieldColours.dark);
 
 /// A vector tile layer for reserve features (boundaries, roads, water, vegetation, contours).
 ///
@@ -803,17 +837,60 @@ class _PmTilesVectorLayerState extends State<PmTilesVectorLayer> {
   }
 }
 
+/// A stable fingerprint of a style map, for the tile image cache.
+///
+/// Flutter keys decoded images by [ImageProvider] equality, so the styles have
+/// to be part of that equality: otherwise a palette, density, preset or
+/// visibility change would keep serving the tiles drawn with the old styles.
+/// The values are joined in sorted key order so map ordering cannot change the
+/// fingerprint.
+@visibleForTesting
+String pmTilesStyleSignature(Map<String, VectorLayerStyle> styles) {
+  final keys = styles.keys.toList()..sort();
+  final buffer = StringBuffer();
+  for (final key in keys) {
+    final s = styles[key]!;
+    buffer
+      ..write(key)
+      ..write('\u0000')
+      ..write(s.fillColor?.toARGB32() ?? '')
+      ..write('\u0000')
+      ..write(s.strokeColor?.toARGB32() ?? '')
+      ..write('\u0000')
+      ..write(s.strokeWidth)
+      ..write('\u0000')
+      ..write(s.fillOpacity)
+      ..write('\u0000')
+      ..write(s.strokeOpacity)
+      ..write('\u0000')
+      ..write(s.minZoom)
+      ..write('\u0000')
+      ..write(s.maxZoom)
+      ..write('\u0000')
+      ..write(s.labelProperty ?? '')
+      ..write('\u0000')
+      ..write(s.labelMinZoom)
+      ..write('\u0000')
+      ..write(s.labelStyle?.color?.toARGB32() ?? '')
+      ..write('\u0000')
+      ..write(s.labelStyle?.fontSize ?? '')
+      ..write('\u0000');
+  }
+  return buffer.toString();
+}
+
 /// TileProvider that reads tiles from a PMTiles archive.
 class _PmTilesProvider extends TileProvider {
   _PmTilesProvider({
     required this.archive,
     required this.maxZoom,
     required this.layerStyles,
-  });
+  }) : styleSignature = pmTilesStyleSignature(layerStyles);
 
   final PmTilesArchive archive;
   final int maxZoom;
   final Map<String, VectorLayerStyle> layerStyles;
+  final String styleSignature;
 
   @override
   ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
@@ -821,6 +898,7 @@ class _PmTilesProvider extends TileProvider {
       archive: archive,
       coordinates: coordinates,
       layerStyles: layerStyles,
+      styleSignature: styleSignature,
     );
   }
 }
@@ -831,11 +909,13 @@ class _PmTilesImage extends ImageProvider<_PmTilesImage> {
     required this.archive,
     required this.coordinates,
     required this.layerStyles,
+    required this.styleSignature,
   });
 
   final PmTilesArchive archive;
   final TileCoordinates coordinates;
   final Map<String, VectorLayerStyle> layerStyles;
+  final String styleSignature;
 
   @override
   Future<_PmTilesImage> obtainKey(ImageConfiguration configuration) {
@@ -888,10 +968,11 @@ class _PmTilesImage extends ImageProvider<_PmTilesImage> {
   bool operator ==(Object other) =>
       other is _PmTilesImage &&
       other.archive == archive &&
-      other.coordinates == coordinates;
+      other.coordinates == coordinates &&
+      other.styleSignature == styleSignature;
 
   @override
-  int get hashCode => Object.hash(archive, coordinates);
+  int get hashCode => Object.hash(archive, coordinates, styleSignature);
 }
 
 /// A custom painter that renders reserve vector features.

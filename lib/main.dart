@@ -1756,20 +1756,37 @@ class _FieldLogHomeState extends State<FieldLogHome> {
     await _read();
   }
 
+  /// The palette the map (chrome and reserve symbols) should use.
+  ///
+  /// Deliberately separate from the app theme: the map's ground colour is
+  /// decided by its basemap, not by the app's light/dark setting. A loaded
+  /// MapTiler basemap is a light, real-world map, so the map takes the
+  /// sunlight palette to stay readable on it; offline — or on the dark OSM
+  /// fallback — the ground is the dark reserve painting, so the map goes dark
+  /// again. The high-contrast and sepia variants override that in both cases,
+  /// so the map tracks the user's chosen appearance.
+  FieldColours _mapColours() {
+    switch (widget.currentThemeVariant) {
+      case ThemeVariant.highContrast:
+        return FieldColours.highContrast;
+      case ThemeVariant.sepia:
+        return FieldColours.sepia;
+      case ThemeVariant.standard:
+        return maptilerEnabled && _status.hasTransport
+            ? FieldColours.sunlight
+            : FieldColours.dark;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final map = MapScreen(
       key: _mapKey,
       pins: _pins,
       queuedCount: _queued,
-      // The basemap decides the palette, not the other way round. A loaded
-      // MapTiler basemap is a light, real-world map, so the chrome and the
-      // reserve's symbols take the sunlight palette to stay readable on it.
-      // Offline — or on the OSM fallback — the ground is the dark reserve
-      // painting, so the chrome goes dark again.
-      colours: maptilerEnabled && _status.hasTransport
-          ? FieldColours.sunlight
-          : FieldColours.dark,
+      // The basemap decides the palette, not the other way round. See
+      // [_mapColours].
+      colours: _mapColours(),
       online: _status.hasTransport,
       signedInAs: _user?.shortName,
       onTapSignedInAs: _user == null ? _openSignIn : null,

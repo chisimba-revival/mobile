@@ -436,12 +436,18 @@ class MapScreenState extends State<MapScreen>
     _mapController.move(_center, target);
   }
 
-  /// The topology layers the user has left switched on. Passing a shorter map
-  /// than the defaults is how a layer is turned off: the provider skips any
-  /// layer it has no style for.
-  Map<String, VectorLayerStyle> get _visibleTopologyStyles {
+  /// The topology layers the user has left switched on, styled for the active
+  /// map style, palette (appearance/variant) and density. Passing a shorter
+  /// map than the defaults is how a layer is turned off: the provider skips
+  /// any layer it has no style for.
+  Map<String, VectorLayerStyle> _visibleTopologyStyles(BuildContext context) {
+    final styles = reserveVectorStyles(
+      colours: widget.colours,
+      density: Theme.of(context).extension<Density>() ?? Density.comfortable,
+      preset: _mapStylePreset,
+    );
     return {
-      for (final entry in defaultVectorLayerStyles.entries)
+      for (final entry in styles.entries)
         if (!_hiddenTopologyLayers.contains(entry.key)) entry.key: entry.value,
     };
   }
@@ -646,7 +652,7 @@ class MapScreenState extends State<MapScreen>
                   archivePath: _topologyPath!,
                   // The archive is built to z14; beyond that its tiles stop.
                   maxZoom: 14,
-                  layerStyles: _visibleTopologyStyles,
+                  layerStyles: _visibleTopologyStyles(context),
                 )
               else if (_layerVisibility['topology'] ?? true)
                 _VectorLayer(
