@@ -287,4 +287,41 @@ void main() {
     expect(find.bySemanticsLabel('Scale bar, 500 m'), findsOneWidget);
     semantics.dispose();
   });
+
+  testWidgets('the layers panel lists only the kinds the reserve draws', (
+    tester,
+  ) async {
+    await pumpMap(tester);
+
+    // The panel is folded away until the layers button opens it.
+    await tester.tap(find.byIcon(Icons.layers));
+    await tester.pumpAndSettle();
+
+    // One switch per kind in the archive; these are the names the renderer
+    // styles, so each switch really turns something on and off.
+    for (final label in const [
+      'Reserve Boundary',
+      'Roads & Tracks',
+      'Waterholes',
+      'Acacia Stands',
+      'Contours (10 m)',
+      'Index Contours (50 m)',
+    ]) {
+      expect(
+        find.text(label),
+        findsOneWidget,
+        reason: '$label should be listed',
+      );
+    }
+
+    // Names the archive never emits must not appear: their switches would be
+    // switches to nowhere.
+    for (final dead in const [
+      'Management Blocks',
+      'Main Roads (Gravel/Tar)',
+      'Airstrips',
+    ]) {
+      expect(find.text(dead), findsNothing, reason: '$dead should not appear');
+    }
+  });
 }
