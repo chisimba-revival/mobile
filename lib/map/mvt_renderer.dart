@@ -27,10 +27,29 @@ Future<ui.Image> renderMvtTile({
   final canvas = Canvas(recorder);
 
   for (final layer in layers) {
-    final style = styles[layer.name];
-    if (style == null) continue;
-    if (zoom < style.minZoom || zoom > style.maxZoom) continue;
-    _paintLayer(canvas, layer, style, zoom, pixelSize);
+    final layerStyle = styles[layer.name];
+    final scale = pixelSize / layer.extent;
+
+    // Geometry is drawn in extent space (scaled once per layer). Labels are
+    // drawn afterwards in pixel space so text stays upright and un-scaled.
+    canvas.save();
+    canvas.scale(scale, scale);
+    for (final feature in layer.features) {
+      final style = _styleFor(styles, layer, feature) ?? layerStyle;
+      if (style == null) continue;
+      if (zoom < style.minZoom || zoom > style.maxZoom) continue;
+      _paintFeature(canvas, feature, style, layer.extent);
+    }
+    canvas.restore();
+
+    for (final feature in layer.features) {
+      final style = _styleFor(styles, layer, feature) ?? layerStyle;
+      if (style == null) continue;
+      if (zoom < style.minZoom || zoom > style.maxZoom) continue;
+      if (zoom >= style.labelMinZoom && style.labelProperty != null) {
+        _paintFeatureLabel(canvas, layer, feature, style, pixelSize);
+      }
+    }
   }
 
   final picture = recorder.endRecording();
@@ -43,35 +62,48 @@ Future<ui.Image> renderMvtTile({
 /// gives sharp rendering on 1x and 2x displays.
 const double kMvtTilePixelSize = 512;
 
-void _paintLayer(
+/// Draws one feature's geometry using [style].
+void _paintFeature(
   Canvas canvas,
-  MvtLayer layer,
+  MvtFeature feature,
   VectorLayerStyle style,
-  int zoom,
-  double pixelSize,
+  int extent,
 ) {
-  final scale = pixelSize / layer.extent;
-  canvas.save();
-  canvas.scale(scale, scale);
-
-  for (final feature in layer.features) {
-    switch (feature.type) {
-      case MvtGeometryType.polygon:
-        _paintPolygon(canvas, feature, style, layer.extent);
-      case MvtGeometryType.lineString:
-        _paintLine(canvas, feature, style, layer.extent);
-      case MvtGeometryType.point:
-        _paintPoint(canvas, feature, style, layer.extent);
-      case MvtGeometryType.unknown:
-        break;
-    }
+  switch (feature.type) {
+    case MvtGeometryType.polygon:
+      _paintPolygon(canvas, feature, style, extent);
+    case MvtGeometryType.lineString:
+      _paintLine(canvas, feature, style, extent);
+    case MvtGeometryType.point:
+      _paintPoint(canvas, feature, style, extent);
+    case MvtGeometryType.unknown:
+      break;
   }
+}
 
-  canvas.restore();
-
-  if (zoom >= style.labelMinZoom && style.labelProperty != null) {
-    _paintLabels(canvas, layer, style, pixelSize);
+/// Resolves the style for [feature].
+///
+/// The reserve archive packs every kind of feature into a single MVT layer,
+/// so the layer name alone cannot distinguish boundaries, roads, waterholes,
+/// acacia stands and contours; the `kind` tag is what actually tells them
+/// apart. A style registered under the feature's `kind` wins, otherwise the
+/// style registered for the whole MVT layer applies. Index contours are tagged
+/// `kind=contours, index=true` and use the finer `contours_index` style.
+VectorLayerStyle? _styleFor(
+  Map<String, VectorLayerStyle> styles,
+  MvtLayer layer,
+  MvtFeature feature,
+) {
+  final kind = _propertyValue(feature, layer, 'kind');
+  if (kind != null) {
+    final key =
+        kind == 'contours' && _propertyValue(feature, layer, 'index') == 'true'
+        ? 'contours_index'
+        : kind;
+    final style = styles[key];
+    if (style != null) return style;
   }
+  return styles[layer.name];
 }
 
 /// Logical-pixel width expressed in extent units for a 256px tile.
@@ -187,8 +219,8 @@ void _paintPoint(
   }
 }
 
-/// The value of [style.labelProperty] for [feature], if present.
-String? _labelFor(MvtFeature feature, MvtLayer layer, String property) {
+/// The string value of [property] for [feature], or null when it is absent.
+String? _propertyValue(MvtFeature feature, MvtLayer layer, String property) {
   final tags = feature.tags;
   for (var i = 0; i + 1 < tags.length; i += 2) {
     final keyIdx = tags[i];
@@ -230,39 +262,37 @@ ui.Offset _labelAnchor(MvtFeature feature) {
   return primary.first;
 }
 
-void _paintLabels(
+void _paintFeatureLabel(
   Canvas canvas,
   MvtLayer layer,
+  MvtFeature feature,
   VectorLayerStyle style,
   double pixelSize,
 ) {
-  final property = style.labelProperty!;
   final baseStyle = style.labelStyle;
   if (baseStyle == null) return;
 
+  final text = _propertyValue(feature, layer, style.labelProperty!);
+  if (text == null || text.isEmpty) return;
+
   final textScale = pixelSize / 256;
 
-  for (final feature in layer.features) {
-    final text = _labelFor(feature, layer, property);
-    if (text == null || text.isEmpty) continue;
-
-    final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: baseStyle.copyWith(
-          fontSize: (baseStyle.fontSize ?? 10) * textScale,
-          shadows: [
-            const Shadow(color: Color(0x99FFFFFF), blurRadius: 3),
-            const Shadow(color: Color(0x66FFFFFF), blurRadius: 1),
-          ],
-        ),
+  final painter = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: baseStyle.copyWith(
+        fontSize: (baseStyle.fontSize ?? 10) * textScale,
+        shadows: [
+          const Shadow(color: Color(0x99FFFFFF), blurRadius: 3),
+          const Shadow(color: Color(0x66FFFFFF), blurRadius: 1),
+        ],
       ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
 
-    final anchor = _labelAnchor(feature);
-    final x = anchor.dx * (pixelSize / layer.extent) - painter.width / 2;
-    final y = anchor.dy * (pixelSize / layer.extent) - painter.height / 2;
-    painter.paint(canvas, ui.Offset(x, y));
-  }
+  final anchor = _labelAnchor(feature);
+  final x = anchor.dx * (pixelSize / layer.extent) - painter.width / 2;
+  final y = anchor.dy * (pixelSize / layer.extent) - painter.height / 2;
+  painter.paint(canvas, ui.Offset(x, y));
 }

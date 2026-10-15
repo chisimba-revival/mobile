@@ -2229,7 +2229,7 @@ class _Attribution extends StatelessWidget {
 /// Every glyph is drawn from the same token the map itself paints with, so
 /// the legend cannot drift from the ground it explains.
 /// Top-left map layers panel with toggle switches and icons.
-class _MapLayersPanel extends StatelessWidget {
+class _MapLayersPanel extends StatefulWidget {
   const _MapLayersPanel({
     required this.colours,
     required this.hiddenLayers,
@@ -2241,12 +2241,33 @@ class _MapLayersPanel extends StatelessWidget {
   final void Function(String layerName, bool visible) onToggleLayer;
 
   @override
+  State<_MapLayersPanel> createState() => _MapLayersPanelState();
+}
+
+class _MapLayersPanelState extends State<_MapLayersPanel> {
+  /// Whether the layer list is showing. The header always stays visible so a
+  /// collapsed panel can be reopened without hunting for its toggle.
+  bool _expanded = true;
+
+  /// Distance from the top of the map to the panel, matching the app bar and
+  /// its margin so the panel sits just below the chrome.
+  static const double _top = Insets.huge + Insets.xl + Insets.giant;
+
+  @override
   Widget build(BuildContext context) {
+    final colours = widget.colours;
+    final hiddenLayers = widget.hiddenLayers;
+    final onToggleLayer = widget.onToggleLayer;
+
+    // Cap the panel to the space between the chrome and the bottom of the
+    // screen; the layer list scrolls inside it instead of overflowing.
+    final maxHeight = MediaQuery.of(context).size.height - _top - Insets.giant;
+
     return Positioned(
-      top: Insets.huge + Insets.xl + Insets.giant,
+      top: _top,
       left: Insets.md,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 240),
+        constraints: BoxConstraints(maxWidth: 240, maxHeight: maxHeight),
         padding: const EdgeInsets.all(Insets.md),
         decoration: BoxDecoration(
           color: colours.canopyRaised.withValues(alpha: 0.96),
@@ -2264,243 +2285,273 @@ class _MapLayersPanel extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.layers, size: Faces.cardTitle, color: colours.bone),
-                const SizedBox(width: Insets.sm),
-                Text(
-                  'Map Layers',
-                  style: TextStyle(
-                    fontFamily: Faces.ui.first,
-                    fontSize: Faces.cardTitle,
-                    fontWeight: FontWeight.w600,
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.layers,
+                    size: Faces.cardTitle,
                     color: colours.bone,
                   ),
+                  const SizedBox(width: Insets.sm),
+                  Expanded(
+                    child: Text(
+                      'Map Layers',
+                      style: TextStyle(
+                        fontFamily: Faces.ui.first,
+                        fontSize: Faces.cardTitle,
+                        fontWeight: FontWeight.w600,
+                        color: colours.bone,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: Faces.cardTitle,
+                    color: colours.bone.withValues(alpha: 0.7),
+                  ),
+                ],
+              ),
+            ),
+            if (_expanded) ...[
+              const SizedBox(height: Insets.md),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Reserve Boundary',
+                        icon: Icons.map,
+                        layerName: 'boundary',
+                        isVisible: !hiddenLayers.contains('boundary'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Management Blocks',
+                        icon: Icons.grid_on,
+                        layerName: 'management_blocks',
+                        isVisible: !hiddenLayers.contains('management_blocks'),
+                        onChanged: onToggleLayer,
+                      ),
+                      const Divider(height: Insets.lg, thickness: 0.5),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Main Roads (Gravel/Tar)',
+                        icon: Icons.alt_route,
+                        layerName: 'roads_main',
+                        isVisible: !hiddenLayers.contains('roads_main'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Management Roads',
+                        icon: Icons.directions_car,
+                        layerName: 'roads_management',
+                        isVisible: !hiddenLayers.contains('roads_management'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: '4x4 Trails / Tracks',
+                        icon: Icons.terrain,
+                        layerName: 'roads_tracks',
+                        isVisible: !hiddenLayers.contains('roads_tracks'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Footpaths',
+                        icon: Icons.directions_walk,
+                        layerName: 'footpaths',
+                        isVisible: !hiddenLayers.contains('footpaths'),
+                        onChanged: onToggleLayer,
+                      ),
+                      const Divider(height: Insets.lg, thickness: 0.5),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Perennial Rivers',
+                        icon: Icons.water_drop,
+                        layerName: 'rivers_perennial',
+                        isVisible: !hiddenLayers.contains('rivers_perennial'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Seasonal Rivers',
+                        icon: Icons.waves,
+                        layerName: 'rivers_seasonal',
+                        isVisible: !hiddenLayers.contains('rivers_seasonal'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Perennial Waterholes',
+                        icon: Icons.water_drop,
+                        layerName: 'waterholes_permanent',
+                        isVisible: !hiddenLayers.contains(
+                          'waterholes_permanent',
+                        ),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Seasonal Waterholes / Pans',
+                        icon: Icons.water_drop_outlined,
+                        layerName: 'waterholes_seasonal',
+                        isVisible: !hiddenLayers.contains(
+                          'waterholes_seasonal',
+                        ),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Dams / Reservoirs',
+                        icon: Icons.pool,
+                        layerName: 'dams',
+                        isVisible: !hiddenLayers.contains('dams'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Boreholes / Windmills',
+                        icon: Icons.water_drop,
+                        layerName: 'boreholes',
+                        isVisible: !hiddenLayers.contains('boreholes'),
+                        onChanged: onToggleLayer,
+                      ),
+                      const Divider(height: Insets.lg, thickness: 0.5),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Dense Woodland / Thicket',
+                        icon: Icons.forest,
+                        layerName: 'veg_dense_woodland',
+                        isVisible: !hiddenLayers.contains('veg_dense_woodland'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Open Woodland / Savanna',
+                        icon: Icons.park,
+                        layerName: 'veg_open_woodland',
+                        isVisible: !hiddenLayers.contains('veg_open_woodland'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Acacia Stands',
+                        icon: Icons.forest,
+                        layerName: 'acacia',
+                        isVisible: !hiddenLayers.contains('acacia'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Riverine Forest',
+                        icon: Icons.park,
+                        layerName: 'veg_riverine',
+                        isVisible: !hiddenLayers.contains('veg_riverine'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Grassland / Open Plains',
+                        icon: Icons.grass,
+                        layerName: 'veg_grassland',
+                        isVisible: !hiddenLayers.contains('veg_grassland'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Wetlands / Vleis',
+                        icon: Icons.water,
+                        layerName: 'veg_wetlands',
+                        isVisible: !hiddenLayers.contains('veg_wetlands'),
+                        onChanged: onToggleLayer,
+                      ),
+                      const Divider(height: Insets.lg, thickness: 0.5),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Index Contours (50m)',
+                        icon: Icons.show_chart,
+                        layerName: 'contours_index',
+                        isVisible: !hiddenLayers.contains('contours_index'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Intermediate Contours (10m)',
+                        icon: Icons.terrain,
+                        layerName: 'contours',
+                        isVisible: !hiddenLayers.contains('contours'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Spot Heights / Peaks',
+                        icon: Icons.landscape,
+                        layerName: 'spot_heights',
+                        isVisible: !hiddenLayers.contains('spot_heights'),
+                        onChanged: onToggleLayer,
+                      ),
+                      const Divider(height: Insets.lg, thickness: 0.5),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Gates (Tourist / Management)',
+                        icon: Icons.door_front_door,
+                        layerName: 'gates',
+                        isVisible: !hiddenLayers.contains('gates'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Rest Camps / Lodges',
+                        icon: Icons.hotel,
+                        layerName: 'camps',
+                        isVisible: !hiddenLayers.contains('camps'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Picnic Sites / Viewpoints',
+                        icon: Icons.remove_red_eye,
+                        layerName: 'viewpoints',
+                        isVisible: !hiddenLayers.contains('viewpoints'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Hides',
+                        icon: Icons.visibility,
+                        layerName: 'hides',
+                        isVisible: !hiddenLayers.contains('hides'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Boreholes / Windmills',
+                        icon: Icons.water_drop,
+                        layerName: 'boreholes',
+                        isVisible: !hiddenLayers.contains('boreholes'),
+                        onChanged: onToggleLayer,
+                      ),
+                      _LayerToggleRow(
+                        colours: colours,
+                        label: 'Airstrips',
+                        icon: Icons.flight_takeoff,
+                        layerName: 'airstrips',
+                        isVisible: !hiddenLayers.contains('airstrips'),
+                        onChanged: onToggleLayer,
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: Insets.md),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Reserve Boundary',
-              icon: Icons.map,
-              layerName: 'boundary',
-              isVisible: !hiddenLayers.contains('boundary'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Management Blocks',
-              icon: Icons.grid_on,
-              layerName: 'management_blocks',
-              isVisible: !hiddenLayers.contains('management_blocks'),
-              onChanged: onToggleLayer,
-            ),
-            const Divider(height: Insets.lg, thickness: 0.5),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Main Roads (Gravel/Tar)',
-              icon: Icons.alt_route,
-              layerName: 'roads_main',
-              isVisible: !hiddenLayers.contains('roads_main'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Management Roads',
-              icon: Icons.directions_car,
-              layerName: 'roads_management',
-              isVisible: !hiddenLayers.contains('roads_management'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: '4x4 Trails / Tracks',
-              icon: Icons.terrain,
-              layerName: 'roads_tracks',
-              isVisible: !hiddenLayers.contains('roads_tracks'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Footpaths',
-              icon: Icons.directions_walk,
-              layerName: 'footpaths',
-              isVisible: !hiddenLayers.contains('footpaths'),
-              onChanged: onToggleLayer,
-            ),
-            const Divider(height: Insets.lg, thickness: 0.5),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Perennial Rivers',
-              icon: Icons.water_drop,
-              layerName: 'rivers_perennial',
-              isVisible: !hiddenLayers.contains('rivers_perennial'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Seasonal Rivers',
-              icon: Icons.waves,
-              layerName: 'rivers_seasonal',
-              isVisible: !hiddenLayers.contains('rivers_seasonal'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Perennial Waterholes',
-              icon: Icons.water_drop,
-              layerName: 'waterholes_permanent',
-              isVisible: !hiddenLayers.contains('waterholes_permanent'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Seasonal Waterholes / Pans',
-              icon: Icons.water_drop_outlined,
-              layerName: 'waterholes_seasonal',
-              isVisible: !hiddenLayers.contains('waterholes_seasonal'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Dams / Reservoirs',
-              icon: Icons.pool,
-              layerName: 'dams',
-              isVisible: !hiddenLayers.contains('dams'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Boreholes / Windmills',
-              icon: Icons.water_drop,
-              layerName: 'boreholes',
-              isVisible: !hiddenLayers.contains('boreholes'),
-              onChanged: onToggleLayer,
-            ),
-            const Divider(height: Insets.lg, thickness: 0.5),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Dense Woodland / Thicket',
-              icon: Icons.forest,
-              layerName: 'veg_dense_woodland',
-              isVisible: !hiddenLayers.contains('veg_dense_woodland'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Open Woodland / Savanna',
-              icon: Icons.park,
-              layerName: 'veg_open_woodland',
-              isVisible: !hiddenLayers.contains('veg_open_woodland'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Acacia Stands',
-              icon: Icons.forest,
-              layerName: 'acacia',
-              isVisible: !hiddenLayers.contains('acacia'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Riverine Forest',
-              icon: Icons.park,
-              layerName: 'veg_riverine',
-              isVisible: !hiddenLayers.contains('veg_riverine'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Grassland / Open Plains',
-              icon: Icons.grass,
-              layerName: 'veg_grassland',
-              isVisible: !hiddenLayers.contains('veg_grassland'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Wetlands / Vleis',
-              icon: Icons.water,
-              layerName: 'veg_wetlands',
-              isVisible: !hiddenLayers.contains('veg_wetlands'),
-              onChanged: onToggleLayer,
-            ),
-            const Divider(height: Insets.lg, thickness: 0.5),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Index Contours (50m)',
-              icon: Icons.show_chart,
-              layerName: 'contours_index',
-              isVisible: !hiddenLayers.contains('contours_index'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Intermediate Contours (10m)',
-              icon: Icons.terrain,
-              layerName: 'contours',
-              isVisible: !hiddenLayers.contains('contours'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Spot Heights / Peaks',
-              icon: Icons.landscape,
-              layerName: 'spot_heights',
-              isVisible: !hiddenLayers.contains('spot_heights'),
-              onChanged: onToggleLayer,
-            ),
-            const Divider(height: Insets.lg, thickness: 0.5),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Gates (Tourist / Management)',
-              icon: Icons.door_front_door,
-              layerName: 'gates',
-              isVisible: !hiddenLayers.contains('gates'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Rest Camps / Lodges',
-              icon: Icons.hotel,
-              layerName: 'camps',
-              isVisible: !hiddenLayers.contains('camps'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Picnic Sites / Viewpoints',
-              icon: Icons.remove_red_eye,
-              layerName: 'viewpoints',
-              isVisible: !hiddenLayers.contains('viewpoints'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Hides',
-              icon: Icons.visibility,
-              layerName: 'hides',
-              isVisible: !hiddenLayers.contains('hides'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Boreholes / Windmills',
-              icon: Icons.water_drop,
-              layerName: 'boreholes',
-              isVisible: !hiddenLayers.contains('boreholes'),
-              onChanged: onToggleLayer,
-            ),
-            _LayerToggleRow(
-              colours: colours,
-              label: 'Airstrips',
-              icon: Icons.flight_takeoff,
-              layerName: 'airstrips',
-              isVisible: !hiddenLayers.contains('airstrips'),
-              onChanged: onToggleLayer,
-            ),
+              ),
+            ],
           ],
         ),
       ),
